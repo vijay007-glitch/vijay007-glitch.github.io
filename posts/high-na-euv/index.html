@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Inside a High-NA EUV scanner | Vijay</title>
+<meta name="description" content="How High-NA EUV lithography works, from tin plasma to wafer, with an interactive simulator of the Rayleigh equations, depth of focus, and photon shot noise.">
+<meta name="author" content="Vijay">
+<link rel="canonical" href="https://vijay007-glitch.github.io/posts/high-na-euv/">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Inside a High-NA EUV scanner">
+<meta property="og:description" content="What each step up in numerical aperture buys, and what it costs. Includes an interactive simulator.">
+<meta property="og:url" content="https://vijay007-glitch.github.io/posts/high-na-euv/">
+<meta property="og:image" content="https://vijay007-glitch.github.io/assets/img/na-055.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="site-head">
+<a class="brand" href="../../">Vijay</a>
+<nav aria-label="Site"><a href="../../">All posts</a></nav>
+</header>
+
+<main>
+<article>
+<header>
+<h1>Inside a High-NA EUV scanner</h1>
+<p class="dek">What each step up in numerical aperture buys, what it costs, and a simulator you can use to see it for yourself.</p>
+<p class="meta">September 23, 2026, about 10 minutes to read</p>
+</header>
+
+<div class="prose">
+<p>Every leading-edge chip passes through a machine that fires lasers at tin droplets to make light that barely exists on Earth, bounces it off a series of near-perfect mirrors in vacuum, and prints features a few dozen atoms wide. This post walks through how a High-NA EUV scanner works and why the industry built one, with an interactive model you can use to change the physics and watch the tradeoffs appear.</p>
+
+<h2>Forty years of one equation</h2>
+<p>Optical lithography prints a chip layer by projecting a mask pattern onto a light-sensitive resist. How small it can print is set by the Rayleigh equation:</p>
+<p class="eq-inline">CD = k₁ · λ / NA</p>
+<p>CD is the smallest printable half-pitch, λ is the wavelength of the light, and NA is the numerical aperture of the projection optics, a measure of the widest angle they can collect. The process factor k₁ captures everything else: the shape of the illumination, mask tricks, and resist chemistry. It has a physical floor of 0.25 for dense lines.</p>
+<p>That leaves three ways to print smaller: shorten the wavelength, widen the optics, or push k₁ down. The history of lithography is those levers being pulled in turn. Mercury lamps at 436 and 365 nm gave way to KrF excimer lasers at 248 nm in the 1990s and ArF lasers at 193 nm in the 2000s. When the next wavelength step stalled, immersion lithography put a film of water between the lens and the wafer, pushing NA past 1.0 to 1.35.</p>
+<p>For more than a decade after that, the wavelength stayed at 193 nm and scaling came from multi-patterning, which splits one critical layer into two to four patterning steps. EUV broke the stalemate in 2019 with 13.5 nm light, a 14× jump. But almost nothing transmits EUV, so the lenses had to become mirrors in vacuum, and NA restarted at 0.33. High-NA EUV resumes the climb at 0.55.</p>
+</div>
+
+<p class="caption">λ / NA is the part of the Rayleigh equation set by the scanner. Smaller means finer patterns.</p>
+<div class="scroll">
+<table class="ladder">
+<thead><tr><th scope="col">Generation</th><th scope="col">Wavelength</th><th scope="col">NA</th><th scope="col">λ / NA</th><th scope="col"><span class="sr-only">Relative size</span></th></tr></thead>
+<tbody>
+<tr><td>g-line</td><td class="num">436 nm</td><td class="num">~0.5</td><td class="num">~870 nm</td><td class="barcell"><div class="bar" style="width:100%"></div></td></tr>
+<tr><td>i-line</td><td class="num">365 nm</td><td class="num">~0.65</td><td class="num">~560 nm</td><td class="barcell"><div class="bar" style="width:64%"></div></td></tr>
+<tr><td>KrF</td><td class="num">248 nm</td><td class="num">~0.8</td><td class="num">~310 nm</td><td class="barcell"><div class="bar" style="width:36%"></div></td></tr>
+<tr><td>ArF dry</td><td class="num">193 nm</td><td class="num">0.93</td><td class="num">208 nm</td><td class="barcell"><div class="bar" style="width:24%"></div></td></tr>
+<tr><td>ArF immersion</td><td class="num">193 nm</td><td class="num">1.35</td><td class="num">143 nm</td><td class="barcell"><div class="bar" style="width:16.4%"></div></td></tr>
+<tr class="euv"><td>EUV</td><td class="num">13.5 nm</td><td class="num">0.33</td><td class="num">41 nm</td><td class="barcell"><div class="bar" style="width:4.7%"></div></td></tr>
+<tr class="euv"><td>High-NA EUV</td><td class="num">13.5 nm</td><td class="num">0.55</td><td class="num">25 nm</td><td class="barcell"><div class="bar" style="width:2.9%"></div></td></tr>
+<tr class="euv study"><td>Hyper-NA EUV (under study)</td><td class="num">13.5 nm</td><td class="num">0.75</td><td class="num">18 nm</td><td class="barcell"><div class="bar" style="width:2.1%"></div></td></tr>
+</tbody>
+</table>
+</div>
+<p class="caption">NA values for the older generations are approximate maxima.</p>
+
+<div class="prose">
+<h2>Inside the machine</h2>
+<p>Light makes six stops between the source and the wafer. Select a stage in the diagram, or step through them in order.</p>
+</div>
+
+<div class="diagram" id="diagram" aria-label="Light path through the scanner"></div>
+<ul class="legend" aria-hidden="true">
+<li><span style="background:var(--plasma)"></span>Light generation</li>
+<li><span style="background:var(--euv)"></span>Beam shaping and imaging</li>
+<li><span style="background:var(--steel)"></span>Mechanics and patterning</li>
+</ul>
+<section class="detail" aria-live="polite">
+<p class="step" id="d-step">Stage 1 of 6 in the light path</p>
+<h3 id="d-t">EUV source (laser-produced plasma)</h3>
+<h4>How it works</h4>
+<p id="d-h"></p>
+<h4>Engineering challenge</h4>
+<p id="d-e"></p>
+<ul class="facts" id="d-k"></ul>
+<div class="nav"><button id="prev" type="button">Previous stage</button><button id="next" type="button">Next stage</button></div>
+</section>
+
+<section id="sim" aria-labelledby="sim-h">
+<div class="prose">
+<h2 id="sim-h">Change the physics</h2>
+<p>Resolution comes with a second Rayleigh equation, for depth of focus, and with a photon budget. The simulator ties them together. Pick an NA preset or drag the sliders, and every number updates.</p>
+</div>
+<div class="eq" aria-live="polite">
+<h3>The Rayleigh equations</h3>
+<div class="eq-row"><span class="eq-main">CD = k₁ · λ / NA</span><span class="eq-live" id="eq-cd"></span></div>
+<div class="eq-row"><span class="eq-main">DOF = k₂ · λ / NA²</span><span class="eq-live" id="eq-dof"></span></div>
+<dl class="terms">
+<dt>CD</dt><dd>Critical dimension, the smallest printable half-pitch</dd>
+<dt>k₁</dt><dd>Process factor set by illumination, mask, and resist; the physical floor for dense lines is 0.25</dd>
+<dt>λ</dt><dd>Wavelength of the exposing light, 13.5 nm for EUV</dd>
+<dt>NA</dt><dd>Numerical aperture, n · sin θ, the widest angle the optics can collect (n = 1 in vacuum)</dd>
+<dt>DOF</dt><dd>Depth of focus, how far the wafer can drift from best focus and still print</dd>
+<dt>k₂</dt><dd>Focus factor, taken as 1 in this model</dd>
+</dl>
+</div>
+<div class="sim">
+<div>
+<div class="presets" role="group" aria-label="Numerical aperture presets">
+<button type="button" data-na="0.33">0.33 NA standard</button>
+<button type="button" data-na="0.55">0.55 High-NA</button>
+<button type="button" data-na="0.75">0.75 hyper-NA</button>
+</div>
+<div class="ctl"><div class="top"><label for="na">Numerical aperture</label><output id="na-v" for="na">0.55</output></div><input type="range" id="na" min="0.25" max="0.75" step="0.01" value="0.55"></div>
+<div class="ctl"><div class="top"><label for="k1">Process factor k₁</label><output id="k1-v" for="k1">0.30</output></div><input type="range" id="k1" min="0.25" max="0.5" step="0.01" value="0.3"></div>
+<div class="ctl"><div class="top"><label for="dose">Dose (mJ/cm²)</label><output id="dose-v" for="dose">50</output></div><input type="range" id="dose" min="10" max="120" step="1" value="50"></div>
+<div class="ctl"><div class="top"><label for="R">Reflectivity per mirror</label><output id="R-v" for="R">68%</output></div><input type="range" id="R" min="0.6" max="0.75" step="0.01" value="0.68"></div>
+<div class="ctl"><div class="top"><label for="N">Reflections in the path</label><output id="N-v" for="N">11</output></div><input type="range" id="N" min="6" max="14" step="1" value="11"></div>
+</div>
+<div class="readout" aria-live="polite">
+<div class="r"><span class="k">Half-pitch, k₁λ / NA</span><span class="val" id="o-cd">–</span><span class="note" id="o-cd-n">–</span></div>
+<div class="r"><span class="k">Depth of focus, λ / NA²</span><span class="val" id="o-dof">–</span><span class="note" id="o-dof-n">–</span></div>
+<div class="r"><span class="k">Optical transmission</span><span class="val" id="o-tr">–</span><span class="note">Rᴺ from source to wafer</span></div>
+<div class="r"><span class="k">Photons per pixel</span><span class="val" id="o-ph">–</span><span class="note">Incident on one CD × CD pixel</span></div>
+<div class="r"><span class="k">Dose noise, 1 / √N</span><span class="val" id="o-ns">–</span><span class="note">Pixel-to-pixel variation</span></div>
+</div>
+</div>
+<p class="field" id="o-fld"></p>
+
+<div class="prose">
+<h3>Photon shot noise</h3>
+<p>Each EUV photon carries about 92 eV, roughly 14 times more than a 193 nm photon, so the same dose delivers far fewer of them. Photons arrive randomly, and neighboring pixels of resist receive slightly different doses. In the grid below, each cell is one CD × CD pixel, and cells more than 5% off nominal dose are highlighted.</p>
+</div>
+<canvas id="cv" role="img" aria-label="Grid of resist pixels showing random photon dose variation"></canvas>
+<div class="noise-caption"><span id="o-fl">–</span><button type="button" id="resample">Resample photons</button></div>
+</section>
+
+<div class="prose">
+<h2>Three NA settings, side by side</h2>
+<p>These screenshots from the simulator keep the process fixed, with 13.5 nm light, k₁ = 0.30, and a 50 mJ/cm² dose, and change only the numerical aperture.</p>
+</div>
+
+<figure>
+<img src="../../assets/img/na-033.png" width="895" height="861" loading="lazy" alt="Simulator at 0.33 NA: 12.3 nm half-pitch, 124 nm depth of focus, 5,118 photons per pixel, ±1.4% dose noise, one pixel out of spec.">
+<figcaption>At 0.33 NA, today’s standard EUV, the half-pitch is 12.3 nm with 124 nm of focus. Each pixel receives about 5,100 photons, dose noise is ±1.4%, and nearly every pixel lands on target.</figcaption>
+</figure>
+<figure>
+<img src="../../assets/img/na-055.png" width="940" height="889" loading="lazy" alt="Simulator at 0.55 NA: 7.4 nm half-pitch, 45 nm depth of focus, 1,843 photons per pixel, ±2.3% dose noise, about a dozen pixels out of spec.">
+<figcaption>At 0.55 NA, the half-pitch shrinks 40% to 7.4 nm. Depth of focus falls to 45 nm, each pixel gets about 1,800 photons, and out-of-spec pixels start to appear. The anamorphic optics also halve the exposure field to 26 × 16.5 mm.</figcaption>
+</figure>
+<figure>
+<img src="../../assets/img/na-075.png" width="921" height="882" loading="lazy" alt="Simulator at 0.75 NA: 5.4 nm half-pitch, 24 nm depth of focus, 991 photons per pixel, ±3.2% dose noise, about twenty pixels out of spec.">
+<figcaption>At 0.75 NA, the half-pitch reaches 5.4 nm, but only 24 nm of focus remains and each pixel gets under 1,000 photons. At ±3.2% noise, out-of-spec pixels are everywhere.</figcaption>
+</figure>
+
+<div class="prose">
+<p>Three scaling laws explain the pattern. Resolution improves as 1/NA. Depth of focus shrinks as 1/NA², which forces thinner resists and tighter wafer leveling. And because each pixel’s area is CD², photons per pixel also fall as 1/NA², so shot noise grows in direct proportion to NA.</p>
+<p>Holding noise at the 0.33 NA level would take about 2.8 times the dose at 0.55 NA, and 5.2 times at 0.75 NA. That is why source power and resist sensitivity matter as much as the optics. Optical transmission stays at 1.4% in all three screenshots because the model holds the mirror path constant to isolate the effect of NA.</p>
+
+<h2>Three experiments to try</h2>
+<div class="try"><h3>Resolution costs focus</h3><p>Moving from 0.33 to 0.55 NA shrinks the printable half-pitch by about 40% at the same k₁, but depth of focus shrinks with the square of NA.</p><button type="button" data-try="1">Compare 0.33 and 0.55 NA</button></div>
+<div class="try"><h3>Small features starve for photons</h3><p>A smaller pixel catches fewer photons at the same dose, so random variation grows. Lower the dose to raise throughput and stochastic defects spread quickly.</p><button type="button" data-try="2">Set a low-dose, tight-pitch case</button></div>
+<div class="try"><h3>Mirrors eat the light</h3><p>Every reflection keeps only about two thirds of the light, and the losses multiply. A small drop in coating reflectivity or a couple of extra mirrors can halve the light that reaches the wafer.</p><button type="button" data-try="3">Degrade the mirrors</button></div>
+
+<h2>Where High-NA stands</h2>
+<p>As of September 2026, High-NA is moving from development into production. At SEMICON Taiwan 2026, ASML said fleet availability had reached 84% in July, and it is targeting 90% by the end of the year, the level chipmakers need for volume manufacturing (<a href="https://bits-chips.com/article/asml-expects-high-na-euv-to-reach-production-grade-availability-by-year-end/">Bits&amp;Chips</a>). Intel completed acceptance testing of its production EXE:5200B scanner in December 2025, ahead of planned 14A risk production (<a href="https://bits-chips.com/article/intel-begins-acceptance-testing-of-asmls-exe5200b-high-na-euv-scanner/">Bits&amp;Chips</a>). Hyper-NA at 0.75 remains a study: ASML has not formally committed to it and has pointed to around 2032 as a possible window (<a href="https://www.trendforce.com/news/?p=32988">TrendForce</a>).</p>
+
+<h2>How this model is simplified</h2>
+<ul>
+<li>Photon counts are incident, not absorbed. Real resists absorb only part of the light, so real shot noise is worse than shown.</li>
+<li>Depth of focus uses k₂ = 1.</li>
+<li>The number of reflections is a free parameter, not a specific tool’s spec.</li>
+<li>The ±5% threshold is illustrative, not a real CD uniformity budget.</li>
+<li>The 0.75 NA case assumes the same half field as High-NA, since hyper-NA designs aren’t settled.</li>
+</ul>
+<p>Figures are approximate values from published lithography physics, not vendor specifications. Feedback and corrections are welcome.</p>
+</div>
+</article>
+</main>
+
+<footer class="site-foot">
+<p>Written by Vijay. Built with plain HTML, CSS, and JavaScript.</p>
+<p><a href="../../">Back to all posts</a></p>
+</footer>
+<script src="../../assets/js/euv-simulator.js"></script>
+</body>
+</html>
