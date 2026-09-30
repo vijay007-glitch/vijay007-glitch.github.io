@@ -1,0 +1,2246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Interactive place-and-route simulator: type physical-design TCL commands and watch a Verilog netlist become a routed layout.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="PnR Command Lab">
+<meta property="og:description" content="Type physical-design TCL commands and watch a gate-level Verilog netlist become a placed, clocked and routed layout.">
+<link rel="canonical" href="https://vijay007-glitch.github.io/simulations/pnr-command-lab/">
+<meta property="og:url" content="https://vijay007-glitch.github.io/simulations/pnr-command-lab/">
+<meta property="og:image" content="https://vijay007-glitch.github.io/simulations/pnr-command-lab/thumb.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<style>html,body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>PnR Command Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: instrument-panel split. Layout viewer on the left, TCL console + command reference on the right; stacks on phones. */
+:root{
+  --bg:#E7EBEA; --surface:#F7F8F7; --surface-2:#DCE2E0; --line:#C2CBC8;
+  --fg:#172023; --muted:#56646A; --accent:#9C4C1C; --accent-fg:#FFFFFF; --accent-soft:#F1DDD0;
+  --ok:#2A7A4B; --warn:#8C6200; --err:#B3261E;
+  --term-bg:#12181B; --term-fg:#D5DEDD; --term-dim:#7D8C90; --term-cmd:#F0A46E; --term-ok:#6FCF97; --term-warn:#F2C45A; --term-err:#FF8A80; --term-info:#8CC8FF;
+  --canvas-bg:#0B1013;
+  --r-in:#2F6DB0; --r-setup:#23806F; --r-build:#9C4C1C; --r-measure:#7450B5; --r-out:#66747A; --geom-bg:#F3DFD1; --flash:#FFF1C9;
+  --f-display:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --r:6px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1315; --surface:#161C1F; --surface-2:#1F272B; --line:#2C363B;
+    --fg:#E1E7E6; --muted:#93A1A5; --accent:#E38B55; --accent-fg:#1B0E06; --accent-soft:#3A2519;
+    --ok:#62C18C; --warn:#E6B44E; --err:#F2786D; color-scheme:dark;
+    --r-in:#6FA6E4; --r-setup:#56C0AD; --r-build:#E38B55; --r-measure:#A88AE8; --r-out:#98A5AA; --geom-bg:#3A2519; --flash:#3B3417;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1315; --surface:#161C1F; --surface-2:#1F272B; --line:#2C363B;
+  --fg:#E1E7E6; --muted:#93A1A5; --accent:#E38B55; --accent-fg:#1B0E06; --accent-soft:#3A2519;
+  --ok:#62C18C; --warn:#E6B44E; --err:#F2786D; color-scheme:dark;
+    --r-in:#6FA6E4; --r-setup:#56C0AD; --r-build:#E38B55; --r-measure:#A88AE8; --r-out:#98A5AA; --geom-bg:#3A2519; --flash:#3B3417;
+}
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--fg)}
+body{font-family:var(--f-body);font-size:15px;line-height:1.5;padding-inline:16px;padding-block:14px 28px}
+.wrap{max-width:1480px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code,kbd,.mono{font-family:var(--f-mono);font-size:.86em}
+
+/* Header */
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 20px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand svg{flex:none}
+.brand h1{font-family:var(--f-display);font-weight:700;font-size:1.7rem;letter-spacing:.01em;margin:0;line-height:1.1;text-wrap:balance}
+.brand p{margin:2px 0 0;color:var(--muted);font-size:.93rem;max-width:62ch}
+.top-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.chip{font-family:var(--f-mono);font-size:.74rem;padding:4px 8px;border:1px solid var(--line);border-radius:999px;color:var(--muted);background:var(--surface)}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:7px 14px;border-radius:var(--r);font-weight:600;font-size:.9rem}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn[disabled]{opacity:.55;cursor:default}
+
+/* Flow stepper */
+.stepper{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;overflow-x:auto}
+.stepper li{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);min-width:112px;font-family:var(--f-display);font-weight:600;font-size:.95rem;letter-spacing:.02em;color:var(--muted)}
+.stepper li .n{font-family:var(--f-mono);font-size:.72rem;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line);flex:none}
+.stepper li.done{color:var(--fg)}
+.stepper li.done .n{background:var(--ok);border-color:var(--ok);color:var(--surface)}
+.stepper li.cur{color:var(--fg);border-color:var(--accent);box-shadow:inset 0 -3px 0 var(--accent)}
+.stepper li.cur .n{border-color:var(--accent);color:var(--accent)}
+
+/* Workspace */
+.work{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:12px;align-items:start}
+.viewer,.side{display:flex;flex-direction:column;gap:10px;min-width:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.viewer-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px}
+.legend{display:flex;flex-wrap:wrap;gap:4px}
+.lg{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:transparent;color:var(--fg);border-radius:4px;padding:3px 8px;font-size:.78rem;font-weight:500}
+.lg i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.lg[aria-pressed="false"]{opacity:.45;text-decoration:line-through}
+.zoom{display:flex;gap:4px}
+.zoom button{border:1px solid var(--line);background:transparent;color:var(--fg);border-radius:4px;min-width:30px;height:28px;font-weight:600}
+.canvas-wrap{position:relative;height:clamp(380px,64vh,760px);background:var(--canvas-bg);border-radius:var(--r);overflow:hidden;border:1px solid var(--line);touch-action:none}
+canvas#cv{display:block;width:100%;height:100%;cursor:grab}
+canvas#cv.drag{cursor:grabbing}
+.empty{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100% - 32px));text-align:center;color:#C9D4D6;font-size:.92rem;pointer-events:none}
+.empty h3{font-family:var(--f-display);font-size:1.25rem;margin:0 0 6px;color:#F3F6F6;font-weight:600}
+.empty p{margin:0 0 10px;color:#9BAAAE}
+.empty .cmds{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;pointer-events:auto}
+.empty .cmds button{font-family:var(--f-mono);font-size:.76rem;background:#1B2429;border:1px solid #33424A;color:#F0A46E;border-radius:4px;padding:4px 8px}
+.coord{position:absolute;right:8px;bottom:6px;font-family:var(--f-mono);font-size:.72rem;color:#8FA0A5;background:rgba(11,16,19,.75);padding:2px 6px;border-radius:3px;pointer-events:none;font-variant-numeric:tabular-nums}
+.vtitle{position:absolute;left:8px;top:6px;font-family:var(--f-mono);font-size:.72rem;color:#8FA0A5;pointer-events:none}
+.tip{position:absolute;pointer-events:none;background:#1A2328;color:#E6ECEC;border:1px solid #3A4A52;border-radius:4px;padding:6px 8px;font-family:var(--f-mono);font-size:.72rem;line-height:1.45;max-width:260px;z-index:3}
+
+.metrics{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:0;overflow:hidden}
+.metric{padding:8px 10px;border-right:1px solid var(--line);min-width:0}
+.metric:last-child{border-right:0}
+.metric .k{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.metric .v{font-family:var(--f-mono);font-size:.98rem;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.metric .v.good{color:var(--ok)} .metric .v.bad{color:var(--err)} .metric .v.meh{color:var(--warn)}
+
+.explain{padding:12px 16px}
+.explain .eyebrow{font-size:.7rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:0}
+.explain h2{font-family:var(--f-mono);font-size:1rem;margin:2px 0 6px;color:var(--accent);font-weight:600;overflow-wrap:anywhere}
+.explain .body{max-width:78ch}
+.explain .body p{margin:0 0 8px}
+.explain .body ul{margin:0 0 8px;padding-left:18px}
+.explain .next{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:6px;padding-top:8px;border-top:1px dashed var(--line);font-size:.88rem;color:var(--muted)}
+.explain .next button{font-family:var(--f-mono);font-size:.8rem;background:var(--accent-soft);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:4px 8px;text-align:left;overflow-wrap:anywhere}
+
+/* Console */
+.console{background:var(--term-bg);border-radius:var(--r);border:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+.console-head{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border-bottom:1px solid #243036;color:var(--term-dim);font-family:var(--f-mono);font-size:.72rem}
+.console-head button{background:transparent;border:1px solid #33424A;color:var(--term-dim);border-radius:3px;font-size:.7rem;padding:1px 6px;font-family:var(--f-mono)}
+.log{height:300px;overflow:auto;padding:8px 10px;font-family:var(--f-mono);font-size:.76rem;line-height:1.5;color:var(--term-fg);white-space:pre-wrap;overflow-wrap:anywhere}
+.log .c{color:var(--term-cmd)} .log .c::before{content:attr(data-p);color:var(--term-dim)}
+.log .w{color:var(--term-warn)} .log .e{color:var(--term-err)} .log .o{color:var(--term-ok)} .log .i{color:var(--term-info)} .log .d{color:var(--term-dim)}
+.hint{min-height:22px;padding:3px 10px;font-family:var(--f-mono);font-size:.7rem;color:var(--term-dim);border-top:1px solid #243036;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#cmdForm{display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid #243036}
+#cmdForm label{font-family:var(--f-mono);font-size:.8rem;color:var(--term-ok);white-space:nowrap}
+#cmd{flex:1;min-width:0;background:transparent;border:0;color:#FFFFFF;font-family:var(--f-mono);font-size:.85rem;caret-color:var(--term-cmd)}
+#cmd:focus{outline:none}
+#cmdForm:focus-within{box-shadow:inset 0 0 0 1px #F0A46E55}
+
+/* Reference */
+.ref{display:flex;flex-direction:column;min-height:0}
+.ref-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.ref-head h2{font-family:var(--f-display);font-size:1.1rem;margin:0;font-weight:600}
+.ref-head .count{color:var(--muted);font-size:.8rem;font-weight:500;margin-left:6px;font-family:var(--f-body)}
+#refSearch{flex:1;min-width:140px;max-width:230px;padding:6px 9px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--fg);font:inherit;font-size:.85rem}
+#refList{max-height:520px;overflow:auto;padding:4px 0 8px}
+.grp{padding:8px 12px 2px;font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);display:flex;gap:6px;align-items:center;position:sticky;top:0;background:var(--surface);z-index:1}
+.grp b{font-family:var(--f-mono);font-weight:600;color:var(--accent)}
+.cmdrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 8px;padding:6px 12px;border-top:1px solid transparent;cursor:pointer}
+.cmdrow:hover{background:var(--surface-2)}
+.cmdrow .nm{font-family:var(--f-mono);font-size:.82rem;font-weight:600;color:var(--fg);overflow-wrap:anywhere}
+.cmdrow .ds{grid-column:1/2;font-size:.82rem;color:var(--muted);line-height:1.35}
+.cmdrow .run{grid-row:1/3;grid-column:2;align-self:center;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:4px;font-size:.72rem;padding:3px 8px;font-weight:600}
+.cmdrow .run:hover{border-color:var(--accent);color:var(--accent)}
+.foot{color:var(--muted);font-size:.8rem;text-align:center;margin-top:4px}
+
+
+/* Command categories section */
+.catsec{padding:18px 20px 20px;display:flex;flex-direction:column;gap:16px}
+.cat-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:14px 28px;align-items:flex-end}
+.cat-head .eyebrow{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:0}
+.cat-head h2{font-family:var(--f-display);font-weight:700;font-size:1.55rem;margin:2px 0 6px;text-wrap:balance}
+.cat-head .lede{margin:0;max-width:68ch;color:var(--muted)}
+.cat-stats{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.cat-stats div{display:flex;flex-direction:column;padding:6px 14px;border-right:1px solid var(--line);min-width:84px}
+.cat-stats div:last-child{border-right:0}
+.cat-stats b{font-family:var(--f-mono);font-size:1.2rem;font-variant-numeric:tabular-nums}
+.cat-stats span{font-size:.72rem;color:var(--muted)}
+.catsec h3{font-family:var(--f-display);font-weight:600;font-size:1.15rem;margin:4px 0 0}
+.catsec .sub{margin:2px 0 8px;color:var(--muted);font-size:.88rem;max-width:80ch}
+.life{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:22px}
+.life li{position:relative;display:flex;flex-direction:column;gap:2px;padding:8px 0 0;border-top:3px solid var(--rc);min-width:0}
+.life li::after{content:"→";position:absolute;right:-18px;top:6px;color:var(--muted);font-size:1rem}
+.life li:last-child::after{content:none}
+.life .ln{font-family:var(--f-mono);font-size:.7rem;color:var(--muted)}
+.life b{font-family:var(--f-display);font-weight:600;font-size:1.02rem;color:var(--rc)}
+.life li>span:last-child{font-size:.82rem;color:var(--muted);line-height:1.35}
+.loopnote{margin:0;font-size:.86rem;color:var(--muted);max-width:90ch}
+.loopnote code{color:var(--fg)}
+.r-in{--rc:var(--r-in)} .r-setup{--rc:var(--r-setup)} .r-build{--rc:var(--r-build)} .r-measure{--rc:var(--r-measure)} .r-out{--rc:var(--r-out)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--rc);flex:none}
+.scroll-x{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r)}
+table.matrix,table.char{border-collapse:collapse;width:100%;font-size:.84rem}
+.matrix th,.matrix td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);vertical-align:top;padding:6px}
+.matrix thead th{background:var(--surface-2);font-family:var(--f-display);font-weight:600;font-size:.86rem;letter-spacing:.02em;text-align:left;white-space:nowrap;position:sticky;top:0}
+.matrix td{min-width:128px}
+.matrix td.emp{color:var(--line);text-align:center;vertical-align:middle}
+.matrix .mh{width:250px;min-width:230px;text-align:left}
+.cathead{all:unset;cursor:pointer;display:grid;grid-template-columns:auto minmax(0,1fr);gap:1px 8px;align-items:center;width:100%}
+.cathead:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.cathead .cn{font-weight:600;font-size:.9rem}
+.cathead .cn em{font-style:normal;font-family:var(--f-mono);font-size:.74rem;color:var(--muted);margin-left:4px}
+.cathead code{grid-column:2;font-size:.72rem;color:var(--rc);overflow-wrap:anywhere}
+.cathead .cw{grid-column:2;font-size:.78rem;color:var(--muted);line-height:1.3;font-weight:400}
+.cathead:hover .cn{text-decoration:underline}
+.mchip{display:block;width:100%;text-align:left;margin:0 0 3px;font-family:var(--f-mono);font-size:.72rem;padding:3px 6px;border:1px solid var(--line);border-left:3px solid var(--rc);background:var(--bg);color:var(--fg);border-radius:3px;overflow-wrap:anywhere}
+.mchip:hover{border-color:var(--rc);background:var(--surface-2)}
+.char-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.char-tools select,.char-tools input{padding:6px 8px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--fg);font:inherit;font-size:.85rem;min-width:0}
+.char-tools input{flex:1;min-width:160px;max-width:260px}
+.char-tools .cnt{margin-left:auto;color:var(--muted);font-size:.82rem;font-variant-numeric:tabular-nums}
+.char-tools .linkbtn{background:none;border:0;color:var(--accent);font:inherit;font-size:.85rem;text-decoration:underline;padding:4px}
+.char thead th{background:var(--surface-2);text-align:left;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;padding:8px;white-space:nowrap;position:sticky;top:0;z-index:1}
+.char td,.char tbody th{padding:7px 8px;border-top:1px solid var(--line);vertical-align:top;text-align:left;font-weight:400}
+.char tbody th{min-width:170px}
+.char td:nth-child(5),.char td:nth-child(6),.char td:nth-child(7){min-width:150px}
+.char tbody tr:hover{background:var(--surface-2)}
+.char tr.flash{background:var(--flash)}
+.cmdn{font-weight:600;font-size:.84rem}
+.al{display:block;font-family:var(--f-mono);font-size:.68rem;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+.catl{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.eff{display:inline-block;font-size:.74rem;padding:2px 7px;border-radius:999px;border:1px solid var(--line);white-space:nowrap;color:var(--muted)}
+.eff.e-geom{background:var(--geom-bg);border-color:var(--accent);color:var(--fg);font-weight:600}
+.eff.e-read{border-style:dashed}
+.ctr{text-align:center}
+.yes{font-weight:600;color:var(--ok)} .no{color:var(--muted)}
+.cost{display:inline-flex;align-items:center;gap:2px;white-space:nowrap}
+.cost i{display:inline-block;width:6px;height:12px;border-radius:1px;background:var(--line)}
+.cost i.on{background:var(--fg)}
+.cost span{margin-left:6px;font-size:.76rem;color:var(--muted)}
+.try{border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:4px;font-size:.74rem;padding:3px 9px;font-weight:600}
+.try:hover{border-color:var(--accent);color:var(--accent)}
+.none{color:var(--muted);padding:16px!important}
+.char-wrap{max-height:640px}
+@media (max-width:1100px){
+  .work{grid-template-columns:minmax(0,1fr)}
+  .viewer,.side{display:contents}
+  .viewer-bar{order:1} .canvas-wrap{order:2} .console{order:3} .metrics{order:4} .explain{order:5} .ref{order:6}
+  .metrics{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .metric:nth-child(4){border-right:0}
+  .metric:nth-child(-n+4){border-bottom:1px solid var(--line)}
+  #refList{max-height:420px}
+}
+@media (max-width:560px){
+  body{font-size:14px}
+  .brand h1{font-size:1.4rem}
+  .canvas-wrap{height:380px}
+  .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .metric{border-right:0;border-bottom:1px solid var(--line)}
+  .metric:nth-child(odd){border-right:1px solid var(--line)}
+  .log{height:240px}
+  .catsec{padding:14px}
+  .life{grid-template-columns:minmax(0,1fr);gap:10px}
+  .life li::after{content:none}
+  .cat-stats div{min-width:0;flex:1 1 30%}
+  .stepper{grid-template-columns:repeat(7,112px)}
+}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><rect x="7" y="7" width="26" height="26" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="12" y="12" width="9" height="7" fill="#C06A34"/><rect x="23" y="12" width="5" height="16" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 24h9M12 27h9" stroke="currentColor" stroke-width="1.5"/><path d="M3 13h4M3 20h4M3 27h4M33 13h4M33 20h4M33 27h4M13 3v4M20 3v4M27 3v4M13 33v4M20 33v4M27 33v4" stroke="currentColor" stroke-width="1.5"/></svg>
+      <div>
+        <h1>PnR Command Lab</h1>
+        <p>Type physical-design TCL commands and watch a gate-level Verilog netlist become a routed layout, from floorplan to GDS.</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span class="chip">design: mini_soc.v</span>
+      <span class="chip">generic 45 nm · M1–M9</span>
+      <a class="btn" href="#categories" style="text-decoration:none">Command categories</a>
+      <button class="btn primary" id="btnFlow" type="button">Run full flow</button>
+      <button class="btn" id="btnReset" type="button">Reset design</button>
+    </div>
+  </header>
+
+  <ol class="stepper" id="stepper" aria-label="Flow progress"></ol>
+
+  <main class="work">
+    <section class="viewer" aria-label="Layout viewer">
+      <div class="panel viewer-bar">
+        <div class="legend" id="legend"></div>
+        <div class="zoom"><button type="button" id="zIn" aria-label="Zoom in">+</button><button type="button" id="zOut" aria-label="Zoom out">−</button><button type="button" id="zFit">Fit</button></div>
+      </div>
+      <div class="canvas-wrap" id="cwrap">
+        <canvas id="cv" aria-label="Layout view of the design"></canvas>
+        <div class="vtitle" id="vtitle">layout view · µm</div>
+        <div class="empty" id="emptyHint">
+          <h3>Empty floorplan</h3>
+          <p>No design is loaded. Start by reading the technology, libraries and netlist, or press Run full flow to watch every step.</p>
+          <div class="cmds" id="emptyCmds"></div>
+        </div>
+        <div class="coord" id="coord">x — · y —</div>
+        <div class="tip" id="tip" hidden></div>
+      </div>
+      <div class="panel metrics" id="metrics"></div>
+      <article class="panel explain" id="explain" aria-live="polite"></article>
+    </section>
+
+    <section class="side">
+      <div class="console">
+        <div class="console-head"><span>innovus-style shell · Tab completes · ↑↓ history</span><button type="button" id="btnClear">clear</button></div>
+        <div class="log" id="log" role="log" aria-live="polite"></div>
+        <div class="hint" id="hint"></div>
+        <form id="cmdForm" autocomplete="off"><label for="cmd" id="prompt">innovus 1&gt;</label><input id="cmd" type="text" spellcheck="false" autocapitalize="off" placeholder="type a command, e.g. read_lef tech.lef"></form>
+      </div>
+      <div class="panel ref">
+        <div class="ref-head"><h2>Command reference<span class="count" id="refCount"></span></h2><input id="refSearch" type="search" placeholder="Filter commands" aria-label="Filter commands"></div>
+        <div id="refList"></div>
+      </div>
+    </section>
+  </main>
+
+  <section class="panel catsec" id="categories" aria-labelledby="catTitle">
+    <div class="cat-head">
+      <div>
+        <p class="eyebrow">Reference</p>
+        <h2 id="catTitle">Core TCL command categories</h2>
+        <p class="lede">Every command in the lab falls into one of ten categories. The category tells you what a command does to the design database: load it, configure it, change the layout, measure it, or write it out.</p>
+      </div>
+      <div class="cat-stats" id="catStats"></div>
+    </div>
+
+    <div>
+      <h3>How the categories fit together</h3>
+      <p class="sub">A place-and-route session moves through five roles. Only the third one changes what you see in the layout view.</p>
+      <ol class="life" id="life"></ol>
+    </div>
+    <p class="loopnote">Roles 3 and 4 form a loop: a report or check points at a problem, a construction command or an engine fixes it, and you measure again. Shell commands work at any point. Legacy Innovus names are camelCase (<code>floorPlan</code>, <code>addRing</code>, <code>placeDesign</code>). The newer Innovus Stylus interface, ICC2 and OpenROAD use snake_case verb_object names (<code>create_floorplan</code>, <code>initialize_floorplan</code>). The lab accepts the aliases listed under each command.</p>
+
+    <div>
+      <h3>Category × flow stage</h3>
+      <p class="sub">Where each command is used in the flow. Click a category to filter the table below, or a command to jump to its row.</p>
+      <div class="scroll-x"><table class="matrix" id="matrix"></table></div>
+    </div>
+
+    <div id="charWrap">
+      <h3>Characterization</h3>
+      <p class="sub">What each command changes, what it needs first, what it throws away when re-run, whether it reads the SDC clock, and how heavy it is on a full-size chip. <b>Try</b> puts the example into the console above.</p>
+      <div class="char-tools">
+        <label class="sr" for="fCat" hidden>Category</label><select id="fCat" aria-label="Filter by category"></select>
+        <select id="fEff" aria-label="Filter by database effect"></select>
+        <select id="fStg" aria-label="Filter by flow stage"></select>
+        <input id="fQ" type="search" placeholder="Search name, alias or effect" aria-label="Search commands">
+        <button type="button" class="linkbtn" id="fReset">Clear filters</button>
+        <span class="cnt" id="charCount"></span>
+      </div>
+    </div>
+    <div class="scroll-x char-wrap">
+      <table class="char">
+        <thead><tr><th scope="col">Command</th><th scope="col">Category</th><th scope="col">Stage</th><th scope="col">Database effect</th><th scope="col">Visible change</th><th scope="col">Needs first</th><th scope="col">Clears on re-run</th><th scope="col">Uses SDC</th><th scope="col">Full-chip runtime</th><th scope="col"><span hidden>Action</span></th></tr></thead>
+        <tbody id="charBody"></tbody>
+      </table>
+    </div>
+  </section>
+  <p class="foot">Commands follow Cadence Innovus naming, with common ICC2/OpenROAD aliases. The netlist, library and timing numbers are a teaching model computed from the layout, not signoff results.</p>
+</div>
+<script>
+"use strict";
+/* =====================================================================
+   ENGINE: netlist model, floorplan geometry, placement, CTS, routing,
+   and the timing/congestion models. No DOM access in this part.
+   ===================================================================== */
+const RH = 2.0;          // standard-cell row height (um)
+const SITE = 0.2;        // placement site width (um)
+const LIB = {
+  INVX1:0.8, BUFX2:1.2, NAND2X1:1.0, NOR2X1:1.0, AOI21X1:1.4, OAI22X1:1.8, XOR2X1:2.0, MUX2X1:2.2, DFFRX1:4.0,
+  CLKBUFX4:1.6, CLKBUFX8:2.4, DLYX1:1.2, BUFX4:1.6, TIEHI:0.6, TIELO:0.6, ENDCAP:0.4, TAPCELL:0.6,
+  FILL8:1.6, FILL4:0.8, FILL2:0.4, FILL1:0.2
+};
+const COMB = ["INVX1","NAND2X1","NOR2X1","AOI21X1","OAI22X1","XOR2X1","MUX2X1","BUFX2","NAND2X1","INVX1","NOR2X1","AOI21X1"];
+const MODS = [
+  {n:"u_alu",c:120,ff:.10},{n:"u_regfile",c:110,ff:.55},{n:"u_ctrl",c:80,ff:.20},
+  {n:"u_memif",c:80,ff:.25},{n:"u_io",c:32,ff:.50}
+];
+const MACRO_DEF = [
+  {name:"SRAM_0",ref:"sram_256x32",w:40,h:30,npins:20},
+  {name:"SRAM_1",ref:"sram_256x32",w:40,h:30,npins:20},
+  {name:"ROM_0", ref:"rom_512x16", w:30,h:24,npins:12}
+];
+const H_LAYERS = ["M3","M5","M7"], V_LAYERS = ["M2","M4","M6"];
+const LAYER_DIR = {M1:"H",M2:"V",M3:"H",M4:"V",M5:"H",M6:"V",M7:"H",M8:"V",M9:"H"};
+
+function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const r2 = v => Math.round(v*1000)/1000;
+const snap = v => Math.round(v/SITE)*SITE;
+const snapUp = v => Math.ceil(v/SITE-1e-6)*SITE;
+const snapDn = v => Math.floor(v/SITE+1e-6)*SITE;
+const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
+const fmt = (v,d=2) => (v==null||!isFinite(v))?"—":v.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
+
+let S = null;   // the whole design database
+
+function freshState(){
+  return {
+    lef:false, lib:false, netlist:false, sdc:false, init:false,
+    clockPeriod:1.0, uncertainty:0.05,
+    cells:[], nets:[], baseNets:null, pins:[], macros:[],
+    core:null, die:null, rows:[], margins:null, util:null,
+    halo:null, pblk:[], rblk:[],
+    pg:{gnc:{VDD:false,VSS:false}, ring:null, stripes:[], rails:false},
+    placeMode:{timingDriven:true, congEffort:"auto"},
+    routeMode:{top:7, timingDriven:true},
+    cts:{spec:false, targetSkew:0.05, maxFanout:8, buffers:["CLKBUFX4","CLKBUFX8"]},
+    placed:false, legal:false, gpFrames:null,
+    clockTree:null, skew:null,
+    routes:null, routed:false, drcs:[],
+    overlay:null, overlayData:null,
+    timing:null, crit:null, extracted:false,
+    written:new Set(), optRuns:0, optDone:{preCTS:false,postCTS:false,postRoute:false}
+  };
+}
+
+/* ---------------- netlist ---------------- */
+function buildNetlist(){
+  const R = rng(20260930);
+  const cells=[], nets=[], mods={};
+  for(const m of MODS){
+    mods[m.n]=[];
+    for(let k=0;k<m.c;k++){
+      const ff = R()<m.ff;
+      const type = ff ? "DFFRX1" : COMB[Math.floor(R()*COMB.length)];
+      const c = {name:`${m.n}/${ff?"q_reg":"U"}${k}`, type, w:LIB[type], mod:m.n, ff, kind:"std", x:0,y:0, placed:false};
+      cells.push(c); mods[m.n].push(c);
+    }
+  }
+  const pins=[];
+  const addPin=(name,dir)=>{pins.push({name,dir,side:null,x:0,y:0,placed:false,layer:null});return pins.length-1;};
+  const clkP=addPin("clk","in"), rstP=addPin("rst_n","in");
+  const din=[],dout=[];
+  for(let b=0;b<16;b++) din.push(addPin(`din[${b}]`,"in"));
+  for(let b=0;b<16;b++) dout.push(addPin(`dout[${b}]`,"out"));
+  const macros = MACRO_DEF.map(m=>({...m,x:0,y:0,orient:"R0",placed:false,fixed:false}));
+  let nid=0;
+  const C = c=>({t:"c",c}), P=i=>({t:"p",i}), M=(i,k)=>({t:"m",i,k});
+  const net=(pins)=>nets.push({name:`n${nid++}`,pins,depth:0.62+0.38*R()});
+  const pick=a=>a[Math.floor(R()*a.length)];
+  for(const m of MODS){
+    const ids=mods[m.n];
+    ids.forEach((c,k)=>{
+      const sinks=[]; const ns=1+Math.floor(R()*3);
+      for(let s=0;s<ns;s++){
+        const t = R()<0.07 ? pick(mods[pick(MODS).n]) : ids[(k+1+Math.floor(R()*12))%ids.length];
+        if(t!==c && !sinks.includes(t)) sinks.push(t);
+      }
+      if(sinks.length) net([C(c),...sinks.map(C)]);
+    });
+  }
+  const io=mods.u_io;
+  for(let b=0;b<16;b++){ net([P(din[b]),C(io[b])]); net([C(io[16+b]),P(dout[b])]); }
+  for(let b=0;b<16;b++){ net([C(io[b]),C(pick(mods.u_alu))]); net([C(pick(mods.u_regfile)),C(io[16+b])]); }
+  for(let k=0;k<20;k++){ net([C(mods.u_memif[k]),M(0,k)]); net([M(1,k),C(mods.u_memif[40+k])]); }
+  for(let k=0;k<12;k++) net([M(2,k),C(mods.u_ctrl[k*5])]);
+  for(let k=0;k<30;k++) net([C(pick(mods.u_regfile)),C(pick(mods.u_alu))]);
+  for(let k=0;k<16;k++) net([C(pick(mods.u_memif)),C(pick(mods.u_regfile))]);
+  for(let k=0;k<10;k++) net([C(pick(mods.u_ctrl)),C(pick(mods.u_alu))]);
+  net([P(rstP),...mods.u_ctrl.slice(0,6).map(C)]);
+  nets.push({name:"clk",pins:[P(clkP),...cells.filter(c=>c.ff).map(C)],clock:true,depth:0});
+  return {cells,nets,pins,macros};
+}
+const cloneNets = ns => ns.map(n=>({...n,pins:n.pins.slice(),child:null,isChild:false,buffered:false}));
+
+/* ---------------- geometry helpers ---------------- */
+const cellsOf = kind => S.cells.filter(c=>c.kind===kind);
+const stdCells = () => S.cells.filter(c=>c.kind==="std");
+const stdArea = () => stdCells().reduce((a,c)=>a+c.w*RH,0);
+const macroArea = () => S.macros.reduce((a,m)=>a+m.w*m.h,0);
+function orientPinSide(o){return (o==="MY"||o==="R180")?"L":"R";}
+function macroPinPos(m,k){
+  const f=(k+0.5)/m.npins, flipY=(m.orient==="MX"||m.orient==="R180");
+  return [orientPinSide(m.orient)==="R"?m.x+m.w:m.x, m.y+(flipY?1-f:f)*m.h];
+}
+function refPos(r){
+  if(r.t==="c") return r.c.placed?[r.c.x+r.c.w/2,r.c.y+RH/2]:null;
+  if(r.t==="p"){const p=S.pins[r.i];return p.placed?[p.x,p.y]:null;}
+  const m=S.macros[r.i]; return m.placed?macroPinPos(m,r.k):null;
+}
+function netBox(n){
+  let x1=1e9,y1=1e9,x2=-1e9,y2=-1e9,k=0;
+  for(const r of n.pins){const p=refPos(r);if(!p)continue;k++;
+    if(p[0]<x1)x1=p[0]; if(p[0]>x2)x2=p[0]; if(p[1]<y1)y1=p[1]; if(p[1]>y2)y2=p[1];}
+  return k>=2?{x1,y1,x2,y2,k}:null;
+}
+const hpwl = n => {const b=netBox(n);return b?(b.x2-b.x1)+(b.y2-b.y1):0;};
+const signalNets = () => S.nets.filter(n=>!n.clock);
+const totalHPWL = () => signalNets().reduce((a,n)=>a+hpwl(n),0);
+const rectsOverlap=(a,b)=>a.x1<b.x2-1e-6&&a.x2>b.x1+1e-6&&a.y1<b.y2-1e-6&&a.y2>b.y1+1e-6;
+function macroRect(m,withHalo){
+  const h=(withHalo&&S.halo)?S.halo:{l:0,b:0,r:0,t:0};
+  return {x1:m.x-h.l,y1:m.y-h.b,x2:m.x+m.w+h.r,y2:m.y+m.h+h.t};
+}
+
+function makeFloorplan(coreW,coreH,l,b,r,t){
+  coreW=snap(coreW); coreH=Math.max(RH*4,Math.round(coreH/RH)*RH);
+  S.margins={l,b,r,t};
+  S.core={x1:l,y1:b,x2:r2(l+coreW),y2:r2(b+coreH)};
+  S.die={x1:0,y1:0,x2:r2(l+coreW+r),y2:r2(b+coreH+t)};
+  S.rows=[];
+  for(let i=0;b+(i+1)*RH<=b+coreH+1e-6;i++) S.rows.push({i,y:r2(b+i*RH),flip:i%2===1});
+  S.util=(stdArea()+macroArea())/(coreW*coreH);
+}
+
+/* rectangles standard cells may not overlap */
+function blockedRects(allowSoft){
+  const out=[];
+  for(const m of S.macros) if(m.placed) out.push(macroRect(m,true));
+  for(const b of S.pblk) if(b.type==="hard"||(b.type==="soft"&&!allowSoft)) out.push(b);
+  return out;
+}
+function rowFreeSegments(row,occ,allowSoft){
+  let segs=[[S.core.x1,S.core.x2]];
+  const cut=(a,b)=>{const o=[];for(const [s,e] of segs){if(b<=s+1e-9||a>=e-1e-9){o.push([s,e]);continue;}if(a>s)o.push([s,a]);if(b<e)o.push([b,e]);}segs=o;};
+  for(const r of blockedRects(allowSoft)) if(r.y1<row.y+RH-1e-6&&r.y2>row.y+1e-6) cut(r.x1,r.x2);
+  if(occ) for(const [a,b] of occ) cut(a,b);
+  return segs.map(([s,e])=>[r2(snapUp(s)),r2(snapDn(e))]).filter(([s,e])=>e-s>=SITE-1e-9);
+}
+const rowIdx = y => Math.round((y-S.core.y1)/RH);
+function rowOcc(filter){
+  const map=new Map();
+  for(const c of S.cells) if(c.placed&&(!filter||filter(c))){
+    const k=rowIdx(c.y); if(!map.has(k))map.set(k,[]); map.get(k).push([c.x,c.x+c.w]);
+  }
+  return map;
+}
+/* nearest legal gap for one cell (used for buffers, tie cells, CTS cells) */
+function findSpot(x,y,w,occ){
+  const ri=clamp(Math.round((y-RH/2-S.core.y1)/RH),0,S.rows.length-1); let best=null;
+  for(let d=0;d<S.rows.length;d++){
+    if(best&&d*RH>best.cost)break;
+    for(const s of d?[ri-d,ri+d]:[ri]){
+      const row=S.rows[s]; if(!row)continue; const dy=Math.abs(row.y+RH/2-y);
+      for(const [a,b] of rowFreeSegments(row,occ.get(s),true)){
+        if(b-a<w-1e-9)continue;
+        const xx=r2(clamp(snap(x-w/2),a,b-w)); const cost=Math.abs(xx+w/2-x)+dy;
+        if(!best||cost<best.cost)best={x:xx,y:row.y,cost,ri:s};
+      }
+    }
+  }
+  if(best){if(!occ.has(best.ri))occ.set(best.ri,[]);occ.get(best.ri).push([best.x,best.x+w]);}
+  return best;
+}
+function addCell(type,name,spot,kind,extra){
+  const c={name,type,w:LIB[type],mod:"",ff:false,kind,x:spot?spot.x:0,y:spot?spot.y:0,placed:!!spot,...(extra||{})};
+  if(spot&&S.rows[rowIdx(c.y)]) c.orient=S.rows[rowIdx(c.y)].flip?"MX":"R0";
+  S.cells.push(c); return c;
+}
+const removeKinds = kinds => { S.cells=S.cells.filter(c=>!kinds.includes(c.kind)); };
+
+/* ---------------- pins ---------------- */
+function layoutPins(){
+  const sides={Left:[],Right:[],Top:[],Bottom:[]};
+  S.pins.forEach(p=>{if(p.side)sides[p.side].push(p);});
+  const D=S.die;
+  for(const side in sides){
+    const list=sides[side]; if(!list.length)continue;
+    const vert=(side==="Left"||side==="Right"); const L=vert?D.y2-D.y1:D.x2-D.x1;
+    list.forEach((p,k)=>{
+      let t;
+      if(p.spread==="center"){const sp=p.spacing||2; t=L/2+(k-(list.length-1)/2)*sp;}
+      else t=L*(k+1)/(list.length+1);
+      t=clamp(t,1,L-1);
+      if(side==="Left"){p.x=D.x1;p.y=D.y2-t;} else if(side==="Right"){p.x=D.x2;p.y=D.y2-t;}
+      else if(side==="Top"){p.x=D.x1+t;p.y=D.y2;} else {p.x=D.x1+t;p.y=D.y1;}
+      p.placed=true;
+    });
+  }
+}
+
+/* ---------------- placement ---------------- */
+function freeCDF(axis){
+  const segsByRow=S.rows.map(r=>rowFreeSegments(r,null,false));
+  const N=240, lo=axis==="x"?S.core.x1:S.core.y1, hi=axis==="x"?S.core.x2:S.core.y2, d=(hi-lo)/N;
+  const w=new Float64Array(N);
+  if(axis==="x"){ segsByRow.forEach(sg=>{for(const [a,b] of sg){for(let i=Math.floor((a-lo)/d);i<N&&lo+i*d<b;i++){if(i<0)continue;const s=Math.max(a,lo+i*d),e=Math.min(b,lo+(i+1)*d);if(e>s)w[i]+=e-s;}}}); }
+  else { segsByRow.forEach((sg,ri)=>{const len=sg.reduce((a,[s,e])=>a+e-s,0);const y=S.rows[ri].y+RH/2;const i=clamp(Math.floor((y-lo)/d),0,N-1);w[i]+=len;}); }
+  const cum=new Float64Array(N+1); for(let i=0;i<N;i++)cum[i+1]=cum[i]+w[i];
+  const tot=cum[N]||1;
+  return q=>{const t=q*tot;let a=0,b=N;while(b-a>1){const m=(a+b)>>1;if(cum[m]<=t)a=m;else b=m;}
+    const f=w[a]>0?(t-cum[a])/w[a]:0.5; return lo+(a+f)*d;};
+}
+function freeArea(r,blk){let a=(r.x2-r.x1)*(r.y2-r.y1);for(const b of blk){const ox=Math.min(r.x2,b.x2)-Math.max(r.x1,b.x1),oy=Math.min(r.y2,b.y2)-Math.max(r.y1,b.y1);if(ox>0&&oy>0)a-=ox*oy;}return Math.max(0,a);}
+/* recursive bisection: split cells between two halves in proportion to free area, keeping their relative order */
+function spreadTargets(X,Y,Wd){
+  const n=X.length, TX=new Float64Array(n), TY=new Float64Array(n), blk=blockedRects(false);
+  const rec=(reg,ids,depth)=>{
+    if(!ids.length)return; const w=reg.x2-reg.x1,h=reg.y2-reg.y1;
+    if(ids.length<=3||depth>=12){
+      const a=ids.slice().sort((p,q)=>X[p]-X[q]); a.forEach((k,i)=>TX[k]=reg.x1+(i+.5)/a.length*w);
+      const b=ids.slice().sort((p,q)=>Y[p]-Y[q]); b.forEach((k,i)=>TY[k]=reg.y1+(i+.5)/b.length*h); return;}
+    const vert=w>=h; let A,B;
+    if(vert){const m=reg.x1+w/2;A={...reg,x2:m};B={...reg,x1:m};} else {const m=reg.y1+h/2;A={...reg,y2:m};B={...reg,y1:m};}
+    const ca=freeArea(A,blk), cb=freeArea(B,blk), fr=(ca+cb)>0?ca/(ca+cb):.5;
+    const s=ids.slice().sort(vert?(p,q)=>X[p]-X[q]:(p,q)=>Y[p]-Y[q]);
+    const tot=s.reduce((q,k)=>q+Wd[k],0); let acc=0,cut=0;
+    while(cut<s.length&&acc+Wd[s[cut]]/2<tot*fr){acc+=Wd[s[cut]];cut++;}
+    rec(A,s.slice(0,cut),depth+1); rec(B,s.slice(cut),depth+1);
+  };
+  rec({...S.core},[...Array(n).keys()],0); return {TX,TY};
+}
+function globalPlace(movers){
+  const R=rng(99+S.optRuns); const n=movers.length; const idx=new Map(movers.map((c,k)=>[c,k]));
+  const X=new Float64Array(n),Y=new Float64Array(n);
+  const cx=(S.core.x1+S.core.x2)/2, cy=(S.core.y1+S.core.y2)/2;
+  for(let k=0;k<n;k++){X[k]=cx+(R()-.5)*4;Y[k]=cy+(R()-.5)*4;}
+  const nets=signalNets(); const inc=movers.map(()=>[]);
+  nets.forEach((net,ni)=>{for(const r of net.pins) if(r.t==="c"&&idx.has(r.c)) inc[idx.get(r.c)].push(ni);});
+  const weight=nets.map(nt=>S.placeMode.timingDriven?(0.6+nt.depth):1);
+  const Wd=movers.map(c=>c.w);
+  const pos=r=>(r.t==="c"&&idx.has(r.c))?[X[idx.get(r.c)],Y[idx.get(r.c)]]:refPos(r);
+  const frames=[];
+  for(let it=0;it<44;it++){
+    const cen=nets.map(net=>{let sx=0,sy=0,k=0;for(const r of net.pins){const p=pos(r);if(p){sx+=p[0];sy+=p[1];k++;}}return k?[sx/k,sy/k]:null;});
+    const NX=new Float64Array(n),NY=new Float64Array(n);
+    for(let k=0;k<n;k++){let sx=0,sy=0,ws=0;for(const ni of inc[k]){const c=cen[ni];if(!c)continue;sx+=c[0]*weight[ni];sy+=c[1]*weight[ni];ws+=weight[ni];}
+      NX[k]=ws?sx/ws:X[k]; NY[k]=ws?sy/ws:Y[k];}
+    const a=Math.min(0.9,0.1+it*0.022);
+    const {TX,TY}=spreadTargets(NX,NY,Wd);
+    for(let k=0;k<n;k++){X[k]=NX[k]*(1-a)+TX[k]*a;Y[k]=NY[k]*(1-a)+TY[k]*a;}
+    if(it%6===5||it===43) frames.push(movers.map((c,k)=>[X[k]-c.w/2,Y[k]-RH/2]));
+  }
+  movers.forEach((c,k)=>{c.gx=X[k];c.gy=Y[k];});
+  return frames;
+}
+function legalize(movers){
+  const set=new Set(movers);
+  const occ=rowOcc(c=>!set.has(c));
+  const segs=S.rows.map((row,i)=>rowFreeSegments(row,occ.get(i),false).map(([a,b])=>({a,b,cur:a})));
+  const partial=S.pblk.filter(b=>b.type==="partial");
+  const order=[...movers].sort((p,q)=>(p.gx-p.w/2)-(q.gx-q.w/2));
+  let fail=0, disp=0;
+  for(const c of order){
+    const x=c.gx-c.w/2, y=c.gy-RH/2; let best=null;
+    const ri=clamp(Math.round((y-S.core.y1)/RH),0,S.rows.length-1);
+    for(let d=0;d<S.rows.length;d++){
+      if(best&&d*RH>best.cost)break;
+      for(const s of d?[ri-d,ri+d]:[ri]){
+        const sg=segs[s]; if(!sg)continue; const ry=S.rows[s].y, dy=Math.abs(ry-y);
+        for(const g of sg){
+          if(g.b-g.cur<c.w-1e-9)continue;
+          const xx=Math.min(Math.max(snap(x),g.cur),g.b-c.w); let cost=Math.abs(xx-x)+dy;
+          for(const pb of partial) if(xx<pb.x2&&xx+c.w>pb.x1&&ry<pb.y2&&ry+RH>pb.y1) cost+=2+8*(1-(pb.density??50)/100);
+          if(!best||cost<best.cost)best={xx,s,g,cost};
+        }
+      }
+    }
+    if(!best){c.placed=false;fail++;continue;}
+    c.x=r2(best.xx); c.y=S.rows[best.s].y; c.placed=true; c.orient=S.rows[best.s].flip?"MX":"R0";
+    best.g.cur=best.xx+c.w; disp+=best.cost;
+  }
+  return {fail,disp:disp/Math.max(1,movers.length-fail)};
+}
+function overlapCount(){
+  let n=0; const rows=new Map();
+  for(const c of S.cells) if(c.placed&&c.kind!=="filler"){const k=rowIdx(c.y);if(!rows.has(k))rows.set(k,[]);rows.get(k).push(c);}
+  for(const [,l] of rows){l.sort((a,b)=>a.x-b.x);for(let i=1;i<l.length;i++) if(l[i].x<l[i-1].x+l[i-1].w-1e-6)n++;}
+  for(const c of S.cells) if(c.placed&&c.kind==="std") for(const r of blockedRects(false)) if(rectsOverlap({x1:c.x,y1:c.y,x2:c.x+c.w,y2:c.y+RH},r)){n++;break;}
+  return n;
+}
+
+/* ---------------- density & congestion maps ---------------- */
+function binGrid(N){
+  const C=S.core, bw=(C.x2-C.x1)/N, bh=(C.y2-C.y1)/N; return {N,bw,bh,C};
+}
+function densityMap(){
+  const G=binGrid(12), {N,bw,bh,C}=G; const area=new Float64Array(N*N), free=new Float64Array(N*N).fill(bw*bh);
+  const addRect=(arr,x1,y1,x2,y2,sign)=>{
+    for(let i=Math.max(0,Math.floor((x1-C.x1)/bw));i<N&&C.x1+i*bw<x2;i++)for(let j=Math.max(0,Math.floor((y1-C.y1)/bh));j<N&&C.y1+j*bh<y2;j++){
+      const ox=Math.min(x2,C.x1+(i+1)*bw)-Math.max(x1,C.x1+i*bw), oy=Math.min(y2,C.y1+(j+1)*bh)-Math.max(y1,C.y1+j*bh);
+      if(ox>0&&oy>0)arr[j*N+i]+=sign*ox*oy;}
+  };
+  for(const m of S.macros) if(m.placed) addRect(free,m.x,m.y,m.x+m.w,m.y+m.h,-1);
+  for(const c of S.cells) if(c.placed&&c.kind!=="filler") addRect(area,c.x,c.y,c.x+c.w,c.y+RH,1);
+  const val=new Float64Array(N*N); let mx=0;
+  for(let k=0;k<N*N;k++){val[k]=free[k]>bw*bh*0.08?area[k]/free[k]:-1; if(val[k]>mx)mx=val[k];}
+  return {...G,val,max:mx,kind:"density"};
+}
+const CONG_CAP = 6.2;  // routing supply, um of wire per um^2 (teaching calibration)
+function congestionMap(){
+  const G=binGrid(14), {N,bw,bh,C}=G; const dem=new Float64Array(N*N);
+  for(const n of signalNets()){
+    const b=netBox(n); if(!b)continue;
+    const w=Math.max(b.x2-b.x1,1.5), h=Math.max(b.y2-b.y1,1.5), d=(w+h)/(w*h);
+    const x1=(b.x1+b.x2)/2-w/2, x2=x1+w, y1=(b.y1+b.y2)/2-h/2, y2=y1+h;
+    for(let i=Math.max(0,Math.floor((x1-C.x1)/bw));i<N&&C.x1+i*bw<x2;i++)for(let j=Math.max(0,Math.floor((y1-C.y1)/bh));j<N&&C.y1+j*bh<y2;j++){
+      const ox=Math.min(x2,C.x1+(i+1)*bw)-Math.max(x1,C.x1+i*bw), oy=Math.min(y2,C.y1+(j+1)*bh)-Math.max(y1,C.y1+j*bh);
+      if(ox>0&&oy>0)dem[j*N+i]+=d*ox*oy;}
+  }
+  const cap=CONG_CAP*(S.routeMode.top/7);
+  const val=new Float64Array(N*N); let mx=0, over=0;
+  for(let k=0;k<N*N;k++){val[k]=dem[k]/(bw*bh)/cap; if(val[k]>mx)mx=val[k]; if(val[k]>1)over++;}
+  return {...G,val,max:mx,over,kind:"congestion"};
+}
+
+/* ---------------- clock tree synthesis ---------------- */
+const CTS_WIRE=0.85, CTS_BUF=18;   // ps per um, ps per buffer stage
+const mdist=(a,b)=>Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1]);
+function buildClockTree(){
+  const sinks=S.cells.filter(c=>c.ff&&c.placed);
+  const occ=rowOcc(); const bufs=[], edges=[], leaves=[];
+  const clkPin=S.pins.find(p=>p.name==="clk");
+  const src=clkPin.placed?[clkPin.x,clkPin.y]:[S.core.x1,S.core.y2];
+  const bigBuf=S.cts.buffers.includes("CLKBUFX8")?"CLKBUFX8":S.cts.buffers[0]||"CLKBUFX4";
+  const center=l=>{let x=0,y=0;for(const f of l){x+=f.x+f.w/2;y+=f.y+RH/2;}return [x/l.length,y/l.length];};
+  const mf=S.cts.maxFanout, D=Math.max(1,Math.ceil(Math.log(Math.max(1.01,sinks.length/mf))/Math.log(4)));
+  function mk(type,level,x,y,parentPt,extra){
+    const sp=findSpot(x,y,LIB[type],occ); const b=addCell(type,`ccopt_L${level}_${bufs.length}`,sp,"clkbuf",{level,...(extra||{})});
+    bufs.push(b); const pt=[b.x+b.w/2,b.y+RH/2]; edges.push({a:parentPt,b:pt,level}); return {buf:b,pt,level,kids:[],sinks:[],extra:0};
+  }
+  function node(reg,list,level,parentPt){
+    if(level===D){
+      const g=Math.ceil(list.length/mf), srt=list.slice().sort((a,b)=>a.x-b.x), per=Math.ceil(list.length/g), res=[];
+      for(let k=0;k<g;k++){const grp=srt.slice(k*per,(k+1)*per); if(!grp.length)continue; const c=center(grp);
+        const nd=mk("CLKBUFX4",level,c[0],c[1],parentPt); nd.sinks=grp; leaves.push(nd);
+        for(const f of grp) edges.push({a:nd.pt,b:[f.x+f.w/2,f.y+RH/2],level:level+1,leaf:true}); res.push(nd);}
+      return res;
+    }
+    const mid=[(reg.x1+reg.x2)/2,(reg.y1+reg.y2)/2];
+    const nd=mk(level<2?bigBuf:"CLKBUFX4",level,mid[0],mid[1],parentPt);
+    const q=[[reg.x1,reg.y1,mid[0],mid[1]],[mid[0],reg.y1,reg.x2,mid[1]],[reg.x1,mid[1],mid[0],reg.y2],[mid[0],mid[1],reg.x2,reg.y2]];
+    for(const [x1,y1,x2,y2] of q){
+      const sub=list.filter(f=>{const cx=f.x+f.w/2,cy=f.y+RH/2;return cx>=x1&&cx<x2&&cy>=y1&&cy<y2;});
+      if(sub.length) nd.kids.push(...[].concat(node({x1,y1,x2,y2},sub,level+1,nd.pt)));
+    }
+    return nd;
+  }
+  const root=node({...S.core,x2:S.core.x2+1e-3,y2:S.core.y2+1e-3},sinks,0,src);
+  const assign=()=>{
+    const walk=(nd,t)=>{nd.t=t+nd.extra*CTS_BUF;
+      for(const k of nd.kids)walk(k,nd.t+mdist(nd.pt,k.pt)*CTS_WIRE+CTS_BUF);
+      for(const f of nd.sinks)f.lat=nd.t+mdist(nd.pt,[f.x+f.w/2,f.y+RH/2])*CTS_WIRE+CTS_BUF;};
+    walk(root,mdist(src,root.pt)*CTS_WIRE+CTS_BUF);
+    let mn=1e9,mx=-1e9;for(const f of sinks){mn=Math.min(mn,f.lat);mx=Math.max(mx,f.lat);}return {mn,mx};
+  };
+  let {mn,mx}=assign(); const rawSkew=mx-mn;
+  // skew balancing: slow down early leaves with delay cells
+  let dly=0; const tgt=S.cts.targetSkew*1000;
+  for(const lf of leaves){
+    const lmax=Math.max(...lf.sinks.map(f=>f.lat));
+    const k=Math.floor((mx-lmax-tgt*0.25)/CTS_BUF);
+    if(k>0){lf.extra=k;for(let i=0;i<k;i++){const sp=findSpot(lf.pt[0]+1.4*(i+1),lf.pt[1],LIB.DLYX1,occ);const d=addCell("DLYX1",`ccopt_dly_${dly++}`,sp,"clkbuf",{level:lf.level,dly:true});bufs.push(d);}}
+  }
+  ({mn,mx}=assign());
+  const levels=Math.max(...bufs.map(b=>b.level))+1;
+  return {root,edges,bufs,leaves,src,rawSkew,skew:mx-mn,minLat:mn,maxLat:mx,dly,levels,sinks:sinks.length,
+    wire:edges.reduce((a,e)=>a+mdist(e.a,e.b),0)};
+}
+
+/* ---------------- routing ---------------- */
+function segHitsBlk(x1,y1,x2,y2,layer){
+  const a={x1:Math.min(x1,x2)-.01,x2:Math.max(x1,x2)+.01,y1:Math.min(y1,y2)-.01,y2:Math.max(y1,y2)+.01};
+  return S.rblk.some(b=>b.layer===layer&&rectsOverlap(a,b));
+}
+function routeNet(net,ni){
+  const pts=net.pins.map(refPos).filter(Boolean); if(pts.length<2) return null;
+  const segs=[], bends=[]; const inT=[pts[0]], rest=pts.slice(1); let len=0;
+  const maxTier = S.routeMode.top>=7?2:S.routeMode.top>=5?1:0;
+  while(rest.length){
+    let bi=0,bj=0,bd=1e9;
+    for(let i=0;i<inT.length;i++)for(let j=0;j<rest.length;j++){const d=mdist(inT[i],rest[j]);if(d<bd){bd=d;bi=i;bj=j;}}
+    const p=inT[bi], q=rest.splice(bj,1)[0]; inT.push(q); len+=bd;
+    let tier=Math.min(maxTier,bd<14?0:bd<40?1:2);
+    const hFirst=(ni%2===0); const mid=hFirst?[q[0],p[1]]:[p[0],q[1]];
+    const pieces=hFirst?[[p,mid,"H"],[mid,q,"V"]]:[[p,mid,"V"],[mid,q,"H"]];
+    for(const [a,b,dir] of pieces){
+      if(Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])<1e-6)continue;
+      let t=tier, L=(dir==="H"?H_LAYERS:V_LAYERS)[t];
+      while(segHitsBlk(a[0],a[1],b[0],b[1],L)&&t<2){t++;L=(dir==="H"?H_LAYERS:V_LAYERS)[t];}
+      segs.push({x1:a[0],y1:a[1],x2:b[0],y2:b[1],L});
+    }
+    if(Math.abs(mid[0]-p[0])+Math.abs(mid[1]-p[1])>1e-6&&Math.abs(mid[0]-q[0])+Math.abs(mid[1]-q[1])>1e-6) bends.push(mid);
+  }
+  return {segs,bends,len,ni};
+}
+function routeAll(){
+  const nets=[]; let wl=0, vias=0; const byLayer={};
+  S.nets.forEach((n,ni)=>{
+    if(n.clock&&S.clockTree)return; const r=routeNet(n,ni); if(!r)return; nets.push(r); wl+=r.len; n.routedLen=r.len;
+    vias+=r.bends.length+n.pins.length*2;
+    for(const s of r.segs) byLayer[s.L]=(byLayer[s.L]||0)+Math.abs(s.x2-s.x1)+Math.abs(s.y2-s.y1);
+  });
+  return {nets,wl,vias,byLayer};
+}
+function makeDRCs(){
+  const cm=congestionMap(); const R=rng(4242+Math.round(S.util*1000));
+  const hot=[]; for(let k=0;k<cm.val.length;k++) if(cm.val[k]>0.72) hot.push(k);
+  hot.sort((a,b)=>cm.val[b]-cm.val[a]);
+  const n=clamp(Math.round(2+cm.over*1.5+(S.util>0.8?4:0)),2,14);
+  const types=["Metal Short (M3)","Min Spacing (M2)","Cut Spacing (V23)","Min Area (M3)","Metal Short (M4)","End-of-Line Spacing (M2)"];
+  const bends=[]; for(const r of S.routes.nets) for(const b of r.bends) bends.push(b);
+  const out=[];
+  for(let i=0;i<n&&hot.length;i++){
+    const k=hot[i%hot.length]; const bx=cm.C.x1+(k%cm.N)*cm.bw, by=cm.C.y1+Math.floor(k/cm.N)*cm.bh;
+    const cand=bends.filter(p=>p[0]>=bx&&p[0]<bx+cm.bw&&p[1]>=by&&p[1]<by+cm.bh);
+    const p=cand.length?cand[Math.floor(R()*cand.length)]:[bx+R()*cm.bw,by+R()*cm.bh];
+    out.push({x:p[0],y:p[1],type:types[Math.floor(R()*types.length)]});
+  }
+  return out;
+}
+
+/* ---------------- timing model ----------------
+   path delay = logic depth x cell delay + Elmore-style wire delay (a*L + b*L^2)
+   + optional buffer stage + clock skew (post-CTS) + setup + uncertainty          */
+const WA=0.0012, WB=0.000042, BUFD=0.032, SETUP=0.04;
+const wireDelay=L=>WA*L+WB*L*L;
+function reach(n){const d=refPos(n.pins[0]);if(!d)return hpwl(n);let m=0;for(const r of n.pins.slice(1)){const q=refPos(r);if(q)m=Math.max(m,mdist(d,q));}return m;}
+function netLen(n,mode){const L=reach(n);if(mode==="postRoute"&&n.routedLen!=null){const h=hpwl(n)||1;return L*clamp(n.routedLen/h,1,1.3);}return L;}
+function pathCells(n){
+  const out=[]; const d=n.pins[0]; if(d.t==="c"&&d.c.kind==="std")out.push(d.c);
+  const tail=n.child!=null?S.nets[n.child].pins.slice(1):n.pins.slice(1);
+  const s=tail.find(r=>r.t==="c"&&r.c.kind==="std"); if(s)out.push(s.c); return out;
+}
+function pathOf(n){
+  const drv=n.pins[0]; const sinks=n.child!=null?S.nets[n.child].pins.slice(1):n.pins.slice(1);
+  const nm=r=>r.t==="c"?r.c.name:r.t==="p"?S.pins[r.i].name:`${S.macros[r.i].name}/D[${r.k}]`;
+  return {from:nm(drv),to:sinks.length?nm(sinks[0]):"-"};
+}
+function timingAnalysis(mode){
+  const T=S.clockPeriod, unc=S.uncertainty;
+  const skewPen=(mode!=="preCTS"&&S.clockTree)?S.clockTree.skew/1000*0.55:0;
+  const res=[];
+  S.nets.forEach(n=>{
+    if(n.clock||n.isChild)return; if(!netBox(n))return;
+    const lvl=pathCells(n).reduce((a,c)=>a+(c.resized||0),0);
+    const logic=0.78*n.depth*Math.max(0.72,1-0.09*lvl);
+    let d=logic+wireDelay(netLen(n,mode));
+    if(n.child!=null){const ch=S.nets[n.child]; d+=BUFD+wireDelay(netLen(ch,mode));}
+    d+=SETUP+unc+skewPen+(mode==="postRoute"?0.012:0);
+    res.push({n,slack:T-d,delay:d,logic,len:netLen(n,mode)+(n.child!=null?netLen(S.nets[n.child],mode):0)});
+  });
+  res.sort((a,b)=>a.slack-b.slack);
+  const wns=res.length?res[0].slack:null; let tns=0,vio=0;
+  for(const r of res) if(r.slack<0){tns+=r.slack;vio++;}
+  return {mode,wns,tns,vio,paths:res,total:res.length};
+}
+function optimize(mode){
+  const ta=timingAnalysis(mode); const bad=ta.paths.filter(p=>p.slack<0.02);
+  let buffered=0, upsized=0; const occ=rowOcc();
+  for(const p of bad){
+    const n=p.n;
+    if(mode!=="postRoute"&&n.child==null&&p.len>26&&buffered<14){
+      const drvP=refPos(n.pins[0]); let far=null,fd=-1;
+      for(const r of n.pins.slice(1)){const q=refPos(r);if(q&&mdist(drvP,q)>fd){fd=mdist(drvP,q);far=q;}}
+      if(!far||!drvP)continue;
+      const tx=(drvP[0]+far[0])/2, ty=(drvP[1]+far[1])/2;
+      const sp=findSpot(tx,ty,LIB.BUFX4,occ); if(!sp)continue;
+      const buf=addCell("BUFX4",`opt_buf_${S.cells.filter(c=>c.kind==="buf").length}`,sp,"buf");
+      const bref={t:"c",c:buf};
+      const child={name:n.name+"_buf",pins:[bref,...n.pins.slice(1)],depth:0,isChild:true};
+      S.nets.push(child); n.pins=[n.pins[0],bref]; n.child=S.nets.length-1; n.buffered=true; buffered++;
+    } else {
+      const c=pathCells(n).find(c=>(c.resized||0)<2);
+      if(c){c.resized=(c.resized||0)+1; c.type=c.type.replace(/X[124]$/,c.resized===1?"X2":"X4"); upsized++;}
+    }
+  }
+  return {buffered,upsized,before:ta};
+}
+
+/* ---------------- floorplan-stage special cells ---------------- */
+function insertEndcaps(){
+  let n=0;
+  S.rows.forEach(row=>{
+    for(const [a,b] of rowFreeSegments(row,null,true)){
+      if(b-a<LIB.ENDCAP*2+SITE)continue;
+      addCell("ENDCAP",`ENDCAP_${n++}`,{x:a,y:row.y},"endcap");
+      addCell("ENDCAP",`ENDCAP_${n++}`,{x:r2(b-LIB.ENDCAP),y:row.y},"endcap");
+    }
+  });
+  return n;
+}
+function insertWellTaps(interval){
+  let n=0; const occ=rowOcc();
+  S.rows.forEach((row,ri)=>{
+    const segs=rowFreeSegments(row,occ.get(ri),true);
+    const off=(ri%2)*interval/2;
+    for(let x=S.core.x1+interval/4+off; x<S.core.x2; x+=interval){
+      const g=segs.find(([a,b])=>x>=a&&x+LIB.TAPCELL<=b); if(!g)continue;
+      addCell("TAPCELL",`WELLTAP_${n++}`,{x:r2(snap(x)),y:row.y},"tap");
+    }
+  });
+  return n;
+}
+function insertFillers(prefix){
+  const occ=rowOcc(); let n=0, area=0; const kinds=["FILL8","FILL4","FILL2","FILL1"];
+  S.rows.forEach((row,ri)=>{
+    for(const [a,b] of rowFreeSegments(row,occ.get(ri),true)){
+      let x=a;
+      for(const k of kinds){ while(x+LIB[k]<=b+1e-6){addCell(k,`${prefix}_${n++}`,{x:r2(x),y:row.y},"filler");x=r2(x+LIB[k]);area+=LIB[k]*RH;} }
+    }
+  });
+  return {n,area};
+}
+
+/* ---------------- invalidation when an earlier step is re-run ---------------- */
+const LV={FP:1,PLACE:3,CTS:4,ROUTE:5};
+function clearFrom(level){
+  if(level<=LV.ROUTE){S.routes=null;S.routed=false;S.drcs=[];S.written.clear();S.extracted=false;S.nets.forEach(n=>n.routedLen=null);S.optDone.postRoute=false;}
+  if(level<=LV.CTS){removeKinds(["clkbuf","filler"]);S.clockTree=null;S.optDone.postCTS=false;}
+  if(level<=LV.PLACE){
+    removeKinds(["buf","tie"]); S.nets=cloneNets(S.baseNets);
+    for(const c of S.cells) if(c.kind==="std"){c.placed=false;if(c.resized){c.resized=0;c.type=c.type.replace(/X[24]$/,"X1");}}
+    S.placed=false;S.legal=false;S.gpFrames=null;S.timing=null;S.crit=null;S.optRuns=0;S.optDone.preCTS=false;
+    if(S.overlay){S.overlay=null;S.overlayData=null;}
+  }
+  if(level<=LV.FP){
+    removeKinds(["endcap","tap"]); S.macros.forEach(m=>{m.placed=false;m.fixed=false;m.orient="R0";});
+    S.pins.forEach(p=>{p.placed=false;p.side=null;}); S.halo=null;S.pblk=[];S.rblk=[];
+    S.pg={gnc:S.pg.gnc,ring:null,stripes:[],rails:false};
+  }
+}
+
+/* =====================================================================
+   COMMANDS part A: TCL front end, design import, floorplan, power
+   ===================================================================== */
+class CmdError extends Error{}
+const E = m => { throw new CmdError(m); };
+const need = (c,m) => { if(!c) E(m); };
+const needInit = () => need(S.init,"Design is not initialized. Run read_lef, read_lib, read_verilog and init_design first.");
+const needFP = () => { needInit(); need(S.core,"No floorplan exists. Run floorPlan first."); };
+const needPlaced = () => { needFP(); need(S.legal,"Standard cells are not placed. Run placeDesign first."); };
+const num = (v,name) => { const x=parseFloat(v); if(!isFinite(x)) E(`Option ${name} needs a number, got '${v??""}'.`); return x; };
+const ul = a => "<ul>"+a.map(x=>`<li>${x}</li>`).join("")+"</ul>";
+const esc = s => String(s).replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
+const c2 = v => `<code>${esc(v)}</code>`;
+
+const CMDS=[], CMAP=new Map();
+function def(o){CMDS.push(o);CMAP.set(o.name,o);(o.aliases||[]).forEach(a=>CMAP.set(a,o));}
+const GROUPS=["Design import","Floorplan","Power plan","Placement","Clock tree","Routing","Signoff & output","Shell"];
+
+function tokenize(line){
+  const t=[]; let i=0;
+  while(i<line.length){
+    const ch=line[i];
+    if(/\s/.test(ch)){i++;continue;}
+    if(ch==="{"||ch==="["){const open=ch,close=ch==="{"?"}":"]";let d=1,j=i+1;while(j<line.length&&d){if(line[j]===open)d++;else if(line[j]===close)d--;j++;}
+      t.push(ch==="{"?line.slice(i+1,j-1):line.slice(i,j)); i=j; continue;}
+    if(ch==='"'){let j=i+1;while(j<line.length&&line[j]!=='"')j++;t.push(line.slice(i+1,j));i=j+1;continue;}
+    let j=i;while(j<line.length&&!/\s/.test(line[j]))j++;t.push(line.slice(i,j));i=j;
+  }
+  return t;
+}
+function splitStatements(src){
+  const out=[]; let cur="", d=0;
+  for(const ch of src){
+    if(ch==="{"||ch==="[")d++; else if(ch==="}"||ch==="]")d=Math.max(0,d-1);
+    if((ch===";"||ch==="\n")&&d===0){out.push(cur);cur="";} else cur+=ch;
+  }
+  out.push(cur); return out.map(s=>s.trim()).filter(s=>s&&!s.startsWith("#"));
+}
+function opts(toks){
+  const o={},pos=[];
+  for(let i=0;i<toks.length;i++){
+    const t=toks[i];
+    if(/^-[A-Za-z_]/.test(t)){const k=t.slice(1),nx=toks[i+1];
+      if(nx!==undefined&&!/^-[A-Za-z_]/.test(nx)){o[k]=nx;i++;} else o[k]=true;}
+    else pos.push(t);
+  }
+  return {o,pos};
+}
+const VARS={};
+function subst(s){return s.replace(/\$\{?([A-Za-z_]\w*)\}?/g,(m,v)=>v in VARS?VARS[v]:m);}
+const globRe = p => new RegExp("^"+p.split("*").map(x=>x.replace(/[.+?^${}()|[\]\\]/g,"\\$&")).join(".*")+"$");
+function macroByName(n){const m=S.macros.find(m=>m.name===n); need(m,`Instance '${n}' is not a block macro. Block macros: ${S.macros.map(m=>m.name).join(", ")}.`); return m;}
+
+/* ---------- Design import ---------- */
+def({name:"read_lef",aliases:["read_physical","read_lef_files"],group:"Design import",
+  syn:"read_lef <tech.lef> <cells.lef> ...", ex:"read_lef tech.lef stdcells.lef macros.lef",
+  desc:"Loads the technology LEF (layers, vias, site) and cell LEF abstracts (size, pins, blockages).",
+  run(a){
+    const files=a.pos.length?a.pos:["tech.lef","stdcells.lef","macros.lef"];
+    files.forEach(f=>out(`Reading LEF file '${f}' ...`,"d"));
+    out("  9 routing layers M1–M9 (odd = horizontal, even = vertical), 8 cut layers V12–V89");
+    out("  SITE core : 0.200 x 2.000 um, symmetry Y");
+    out(`  ${Object.keys(LIB).length} cell abstracts + 2 block abstracts (sram_256x32 40x30 um, rom_512x16 30x24 um)`);
+    S.lef=true; ok("LEF loading complete.");
+    explain("read_lef",`<p>LEF (Library Exchange Format) is the physical view. The technology part defines each metal layer's preferred direction, pitch and width, the via cuts between them, and the placement <b>site</b>: every standard cell is a whole number of 0.2 µm sites wide and exactly one 2.0 µm row tall.</p><p>The cell part holds abstracts: outline, pin shapes and obstructions only. The tool never sees transistors, which is why placement and routing can handle millions of instances.</p><p>Nothing is drawn yet: the tool has shapes but no design.</p>`);
+  }});
+def({name:"read_lib",aliases:["read_liberty","read_mmmc"],group:"Design import",
+  syn:"read_lib <file.lib> ...", ex:"read_lib slow.lib fast.lib",
+  desc:"Loads Liberty timing/power libraries used by timing-driven placement, CTS and optimization.",
+  run(a){
+    const files=a.pos.length?a.pos:["slow.lib"];
+    files.forEach(f=>out(`Reading timing library '${f}' ${/fast/.test(f)?"(ff 1.10V -40C)":"(ss 0.90V 125C)"} ...`,"d"));
+    out(`  ${Object.keys(LIB).length-6} logic cells with NLDM delay tables, setup/hold arcs and leakage`);
+    S.lib=true; ok("Library loading complete.");
+    explain("read_lib",`<p>Liberty files hold the electrical view: lookup tables that turn an input slew and an output load into a cell delay, plus setup/hold constraints for flip-flops and power numbers.</p><p>The slow corner (ss, 0.90 V, 125 °C) is the one setup timing is checked against. The fast corner is used for hold.</p>`);
+  }});
+def({name:"read_verilog",aliases:["read_netlist"],group:"Design import",
+  syn:"read_verilog <netlist.v>", ex:"read_verilog mini_soc.v",
+  desc:"Reads the synthesized gate-level netlist: instances, nets and top-level ports.",
+  run(a){
+    need(S.lef,"No cell abstracts loaded. Run read_lef first so every netlist cell has a physical view.");
+    const f=a.pos[0]||"mini_soc.v";
+    if(S.netlist){warn("Netlist already loaded; reloading clears the design."); resetDesign(true);S.lef=true;S.lib=true;}
+    const nl=buildNetlist(); S.cells=nl.cells;S.nets=nl.nets;S.pins=nl.pins;S.macros=nl.macros; S.netlist=true;
+    const ff=S.cells.filter(c=>c.ff).length;
+    out(`Reading verilog netlist '${f}' ...`,"d");
+    out(`  module mini_soc: ${S.cells.length} std cells (${ff} flip-flops), ${S.macros.length} block macros, ${S.nets.length} nets, ${S.pins.length} ports`);
+    MODS.forEach(m=>out(`    ${m.n.padEnd(10)} ${String(m.c).padStart(4)} instances`,"d"));
+    ok("Netlist parsed.");
+    explain("read_verilog",`<p>The synthesized netlist is a list of cell instances and the nets that connect their pins. It has <b>connectivity but no coordinates</b>. The ${S.cells.length} standard cells and 3 macros now sit in the unplaced area to the right of the view.</p><p>Hover over them to see the hierarchy (${MODS.map(m=>c2(m.n)).join(", ")}). Each hierarchy name comes from the RTL module the cell was synthesized from.</p>`);
+  }});
+def({name:"read_sdc",aliases:["read_constraints"],group:"Design import",
+  syn:"read_sdc <file.sdc>", ex:"read_sdc mini_soc.sdc",
+  desc:"Loads timing constraints: clocks, IO delays, uncertainty. Drives every timing-aware step.",
+  run(a){
+    need(S.netlist,"SDC refers to ports and pins. Run read_verilog first.");
+    out(`Reading SDC '${a.pos[0]||"mini_soc.sdc"}' ...`,"d");
+    out("  create_clock -name clk -period 1.000 [get_ports clk]");
+    out("  set_clock_uncertainty 0.050 [get_clocks clk]");
+    out("  set_input_delay 0.200 -clock clk [get_ports din*]");
+    out("  set_output_delay 0.200 -clock clk [get_ports dout*]");
+    S.sdc=true;S.clockPeriod=1.0;S.uncertainty=0.05; ok("1 clock (1.000 ns = 1 GHz), 32 IO delays.");
+    explain("read_sdc",`<p>Synopsys Design Constraints tell the tool what "fast enough" means. Here the clock ${c2("clk")} has a 1.0 ns period, so every register-to-register path must fit its logic delay, wire delay, setup time and 50 ps of uncertainty into 1.0 ns.</p><p>Try ${c2("create_clock -period 0.8")} later to see slack get worse.</p>`);
+  }});
+def({name:"create_clock",group:"Design import",
+  syn:"create_clock -name clk -period <ns> [get_ports clk]", ex:"create_clock -name clk -period 0.9 [get_ports clk]",
+  desc:"Defines or changes the clock period interactively (an SDC command).",
+  run(a){
+    need(S.netlist,"No ports exist yet. Run read_verilog first.");
+    const p=num(a.o.period,"-period"); need(p>0.2&&p<20,"Period must be between 0.2 and 20 ns.");
+    S.clockPeriod=p;S.sdc=true; ok(`Clock clk: period ${p.toFixed(3)} ns (${(1/p).toFixed(2)} GHz).`);
+    if(S.timing){S.timing=timingAnalysis(S.timing.mode);S.crit=S.timing.paths[0]||null;info(`Re-timed (${S.timing.mode}): WNS ${fmt(S.timing.wns,3)} ns`);}
+    explain("create_clock",`<p>The clock period is the timing budget for every flop-to-flop path. At ${p.toFixed(2)} ns, a path needs logic + wire + setup + uncertainty below that number.${S.timing?` The metrics bar was re-timed with the new period.`:""}</p>`);
+  }});
+def({name:"set_clock_uncertainty",group:"Design import",
+  syn:"set_clock_uncertainty <ns>", ex:"set_clock_uncertainty 0.08",
+  desc:"Margin reserved for jitter and skew before the clock tree exists.",
+  run(a){ need(S.sdc,"No clock defined. Run read_sdc or create_clock first."); const v=num(a.pos[0],"value"); S.uncertainty=v; ok(`Clock uncertainty = ${v.toFixed(3)} ns`);
+    if(S.timing){S.timing=timingAnalysis(S.timing.mode);S.crit=S.timing.paths[0]||null;}
+    explain("set_clock_uncertainty",`<p>Uncertainty is subtracted from every path's budget to cover jitter and, before CTS, the skew the tree will add later.</p>`);}});
+def({name:"init_design",aliases:["link_design"],group:"Design import",
+  syn:"init_design", ex:"init_design",
+  desc:"Links netlist cells to their LEF/Liberty views and builds the design database.",
+  run(){
+    need(S.lef,"Missing LEF. Run read_lef first."); need(S.lib,"Missing timing libraries. Run read_lib first."); need(S.netlist,"Missing netlist. Run read_verilog first.");
+    if(!S.sdc) warn("No SDC loaded: timing-driven steps will run without clocks until you run read_sdc or create_clock.");
+    S.init=true; S.baseNets=cloneNets(S.nets);
+    out("Linking cells to libraries ... 0 unresolved references","d");
+    out(`Top cell: mini_soc | std cell area ${fmt(stdArea(),1)} um² | macro area ${fmt(macroArea(),1)} um²`);
+    ok("Design initialized. Next: floorPlan.");
+    explain("init_design",`<p>Linking binds every instance in the netlist to a LEF abstract and a Liberty model, and binds nets to pins. The design database now knows each cell's physical size, so the tool can work out how much silicon the design needs:</p>${ul([`standard cells: <b>${fmt(stdArea(),1)} µm²</b> (sum of width × 2.0 µm row height)`,`hard macros: <b>${fmt(macroArea(),1)} µm²</b> (2 SRAMs + 1 ROM)`])}<p>These two numbers drive the core size in the next step.</p>`);
+  }});
+
+/* ---------- Floorplan ---------- */
+def({name:"floorPlan",aliases:["create_floorplan","initialize_floorplan"],group:"Floorplan",
+  syn:"floorPlan -r <aspect> <util> <left> <bottom> <right> <top>  |  -s <coreW> <coreH> <l> <b> <r> <t>", ex:"floorPlan -r 1.0 0.70 12 12 12 12",
+  desc:"Creates the die and core boxes and the standard-cell rows from a target utilization.",
+  run(a,t){
+    needInit();
+    let ar=1,util=0.7,m=[12,12,12,12],W,H;
+    const iR=t.indexOf("-r"), iS=t.indexOf("-s");
+    if(iS>=0){W=num(t[iS+1],"W");H=num(t[iS+2],"H");const mm=t.slice(iS+3,iS+7).map(x=>num(x,"margin"));if(mm.length===4)m=mm;}
+    else if(iR>=0){ar=num(t[iR+1],"aspect");util=num(t[iR+2],"util");const mm=t.slice(iR+3,iR+7);if(mm.length===4)m=mm.map(x=>num(x,"margin"));}
+    else {
+      if(a.o.core_utilization)util=num(a.o.core_utilization,"-core_utilization");
+      if(a.o.aspect_ratio||a.o.core_aspect_ratio)ar=num(a.o.aspect_ratio||a.o.core_aspect_ratio,"-aspect_ratio");
+      if(a.o.core_offset){const mm=String(a.o.core_offset).split(/\s+/).map(x=>num(x,"-core_offset"));m=mm.length===1?[mm[0],mm[0],mm[0],mm[0]]:mm;}
+    }
+    if(W==null){need(util>=0.3&&util<=0.95,"Utilization must be between 0.30 and 0.95.");need(ar>=0.4&&ar<=2.5,"Aspect ratio (height/width) must be between 0.4 and 2.5.");
+      const area=(stdArea()+macroArea())/util; W=Math.sqrt(area/ar); H=area/W;}
+    need(m.every(x=>x>=0&&x<=40),"Core-to-die margins must be between 0 and 40 um.");
+    if(S.core){warn("Existing floorplan replaced: macros, pins, power, blockages and placement were cleared."); clearFrom(LV.FP);}
+    makeFloorplan(W,H,...m);
+    const C=S.core,D=S.die;
+    out(`Die : (0.000 0.000) (${D.x2.toFixed(3)} ${D.y2.toFixed(3)})`);
+    out(`Core: (${C.x1.toFixed(3)} ${C.y1.toFixed(3)}) (${C.x2.toFixed(3)} ${C.y2.toFixed(3)})  ${fmt(C.x2-C.x1,1)} x ${fmt(C.y2-C.y1,1)} um`);
+    out(`Rows: ${S.rows.length} x site core, alternate rows flipped (MX) to share power rails`);
+    ok(`Core utilization ${(S.util*100).toFixed(1)}%`);
+    fitView(true);
+    explain("floorPlan",`<p>The tool sized the core from your target utilization:</p><p class="mono">core area = (${fmt(stdArea(),0)} + ${fmt(macroArea(),0)}) µm² / ${util.toFixed(2)} = ${fmt((C.x2-C.x1)*(C.y2-C.y1),0)} µm²</p>${ul([`<b>Die</b> (outer box): the chip edge, ${fmt(D.x2,1)} × ${fmt(D.y2,1)} µm.`,`<b>Core</b> (dashed box): where cells may go. The ${m.join("/")} µm gap to the die edge leaves room for IO pins and power rings.`,`<b>${S.rows.length} rows</b>, each 2.0 µm tall. Every other row is flipped so neighbouring rows share one VDD or VSS rail.`])}<p>Lower utilization gives more whitespace for buffers and routing; above about 85% the router starts to struggle.</p>`);
+  }});
+def({name:"checkFPlan",aliases:["check_floorplan"],group:"Floorplan",
+  syn:"checkFPlan", ex:"checkFPlan",
+  desc:"Reports floorplan problems: unplaced or overlapping macros, unplaced pins, remaining cell density.",
+  run(){
+    needFP(); let bad=0;
+    const um=S.macros.filter(m=>!m.placed); if(um.length){warn(`${um.length} block macro(s) unplaced: ${um.map(m=>m.name).join(", ")}`);bad++;}
+    for(let i=0;i<S.macros.length;i++)for(let j=i+1;j<S.macros.length;j++){const A=S.macros[i],B=S.macros[j];if(A.placed&&B.placed&&rectsOverlap(macroRect(A,true),macroRect(B,true))){warn(`Macros ${A.name} and ${B.name} overlap (including halo).`);bad++;}}
+    for(const mm of S.macros) if(mm.placed&&(mm.x<S.core.x1-1e-6||mm.y<S.core.y1-1e-6||mm.x+mm.w>S.core.x2+1e-6||mm.y+mm.h>S.core.y2+1e-6)){warn(`${mm.name} extends outside the core.`);bad++;}
+    const up=S.pins.filter(p=>!p.placed).length; if(up){warn(`${up} IO pins unplaced.`);bad++;}
+    const free=S.rows.reduce((s,r)=>s+rowFreeSegments(r,null,false).reduce((q,[x,y])=>q+y-x,0),0)*RH;
+    const dens=stdArea()/free;
+    out(`Free row area ${fmt(free,0)} um² for ${fmt(stdArea(),0)} um² of std cells -> placement density ${(dens*100).toFixed(1)}%`);
+    if(dens>0.92){warn("Density above 92%: placement will likely fail or route badly. Lower utilization in floorPlan.");bad++;}
+    bad?warn(`checkFPlan found ${bad} issue(s).`):ok("checkFPlan: no issues.");
+    explain("checkFPlan",`<p>The check compares the free row area (core minus macros, halos and hard blockages) with the standard-cell area. The ratio, <b>${(dens*100).toFixed(1)}%</b>, is the density the placer will have to reach. Keep it well under 90% so there is room for buffers, clock cells and routing detours.</p>`);
+  }});
+def({name:"assignIoPins",aliases:["place_pins","place_io"],group:"Floorplan",
+  syn:"assignIoPins", ex:"assignIoPins",
+  desc:"Places all unassigned top-level pins on the die edge: inputs left, outputs right, clock/reset top.",
+  run(){
+    needFP(); let n=0;
+    S.pins.forEach(p=>{if(!p.side){n++;p.side=p.name.startsWith("din")?"Left":p.name.startsWith("dout")?"Right":"Top";p.layer=(p.side==="Left"||p.side==="Right")?"M3":"M4";}});
+    layoutPins(); if(S.routed)clearFrom(LV.ROUTE);
+    ok(`Assigned ${n} pins (din -> Left/M3, dout -> Right/M3, clk rst_n -> Top/M4).`);
+    explain("assignIoPins",`<p>IO pins are placed on the die edge, on a layer whose preferred direction points into the chip: horizontal M3 on the left and right edges, vertical M4 on the top and bottom.</p><p>Pin placement matters because the placer pulls connected logic toward its pins. Move ${c2("din*")} to another side with ${c2("editPin")} and re-run placement to watch ${c2("u_io")} follow.</p>`);
+  }});
+def({name:"editPin",aliases:["set_individual_pin_constraints"],group:"Floorplan",
+  syn:"editPin -side <Left|Right|Top|Bottom> -pin {pattern} [-layer M3] [-spreadType center|spread] [-spacing um]", ex:"editPin -side Bottom -pin {dout*} -layer M4 -spreadType center -spacing 3",
+  desc:"Moves the matching pins to one die edge, optionally on a given layer and spacing.",
+  run(a){
+    needFP();
+    const side=String(a.o.side||"").replace(/^./,c=>c.toUpperCase()).replace(/^(\w)(\w*)$/,(m,x,y)=>x+y.toLowerCase());
+    need(["Left","Right","Top","Bottom"].includes(side),"-side must be Left, Right, Top or Bottom.");
+    need(a.o.pin&&a.o.pin!==true,"Give pins with -pin {pattern}, for example -pin {din*}.");
+    const res=String(a.o.pin).split(/\s+/).map(globRe);
+    const hit=S.pins.filter(p=>res.some(r=>r.test(p.name))); need(hit.length,`No pins match '${a.o.pin}'. Pins: clk rst_n din[0..15] dout[0..15].`);
+    let layer=a.o.layer&&a.o.layer!==true?String(a.o.layer).toUpperCase():((side==="Left"||side==="Right")?"M3":"M4");
+    need(LAYER_DIR[layer],`Unknown layer ${layer}.`);
+    const wantDir=(side==="Left"||side==="Right")?"H":"V";
+    if(LAYER_DIR[layer]!==wantDir) warn(`${layer} is a ${LAYER_DIR[layer]==="H"?"horizontal":"vertical"} layer; pins on the ${side} edge are normally on ${wantDir==="H"?"horizontal":"vertical"} layers so the wire can enter the core straight.`);
+    hit.forEach(p=>{p.side=side;p.layer=layer;p.spread=a.o.spreadType==="center"?"center":"spread";p.spacing=a.o.spacing?num(a.o.spacing,"-spacing"):2;});
+    S.pins.forEach(p=>{if(!p.side){p.side=p.name.startsWith("din")?"Left":p.name.startsWith("dout")?"Right":"Top";p.layer=(p.side==="Left"||p.side==="Right")?"M3":"M4";}});
+    layoutPins(); if(S.routed){clearFrom(LV.ROUTE);warn("Routing removed because pins moved.");}
+    ok(`Moved ${hit.length} pin(s) to ${side} on ${layer}.`);
+    if(S.legal) info("Cells were placed for the old pin locations. Run placeDesign again to let the logic follow.");
+    explain("editPin",`<p>${hit.length} pin(s) now sit on the <b>${side}</b> edge on ${layer}. Pins are fixed anchors for placement, so every net that ends on one pulls its cells toward that edge.</p>`);
+  }});
+function doPlaceMacro(m,x,y,orient){
+  need(["R0","MX","MY","R180"].includes(orient),`Orientation ${orient} is not supported here. Use R0, MX, MY or R180 (90° rotations would put the macro's pins on the wrong metal direction).`);
+  m.x=r2(snap(x)); m.y=r2(S.core.y1+Math.round((y-S.core.y1)/RH)*RH); m.orient=orient; m.placed=true;
+}
+function afterMacroMove(){
+  if(cellsOf("endcap").length||cellsOf("tap").length){removeKinds(["endcap","tap"]);warn("Endcap and well-tap cells removed because a macro moved. Re-run addEndCap and addWellTap.");}
+  if(S.legal||S.placed){clearFrom(LV.PLACE);warn("Standard-cell placement cleared because a macro moved. Run placeDesign again.");}
+}
+def({name:"placeInstance",aliases:["place_instance","set_cell_location"],group:"Floorplan",
+  syn:"placeInstance <macro> <x> <y> [R0|MX|MY|R180] [-fixed]", ex:"placeInstance ROM_0 50 60 MY -fixed",
+  desc:"Puts one block macro at an exact coordinate and orientation.",
+  run(a){
+    needFP(); need(a.pos.length>=3,"Usage: placeInstance <macro> <x> <y> [orient]");
+    const m=macroByName(a.pos[0]); const o=(a.pos[3]||a.o.orient||"R0").toUpperCase();
+    doPlaceMacro(m,num(a.pos[1],"x"),num(a.pos[2],"y"),o); if(a.o.fixed)m.fixed=true;
+    const C=S.core; if(m.x<C.x1-1e-6||m.y<C.y1-1e-6||m.x+m.w>C.x2+1e-6||m.y+m.h>C.y2+1e-6) warn(`${m.name} is partly outside the core.`);
+    S.macros.forEach(o2=>{if(o2!==m&&o2.placed&&rectsOverlap(macroRect(m,false),macroRect(o2,false)))warn(`${m.name} overlaps ${o2.name}.`);});
+    afterMacroMove();
+    ok(`${m.name} (${m.ref}) placed at (${m.x}, ${m.y}) ${o}${m.fixed?" FIXED":""}.`);
+    explain("placeInstance",`<p>${m.name} is ${m.w} × ${m.h} µm. The small triangle marks its origin corner and the bright edge is its pin side: ${orientPinSide(o)==="R"?"right":"left"} for ${o}.</p><p>Point macro pins toward the logic that talks to them (${m.name.startsWith("SRAM")?c2("u_memif"):c2("u_ctrl")}) and keep macros against the core edge, so the remaining space stays one contiguous region for standard cells.</p>`);
+  }});
+def({name:"planDesign",aliases:["place_macros","macro_placement","rtl_macro_placement"],group:"Floorplan",
+  syn:"planDesign", ex:"planDesign",
+  desc:"Automatic macro placement: pushes macros to the core boundary with pins facing inward.",
+  run(){
+    needFP(); const C=S.core; const [s0,s1,rom]=S.macros;
+    need(C.x2-C.x1>=s0.w+rom.w+6&&C.y2-C.y1>=s0.h+s1.h+6,"Macros do not fit in this core. Lower the utilization in floorPlan.");
+    doPlaceMacro(s0,C.x1,C.y1,"R0"); doPlaceMacro(s1,C.x1,C.y2-s1.h,"MX"); doPlaceMacro(rom,C.x2-rom.w,C.y2-rom.h,"R180");
+    afterMacroMove();
+    S.macros.forEach(m=>out(`  ${m.name.padEnd(7)} ${m.ref.padEnd(12)} (${m.x.toFixed(1)}, ${m.y.toFixed(1)}) ${m.orient}`,"d"));
+    ok("Placed 3 block macros on the core boundary.");
+    explain("planDesign",`<p>Macro placement follows a few rules of thumb:</p>${ul(["Macros go against the core boundary, leaving one open region in the middle for standard cells.","Each macro is oriented so its pins (bright edge) face the core center, where the logic that talks to it will be placed.","SRAM_1 is mirrored (MX) so both SRAMs keep their pins on the right side."])}<p>Next, lock them with ${c2("setInstancePlacementStatus -allHardMacros -status fixed")} and add a halo so cells don't crowd the macro pins.</p>`);
+  }});
+def({name:"setInstancePlacementStatus",aliases:["set_placement_status"],group:"Floorplan",
+  syn:"setInstancePlacementStatus -allHardMacros | -name <inst>  -status fixed|placed", ex:"setInstancePlacementStatus -allHardMacros -status fixed",
+  desc:"Locks (fixed) or unlocks (placed) macros so later steps cannot move them.",
+  run(a){
+    needFP(); const st=String(a.o.status||"fixed"); need(["fixed","placed"].includes(st),"-status must be fixed or placed.");
+    const list=a.o.allHardMacros?S.macros:[macroByName(a.o.name)];
+    const un=list.filter(m=>!m.placed); need(!un.length,`Place ${un.map(m=>m.name).join(", ")} before fixing them.`);
+    list.forEach(m=>m.fixed=st==="fixed"); ok(`${list.length} instance(s) set to ${st.toUpperCase()}.`);
+    explain("setInstancePlacementStatus",`<p>FIXED instances (shown with a lock mark) are never moved by placement, optimization or CTS. Macros are fixed once the floorplan is signed off, so later steps can't disturb the power grid and pin access built around them.</p>`);
+  }});
+def({name:"addHaloToBlock",aliases:["create_keepout_margin","set_macro_halo"],group:"Floorplan",
+  syn:"addHaloToBlock <left> <bottom> <right> <top> -allBlock", ex:"addHaloToBlock 2 2 2 2 -allBlock",
+  desc:"Keeps standard cells a set distance away from every macro edge.",
+  run(a){
+    needFP(); const v=a.pos.map(x=>num(x,"halo")); need(v.length===4,"Usage: addHaloToBlock <l> <b> <r> <t> -allBlock");
+    need(v.every(x=>x>=0&&x<=10),"Halo values must be 0–10 um.");
+    S.halo={l:v[0],b:v[1],r:v[2],t:v[3]}; ok(`Halo ${v.join(" ")} um applied to ${S.macros.length} blocks.`);
+    if(S.legal) info("Existing placement ignores the new halo. Run refinePlace to push cells out.");
+    explain("addHaloToBlock",`<p>A halo is a placement keep-out ring around a macro (dashed outline). It leaves routing room for the macro's many pins and keeps cells out of the region where the macro edge distorts the local layout.</p>`);
+  }});
+def({name:"createPlaceBlockage",aliases:["create_placement_blockage"],group:"Floorplan",
+  syn:"createPlaceBlockage -box <x1> <y1> <x2> <y2> [-type hard|soft|partial] [-density 50]", ex:"createPlaceBlockage -box 60 20 80 40 -type hard",
+  desc:"Reserves an area where standard cells may not (hard), may only be added by opt/CTS (soft), or may partly fill (partial).",
+  run(a,t){
+    needFP(); const i=t.indexOf("-box"); need(i>=0,"Give an area with -box x1 y1 x2 y2.");
+    let [x1,y1,x2,y2]=t.slice(i+1,i+5).map(v=>num(v,"-box")); if(x2<x1)[x1,x2]=[x2,x1]; if(y2<y1)[y1,y2]=[y2,y1];
+    const C=S.core; x1=Math.max(x1,C.x1);y1=Math.max(y1,C.y1);x2=Math.min(x2,C.x2);y2=Math.min(y2,C.y2); need(x2>x1&&y2>y1,"Blockage box is outside the core.");
+    const type=String(a.o.type||"hard"); need(["hard","soft","partial"].includes(type),"-type must be hard, soft or partial.");
+    const b={x1,y1,x2,y2,type,density:a.o.density?num(a.o.density,"-density"):50,name:`pb_${S.pblk.length}`}; S.pblk.push(b);
+    ok(`${b.name}: ${type}${type==="partial"?` (max ${b.density}%)`:""} blockage (${x1} ${y1}) (${x2} ${y2})`);
+    if(S.legal) info("Cells already placed there stay until you run refinePlace or placeDesign.");
+    explain("createPlaceBlockage",`<p>${ul(["<b>hard</b>: no standard cells at all (for example over a sensitive analog block).","<b>soft</b>: global placement keeps out, but optimization and CTS may still drop buffers there.","<b>partial</b>: cells are allowed but discouraged, which caps local density to relieve congestion."])}</p><p>Run ${c2("refinePlace")} or ${c2("placeDesign")} to see cells move out.</p>`);
+  }});
+def({name:"deletePlaceBlockage",aliases:["remove_placement_blockages"],group:"Floorplan",
+  syn:"deletePlaceBlockage -all | <name>", ex:"deletePlaceBlockage -all",
+  desc:"Removes placement blockages.",
+  run(a){needFP();const n=S.pblk.length; if(a.o.all||!a.pos.length)S.pblk=[]; else S.pblk=S.pblk.filter(b=>!a.pos.includes(b.name)); ok(`Deleted ${n-S.pblk.length} blockage(s).`);
+    explain("deletePlaceBlockage",`<p>Blockages removed. Placed cells don't move until the next ${c2("refinePlace")} or ${c2("placeDesign")}.</p>`);}});
+def({name:"createRouteBlk",aliases:["create_routing_blockage"],group:"Floorplan",
+  syn:"createRouteBlk -box <x1> <y1> <x2> <y2> -layer {M3 M4}", ex:"createRouteBlk -box 40 30 70 45 -layer {M4 M5}",
+  desc:"Forbids routing on specific layers inside a box; the router promotes wires to higher layers.",
+  run(a,t){
+    needFP(); const i=t.indexOf("-box"); need(i>=0,"Give an area with -box x1 y1 x2 y2.");
+    let [x1,y1,x2,y2]=t.slice(i+1,i+5).map(v=>num(v,"-box")); if(x2<x1)[x1,x2]=[x2,x1]; if(y2<y1)[y1,y2]=[y2,y1];
+    const layers=String(a.o.layer||"M3").toUpperCase().split(/\s+/); layers.forEach(l=>need(LAYER_DIR[l],`Unknown layer ${l}.`));
+    layers.forEach(L=>S.rblk.push({x1,y1,x2,y2,layer:L}));
+    ok(`Routing blockage on ${layers.join(" ")} at (${x1} ${y1}) (${x2} ${y2}).`);
+    if(S.routed){clearFrom(LV.ROUTE);warn("Existing routing removed. Run routeDesign again.");}
+    explain("createRouteBlk",`<p>The router cannot use ${layers.join(", ")} inside this box. Wires that would cross it on those layers are pushed up to the next layer with the same direction (M2→M4→M6, M3→M5→M7). Look for the color change after ${c2("routeDesign")}.</p>`);
+  }});
+def({name:"addEndCap",aliases:["add_end_cap","create_boundary_cells"],group:"Floorplan",
+  syn:"addEndCap -preCap ENDCAP -postCap ENDCAP -prefix ENDCAP", ex:"addEndCap -preCap ENDCAP -postCap ENDCAP -prefix ENDCAP",
+  desc:"Places boundary cells at both ends of every row segment (row ends and macro edges).",
+  run(){
+    needFP(); const um=S.macros.filter(m=>!m.placed); need(!um.length,`Place macros first (${um.map(m=>m.name).join(", ")}) so endcaps can wrap their edges.`);
+    need(!S.legal,"Endcaps are inserted before standard-cell placement. Re-run floorPlan or reset to start over.");
+    removeKinds(["endcap"]); const n=insertEndcaps(); ok(`Inserted ${n} ENDCAP cells.`);
+    explain("addEndCap",`<p>Endcap (boundary) cells terminate each row cleanly. They close off the n-well and implant layers at row ends so the edge of the last real cell meets the same design rules as the middle of a row. Every free row segment gets one on each side, including where rows are cut by macros.</p>`);
+  }});
+def({name:"addWellTap",aliases:["add_well_taps","create_tap_cells"],group:"Floorplan",
+  syn:"addWellTap -cell TAPCELL -cellInterval <um> -prefix WELLTAP", ex:"addWellTap -cell TAPCELL -cellInterval 30 -prefix WELLTAP",
+  desc:"Drops well-tap cells in a checkerboard at a fixed pitch to tie wells to VDD/VSS (latch-up rule).",
+  run(a){
+    needFP(); need(!S.legal,"Well taps are inserted before standard-cell placement.");
+    const iv=a.o.cellInterval?num(a.o.cellInterval,"-cellInterval"):30; need(iv>=10&&iv<=80,"-cellInterval must be 10–80 um.");
+    removeKinds(["tap"]); const n=insertWellTaps(iv); ok(`Inserted ${n} TAPCELL instances, interval ${iv} um (checkerboard).`);
+    explain("addWellTap",`<p>Modern cells have no built-in substrate contacts. Tap cells connect the n-well to VDD and the substrate to VSS. The latch-up rule limits how far any transistor can be from a tap, so they are placed every ${iv} µm, offset by half a pitch on alternate rows (checkerboard). Placement then treats them as fixed obstacles.</p>`);
+  }});
+
+/* ---------- Power plan ---------- */
+function railSegments(){
+  const segs=[];
+  for(let k=0;k<=S.rows.length;k++){
+    const y=r2(S.core.y1+k*RH); let parts=[[S.core.x1,S.core.x2]];
+    for(const m of S.macros) if(m.placed&&y>=m.y-1e-6&&y<=m.y+m.h+1e-6){const o=[];for(const [s,e] of parts){if(m.x+m.w<=s||m.x>=e){o.push([s,e]);continue;}if(m.x>s)o.push([s,m.x]);if(m.x+m.w<e)o.push([m.x+m.w,e]);}parts=o;}
+    parts.forEach(([s,e])=>segs.push({y,x1:s,x2:e,net:k%2===0?"VSS":"VDD"}));
+  }
+  return segs;
+}
+function stripeLines(){
+  const out=[];
+  for(const st of S.pg.stripes) st.pos.forEach(p=>out.push({...p,layer:st.layer,dir:st.dir,w:st.w}));
+  return out;
+}
+function railVias(){
+  const v=[]; const lines=stripeLines().filter(l=>l.dir==="V");
+  for(const r of railSegments()) for(const l of lines) if(l.net===r.net&&l.x>=r.x1&&l.x<=r.x2) v.push({x:l.x,y:r.y,net:r.net});
+  return v;
+}
+def({name:"globalNetConnect",aliases:["connect_global_net","add_global_connection"],group:"Power plan",
+  syn:"globalNetConnect <VDD|VSS> -type pgpin -pin <pin> -all", ex:"globalNetConnect VDD -type pgpin -pin VDD -all",
+  desc:"Logically ties every cell's power pin to a global supply net (no geometry yet).",
+  run(a){
+    needInit(); const net=(a.pos[0]||"").toUpperCase(); need(net==="VDD"||net==="VSS","First argument must be the global net: VDD or VSS.");
+    S.pg.gnc[net]=true; const n=S.cells.length+S.macros.length;
+    ok(`Connected pin ${a.o.pin||net} of ${n} instances to global net ${net}.`);
+    explain("globalNetConnect",`<p>Netlists from synthesis usually omit power pins. This command makes the logical connection "every ${c2(a.o.pin||net)} pin belongs to net ${net}". Nothing is drawn: it is a database step, and ${c2("sroute")} refuses to run until both VDD and VSS are connected.</p>`);
+  }});
+def({name:"addRing",aliases:["add_rings","create_pg_ring_pattern"],group:"Power plan",
+  syn:"addRing -nets {VDD VSS} -type core_rings -layer {top M9 bottom M9 left M8 right M8} -width <w> -spacing <s> -offset <o>", ex:"addRing -nets {VDD VSS} -type core_rings -layer {top M9 bottom M9 left M8 right M8} -width 2 -spacing 1 -offset 1",
+  desc:"Draws VDD/VSS rings around the core, in the gap between core and die.",
+  run(a){
+    needFP(); const w=a.o.width?num(a.o.width,"-width"):2, s=a.o.spacing?num(a.o.spacing,"-spacing"):1, o=a.o.offset?num(a.o.offset,"-offset"):1;
+    const need_=o+2*w+s, have=Math.min(S.margins.l,S.margins.b,S.margins.r,S.margins.t);
+    need(need_<=have,`Ring needs ${need_.toFixed(1)} um (offset + 2 x width + spacing) but the smallest core-to-die margin is ${have} um. Reduce -width/-offset or enlarge margins in floorPlan.`);
+    S.pg.ring={w,s,o}; ok(`Core ring: VDD inner, VSS outer; width ${w} spacing ${s} offset ${o}; M9 horizontal, M8 vertical.`);
+    explain("addRing",`<p>The ring is the power highway around the core. The inner loop is VDD and the outer loop is VSS, each ${w} µm wide on the two thickest top layers (M9 for horizontal sides, M8 for vertical sides, because each layer has one preferred direction).</p><p>It uses ${need_.toFixed(1)} of the ${have} µm margin that ${c2("floorPlan")} left between core and die. Wider rings mean lower IR drop but more area.</p>`);
+  }});
+def({name:"addStripe",aliases:["add_stripes","create_pg_stripe"],group:"Power plan",
+  syn:"addStripe -nets {VDD VSS} -layer M8 -direction vertical -width <w> -spacing <s> -set_to_set_distance <pitch> [-start_offset <um>]", ex:"addStripe -nets {VDD VSS} -layer M8 -direction vertical -width 1 -spacing 1 -set_to_set_distance 20 -start_offset 6",
+  desc:"Adds a mesh of VDD/VSS straps across the core so current reaches the middle of the die.",
+  run(a){
+    needFP(); const layer=String(a.o.layer||"M8").toUpperCase(); need(LAYER_DIR[layer],`Unknown layer ${layer}.`);
+    const dir=String(a.o.direction||(LAYER_DIR[layer]==="V"?"vertical":"horizontal")).toLowerCase().startsWith("v")?"V":"H";
+    if(LAYER_DIR[layer]!==dir) warn(`${layer} prefers ${LAYER_DIR[layer]==="V"?"vertical":"horizontal"} wires; stripes against the preferred direction waste routing tracks.`);
+    const w=a.o.width?num(a.o.width,"-width"):1, s=a.o.spacing?num(a.o.spacing,"-spacing"):1, p=a.o.set_to_set_distance?num(a.o.set_to_set_distance,"-set_to_set_distance"):20, st=a.o.start_offset?num(a.o.start_offset,"-start_offset"):6;
+    need(p>=2*w+s+1,"-set_to_set_distance must be larger than one VDD+VSS pair.");
+    need(p>=6,"Pitch below 6 um would cover most of the routing layer.");
+    const C=S.core, pos=[]; const lo=dir==="V"?C.x1:C.y1, hi=dir==="V"?C.x2:C.y2;
+    for(let v=lo+st; v+2*w+s<=hi; v+=p){pos.push(dir==="V"?{x:v+w/2,net:"VDD"}:{y:v+w/2,net:"VDD"}); pos.push(dir==="V"?{x:v+w+s+w/2,net:"VSS"}:{y:v+w+s+w/2,net:"VSS"});}
+    S.pg.stripes.push({layer,dir,w,s,pitch:p,pos});
+    if(!S.pg.ring) warn("No core ring yet: stripes will have nothing to connect to at the core edge.");
+    ok(`Added ${pos.length/2} ${dir==="V"?"vertical":"horizontal"} VDD/VSS stripe pairs on ${layer}, pitch ${p} um.`);
+    explain("addStripe",`<p>Stripes carry current from the ring into the core interior. Without them, the cells in the middle would draw current through thin M1 rails over long distances and see large IR drop. Stripe pitch (${p} µm) is a trade-off: tighter pitch gives a stiffer grid but uses more ${layer} tracks that signals could have used.</p>`);
+  }});
+def({name:"sroute",aliases:["special_route","route_special"],group:"Power plan",
+  syn:"sroute -connect {corePin blockPin} -nets {VDD VSS}", ex:"sroute -connect {corePin blockPin} -nets {VDD VSS}",
+  desc:"Special-routes the M1 follow-pin rails along every row and drops vias where they cross stripes.",
+  run(){
+    needFP(); need(S.pg.gnc.VDD&&S.pg.gnc.VSS,"Cell power pins aren't tied to global nets yet. Run globalNetConnect VDD ... and globalNetConnect VSS ... first.");
+    S.pg.rails=true; const rs=railSegments(), v=railVias();
+    ok(`Created ${rs.length} follow-pin rail segments on M1 and ${v.length} via stacks to the stripes.`);
+    if(!S.pg.stripes.length) warn("No stripes: rails connect to the ring only at the core edges.");
+    explain("sroute",`<p>Every standard cell has VDD along its top edge and VSS along its bottom. Because rows alternate orientation, a single M1 rail at each row boundary feeds both rows: <b>${rs.length}</b> segments, alternating VSS/VDD. Rails stop at macro edges, since macros bring their own power pins (the ${c2("blockPin")} connection).</p><p>Where a rail crosses a stripe of the same net, a via stack from M1 up to ${S.pg.stripes[0]?.layer||"M8"} completes the grid.</p>`);
+  }});
+def({name:"verify_PG_short",aliases:["check_pg_drc"],group:"Power plan",
+  syn:"verify_PG_short", ex:"verify_PG_short",
+  desc:"Checks that no VDD shape touches a VSS shape on the same layer.",
+  run(){
+    needFP(); const ls=stripeLines(); let n=0;
+    for(let i=0;i<ls.length;i++)for(let j=i+1;j<ls.length;j++){const A=ls[i],B=ls[j];if(A.layer!==B.layer||A.net===B.net||A.dir!==B.dir)continue;const d=A.dir==="V"?Math.abs(A.x-B.x):Math.abs(A.y-B.y);if(d<(A.w+B.w)/2)n++;}
+    n?err(`${n} VDD-VSS short(s) between stripes. Change -start_offset or -set_to_set_distance.`):ok("No power/ground shorts.");
+    explain("verify_PG_short",`<p>A short between VDD and VSS would be a dead chip. This happens most often when a second ${c2("addStripe")} on the same layer lands on top of an existing stripe of the other net.</p>`);
+  }});
+
+/* =====================================================================
+   COMMANDS part B: placement, CTS, routing, signoff, shell
+   ===================================================================== */
+function timingTable(t){
+  out("+--------------------+----------+");
+  out(`| Setup (${t.mode.padEnd(9)}) |   all    |`);
+  out("+--------------------+----------+");
+  out(`|           WNS (ns):| ${fmt(t.wns,3).padStart(8)} |`, t.wns<0?"e":"o");
+  out(`|           TNS (ns):| ${fmt(t.tns,3).padStart(8)} |`, t.tns<0?"e":"o");
+  out(`|    Violating Paths:| ${String(t.vio).padStart(8)} |`, t.vio?"e":"o");
+  out(`|          All Paths:| ${String(t.total).padStart(8)} |`);
+  out("+--------------------+----------+");
+}
+function needSdc(){need(S.sdc,"No clock is defined. Run read_sdc or create_clock first.");}
+function modeOf(a){const m=a.o.postRoute?"postRoute":a.o.postCTS?"postCTS":"preCTS";
+  if(m==="postCTS")need(S.clockTree,"-postCTS needs a clock tree. Run ccopt_design first.");
+  if(m==="postRoute")need(S.routed,"-postRoute needs a routed design. Run routeDesign first.");
+  if(m==="preCTS"&&S.clockTree)warn("A clock tree exists; -preCTS still uses an ideal clock.");
+  return m;}
+function doPlace(withOpt){
+  needFP();
+  const um=S.macros.filter(m=>!m.placed); need(!um.length,`${um.length} block macro(s) unplaced (${um.map(m=>m.name).join(", ")}). Run planDesign or placeInstance first.`);
+  if(!S.macros.every(m=>m.fixed)) warn("Macros are not FIXED; this lab keeps them in place, but a real placer may move them.");
+  if(S.pins.some(p=>!p.placed)) warn("Some IO pins are unplaced, so the placer can't pull logic toward them. Run assignIoPins.");
+  if(!cellsOf("tap").length) warn("No well taps inserted. The design will fail the latch-up check (addWellTap).");
+  if(S.placed) clearFrom(LV.PLACE);
+  const free=S.rows.reduce((s,r)=>s+rowFreeSegments(r,null,false).reduce((q,[x,y])=>q+y-x,0),0)*RH;
+  const dens=stdArea()/(free-cellsOf("tap").length*LIB.TAPCELL*RH-cellsOf("endcap").length*LIB.ENDCAP*RH);
+  need(dens<0.97,`Required density ${(dens*100).toFixed(0)}% exceeds what rows can hold. Lower utilization in floorPlan or remove blockages.`);
+  out(`*** Starting place_design (${S.placeMode.timingDriven&&S.sdc?"timing-driven":"wirelength-driven"}, congestion effort ${S.placeMode.congEffort})`,"d");
+  const movers=stdCells(); const frames=globalPlace(movers);
+  out(`  Global placement: 44 iterations, target density ${(dens*100).toFixed(1)}%`);
+  const t0=movers.map(c=>[c.x,c.y]);
+  const {fail,disp}=legalize(movers);
+  S.placed=true; S.legal=fail===0;
+  frames.push(movers.map(c=>[c.x,c.y]));
+  startPlaceAnim(movers,frames);
+  out(`  Legalization: ${movers.length-fail} cells snapped to rows/sites, avg displacement ${disp.toFixed(2)} um`);
+  if(fail) err(`${fail} cells could not be legalized (no room). Lower utilization or remove blockages, then run placeDesign again.`);
+  out(`  Total HPWL: ${fmt(totalHPWL(),0)} um`);
+  let tmsg="";
+  if(S.sdc&&S.legal){S.timing=timingAnalysis("preCTS");S.crit=S.timing.paths[0];tmsg=`Early timing estimate: WNS ${fmt(S.timing.wns,3)} ns, ${S.timing.vio} violating paths.`;info(tmsg);}
+  if(S.legal) ok("Placement done.");
+  if(withOpt&&S.legal&&S.sdc){const r=optimize("preCTS");S.optDone.preCTS=true;S.optRuns++;S.timing=timingAnalysis("preCTS");S.crit=S.timing.paths[0];ok(`place_opt: ${r.buffered} buffers inserted, ${r.upsized} cells upsized. WNS ${fmt(r.before.wns,3)} -> ${fmt(S.timing.wns,3)} ns`);}
+  explain(withOpt?"place_opt_design":"placeDesign",`<p>Placement ran in two phases, and you can watch both in the animation:</p>${ul([`<b>Global placement</b>: every cell starts at the core center. Each iteration moves a cell to the weighted average position of the nets it touches, while a spreading force pushes cells toward free row area. Connected logic clusters together and moves toward its IO pins and macro pins${S.placeMode.timingDriven&&S.sdc?"; timing-driven mode gives deep-logic nets extra weight":""}.`,`<b>Legalization</b>: cells are snapped to the nearest free site in a row, with no overlaps and outside macros, halos, blockages, taps and endcaps. Average movement was ${disp.toFixed(2)} µm.`])}<p>Colors show hierarchy: ${MODS.map(m=>`<span style="color:${MOD_COLORS[m.n]}">■</span> ${m.n}`).join(" ")}. Total half-perimeter wirelength (HPWL) is <b>${fmt(totalHPWL(),0)} µm</b>.${tmsg?" "+tmsg:""}</p>`);
+}
+def({name:"setPlaceMode",aliases:["set_place_mode","setPlaceOptMode"],group:"Placement",
+  syn:"setPlaceMode -timingDriven true|false -congEffort low|medium|high|auto", ex:"setPlaceMode -timingDriven true -congEffort medium",
+  desc:"Sets placement options used by the next placeDesign.",
+  run(a){
+    if(a.o.timingDriven!=null)S.placeMode.timingDriven=String(a.o.timingDriven)!=="false";
+    if(a.o.congEffort)S.placeMode.congEffort=String(a.o.congEffort);
+    ok(`place mode: timingDriven=${S.placeMode.timingDriven} congEffort=${S.placeMode.congEffort}`);
+    explain("setPlaceMode",`<p>Mode commands don't change the layout; they configure the next run. With timing-driven on, nets on long logic paths get higher weight, so their cells are pulled closer together.</p>`);
+  }});
+def({name:"placeDesign",aliases:["place_design","global_placement"],group:"Placement",
+  syn:"placeDesign", ex:"placeDesign", desc:"Global placement followed by legalization of all standard cells.", run(){doPlace(false);}});
+def({name:"place_opt_design",aliases:["place_opt"],group:"Placement",
+  syn:"place_opt_design", ex:"place_opt_design", desc:"placeDesign plus pre-CTS optimization in one step.", run(){doPlace(true);}});
+def({name:"refinePlace",aliases:["legalize_placement","detailed_placement"],group:"Placement",
+  syn:"refinePlace", ex:"refinePlace",
+  desc:"Re-legalizes existing placement (after adding halos, blockages or moving pins) with minimal movement.",
+  run(){
+    needFP(); need(S.placed,"Nothing is placed yet. Run placeDesign first.");
+    const movers=S.cells.filter(c=>["std","buf","tie"].includes(c.kind)&&c.placed);
+    const before=new Map(movers.map(c=>[c,[c.x,c.y]])); movers.forEach(c=>{c.gx=c.x+c.w/2;c.gy=c.y+RH/2;});
+    const {fail}=legalize(movers); let moved=0; movers.forEach(c=>{const b=before.get(c);if(b[0]!==c.x||b[1]!==c.y)moved++;});
+    S.legal=fail===0; if(S.clockTree){clearFrom(LV.CTS);warn("Clock tree removed because cells moved. Run ccopt_design again.");} else if(S.routed)clearFrom(LV.ROUTE);
+    startPlaceAnim(movers,[movers.map(c=>before.get(c)),movers.map(c=>[c.x,c.y])]);
+    fail?err(`${fail} cells could not be legalized.`):ok(`refinePlace moved ${moved} of ${movers.length} cells.`);
+    explain("refinePlace",`<p>Detailed placement keeps the global solution and only fixes what's illegal: overlaps, cells inside new halos or blockages, and off-site coordinates. ${moved} cell(s) moved. It is the incremental cleanup that runs after every ECO.</p>`);
+  }});
+def({name:"checkPlace",aliases:["check_placement","check_legality"],group:"Placement",
+  syn:"checkPlace", ex:"checkPlace", desc:"Reports overlaps, unplaced instances and cells violating blockages.",
+  run(){
+    needFP(); const un=stdCells().filter(c=>!c.placed).length, ov=overlapCount();
+    out(`Unplaced std cells : ${un}`, un?"e":"o"); out(`Overlaps/violations: ${ov}`, ov?"e":"o");
+    const dm=densityMap(); out(`Peak bin density   : ${(dm.max*100).toFixed(0)}%`);
+    (un||ov)?warn("checkPlace found problems. Try refinePlace."):ok("Placement is legal.");
+    explain("checkPlace",`<p>Legal means every cell sits on a row, aligned to the 0.2 µm site grid, overlapping nothing. Peak bin density ${(dm.max*100).toFixed(0)}% shows the most crowded area. Run ${c2("reportDensityMap")} to see where it is.</p>`);
+  }});
+def({name:"addTieHiLo",aliases:["add_tieoffs","insert_tiecells"],group:"Placement",
+  syn:"addTieHiLo -cell {TIEHI TIELO} -prefix TIE", ex:"addTieHiLo -cell {TIEHI TIELO} -prefix TIE",
+  desc:"Replaces direct 1'b1/1'b0 connections with tie cells placed next to their loads.",
+  run(){
+    needPlaced(); removeKinds(["tie"]); const occ=rowOcc(); const tgt=S.cells.filter(c=>c.mod==="u_ctrl"&&c.placed).slice(0,8); let n=0;
+    tgt.forEach((c,i)=>{const sp=findSpot(c.x+c.w+0.6,c.y+RH/2,LIB.TIEHI,occ);if(sp){addCell(i%2?"TIELO":"TIEHI",`TIE_${n++}`,sp,"tie");}});
+    ok(`Inserted ${n} tie cells next to constant-driven pins in u_ctrl.`);
+    explain("addTieHiLo",`<p>Gate inputs tied to logic 1 or 0 must not connect straight to the supply rails, because an ESD event on VDD would hit the thin gate oxide directly. A TIEHI/TIELO cell drives the constant through a transistor instead. Each one goes in the nearest free gap beside its load.</p>`);
+  }});
+def({name:"reportDensityMap",aliases:["report_density","gui_density_map"],group:"Placement",
+  syn:"reportDensityMap", ex:"reportDensityMap", desc:"Shows (toggles) the placement density heat map over the core.",
+  run(){
+    needFP(); if(S.overlay==="density"){S.overlay=null;S.overlayData=null;ok("Density map hidden.");explain("reportDensityMap","<p>Overlay removed.</p>");return;}
+    const dm=densityMap(); S.overlay="density"; S.overlayData=dm; const hot=[...dm.val].filter(v=>v>0.85).length;
+    ok(`Density map on: ${dm.N}x${dm.N} bins, peak ${(dm.max*100).toFixed(0)}%, ${hot} bins above 85%.`);
+    explain("reportDensityMap",`<p>Each bin shows cell area ÷ free area. Hot bins (red) near macro pins or IO clusters are where the router will struggle and where optimization has no room for buffers. Fixes include partial blockages, cell padding or lower utilization. Run the command again to hide the map.</p>`);
+  }});
+def({name:"timeDesign",aliases:["report_timing_summary","time_design"],group:"Placement",
+  syn:"timeDesign -preCTS | -postCTS | -postRoute", ex:"timeDesign -preCTS", desc:"Runs static timing analysis at the current stage and prints WNS/TNS.",
+  run(a){
+    needPlaced(); needSdc(); const m=modeOf(a); S.timing=timingAnalysis(m); S.crit=S.timing.paths[0]; timingTable(S.timing);
+    const p=S.crit, pp=pathOf(p.n);
+    explain(`timeDesign -${m}`,`<p>Static timing analysis checks every register-to-register path against the ${S.clockPeriod.toFixed(2)} ns clock without simulating vectors. The worst path (highlighted in magenta) runs from ${c2(pp.from)} to ${c2(pp.to)}:</p>${ul([`logic ${p.logic.toFixed(3)} ns`,`wire ${(p.delay-p.logic-SETUP-S.uncertainty).toFixed(3)} ns over ${p.len.toFixed(1)} µm${m==="postRoute"?" (real routed length)":" (half-perimeter estimate)"}`,`setup ${SETUP.toFixed(3)} + uncertainty ${S.uncertainty.toFixed(3)} ns${m!=="preCTS"?` + skew penalty from the real clock tree`:""}`,`slack = ${S.clockPeriod.toFixed(3)} − ${p.delay.toFixed(3)} = <b>${p.slack.toFixed(3)} ns</b>`])}<p>Wire delay grows roughly with the square of length (RC), so long nets dominate. That's what ${c2("optDesign")} attacks.</p>`);
+  }});
+def({name:"optDesign",aliases:["opt_design"],group:"Placement",
+  syn:"optDesign -preCTS | -postCTS | -postRoute", ex:"optDesign -preCTS", desc:"Fixes timing by buffering long nets and upsizing drivers; shows new cells in the layout.",
+  run(a){
+    needPlaced(); needSdc(); const m=modeOf(a); const r=optimize(m); S.optRuns++; S.optDone[m]=true;
+    if(m==="postRoute"){S.routes=routeAll();S.drcs=S.drcs.slice(0,Math.max(0,S.drcs.length));}
+    S.timing=timingAnalysis(m); S.crit=S.timing.paths[0];
+    out(`Optimizing ${m}: ${r.before.vio} violating paths at start`,"d");
+    out(`  buffers inserted: ${r.buffered}   cells upsized: ${r.upsized}`);
+    ok(`WNS ${fmt(r.before.wns,3)} -> ${fmt(S.timing.wns,3)} ns | TNS ${fmt(r.before.tns,3)} -> ${fmt(S.timing.tns,3)} ns`);
+    if(S.timing.wns<0) info("Still negative. Run optDesign again, relax create_clock, or lower utilization to shorten wires.");
+    explain(`optDesign -${m}`,`<p>The optimizer worked through the failing paths:</p>${ul([`<b>${r.buffered} buffers</b> (bright green) were inserted halfway along long nets${m==="postRoute"?" (post-route only allows sizing)":""}. Splitting a wire of length L into two of L/2 cuts its quadratic RC delay, at the cost of one buffer delay.`,`<b>${r.upsized} driver cells</b> (orange outline) were swapped to their X2 versions: same footprint, stronger drive, faster edges.`])}<p>WNS moved from ${fmt(r.before.wns,3)} to <b>${fmt(S.timing.wns,3)} ns</b>. New cells went into existing gaps, which is why placement density matters.</p>`);
+  }});
+def({name:"report_timing",aliases:["reportTiming"],group:"Placement",
+  syn:"report_timing [-max_paths N]", ex:"report_timing -max_paths 3", desc:"Prints the worst setup paths with the delay breakdown.",
+  run(a){
+    needPlaced(); needSdc(); const mode=S.timing?S.timing.mode:"preCTS"; const t=timingAnalysis(mode); S.timing=t; S.crit=t.paths[0];
+    const n=a.o.max_paths?Math.max(1,Math.min(10,parseInt(a.o.max_paths))):1;
+    t.paths.slice(0,n).forEach((p,i)=>{const pp=pathOf(p.n);
+      out(`Path ${i+1}: ${p.slack<0?"VIOLATED":"MET"} Setup Check (${mode})`,p.slack<0?"e":"o");
+      out(`  Startpoint: ${pp.from}   Endpoint: ${pp.to}`);
+      out(`  clock clk rise edge            0.000`);
+      if(mode!=="preCTS"&&S.clockTree) out(`  clock network latency (prop)   ${(S.clockTree.maxLat/1000).toFixed(3)}`);
+      out(`  logic cells                   +${p.logic.toFixed(3)}`);
+      out(`  interconnect (${p.len.toFixed(1)} um)${" ".repeat(Math.max(1,11-p.len.toFixed(1).length))}+${(p.delay-p.logic-SETUP-S.uncertainty).toFixed(3)}`);
+      out(`  setup + uncertainty           +${(SETUP+S.uncertainty).toFixed(3)}`);
+      out(`  required ${S.clockPeriod.toFixed(3)}  arrival ${p.delay.toFixed(3)}  slack ${p.slack.toFixed(3)}`,p.slack<0?"e":"o");});
+    explain("report_timing",`<p>A timing report walks one path: launch clock edge, clock latency, then each cell and wire delay to the capturing flop, compared with the required time (period − setup − uncertainty). The worst path is highlighted in magenta on the layout.</p>`);
+  }});
+def({name:"report_area",aliases:["reportGateCount","report_cell_usage"],group:"Placement",
+  syn:"report_area", ex:"report_area", desc:"Cell count and area by type: logic, flops, macros, physical-only cells.",
+  run(){
+    needInit(); const g={}; S.cells.forEach(c=>{const k=c.kind==="std"?(c.ff?"flip-flops":"logic"):c.kind;g[k]=g[k]||{n:0,a:0};g[k].n++;g[k].a+=c.w*RH;});
+    Object.entries(g).forEach(([k,v])=>out(`  ${k.padEnd(11)} ${String(v.n).padStart(5)}  ${fmt(v.a,1).padStart(9)} um²`));
+    out(`  ${"macros".padEnd(11)} ${String(S.macros.length).padStart(5)}  ${fmt(macroArea(),1).padStart(9)} um²`);
+    ok("report_area done.");
+    explain("report_area",`<p>Physical-only cells (endcaps, taps, fillers, tie cells) are not in the synthesized netlist. Placement and routing add them, so a post-route netlist has more instances than the one you read in.</p>`);
+  }});
+
+/* ---------- Clock tree ---------- */
+def({name:"create_ccopt_clock_tree_spec",aliases:["create_clock_tree_spec"],group:"Clock tree",
+  syn:"create_ccopt_clock_tree_spec", ex:"create_ccopt_clock_tree_spec", desc:"Traces the SDC clocks to their flip-flop sinks and builds the CTS specification.",
+  run(){
+    needInit(); needSdc(); S.cts.spec=true; const n=S.cells.filter(c=>c.ff).length;
+    out(`Clock tree 'clk': source port clk, ${n} sinks (DFFRX1/CK)`); out(`  buffer_cells ${S.cts.buffers.join(" ")} | target_skew ${S.cts.targetSkew.toFixed(3)} ns | max_fanout ${S.cts.maxFanout}`);
+    ok("CCOpt spec created.");
+    explain("create_ccopt_clock_tree_spec",`<p>The spec traces ${c2("clk")} from its port through the netlist to every flop clock pin (${n} sinks) and records the targets: skew, max fanout per driver, and which buffers CTS may use. Adjust them with ${c2("set_ccopt_property")}.</p>`);
+  }});
+def({name:"set_ccopt_property",aliases:["set_clock_tree_options"],group:"Clock tree",
+  syn:"set_ccopt_property <target_skew|max_fanout|buffer_cells> <value>", ex:"set_ccopt_property target_skew 0.03",
+  desc:"Sets CTS targets: skew (ns), max fanout per buffer, allowed buffer cells.",
+  run(a){
+    const [k,v]=a.pos; need(k&&v!=null,"Usage: set_ccopt_property <property> <value>");
+    if(k==="target_skew"){const x=num(v,"target_skew");need(x>=0.005&&x<=0.5,"target_skew must be 0.005–0.5 ns.");S.cts.targetSkew=x;}
+    else if(k==="max_fanout"){const x=parseInt(v);need(x>=2&&x<=40,"max_fanout must be 2–40.");S.cts.maxFanout=x;}
+    else if(k==="buffer_cells"){const l=String(v).split(/\s+/).filter(b=>LIB[b]);need(l.length,"Known clock buffers: CLKBUFX4 CLKBUFX8");S.cts.buffers=l;}
+    else warn(`Property '${k}' accepted but not modeled in this lab.`);
+    ok(`ccopt property ${k} = ${v}`);
+    explain("set_ccopt_property",`<p>${k==="max_fanout"?"A lower max fanout gives a deeper tree with more buffers but shorter leaf wires.":k==="target_skew"?"A tighter skew target makes CCOpt add more delay cells to slow down early branches until every flop sees the edge at nearly the same time.":"Properties steer the next ccopt_design run."}</p>`);
+  }});
+def({name:"ccopt_design",aliases:["clock_opt_design","clock_tree_synthesis"],group:"Clock tree",
+  syn:"ccopt_design", ex:"ccopt_design", desc:"Builds the clock tree: inserts clock buffers, balances skew and routes clock nets.",
+  run(){
+    needPlaced(); needSdc(); if(!S.cts.spec){warn("No clock tree spec. Creating one with defaults.");S.cts.spec=true;}
+    if(!S.pins.find(p=>p.name==="clk").placed) warn("Clock port is unplaced; the tree root is fed from the core corner.");
+    if(S.clockTree||S.routed) clearFrom(LV.CTS);
+    const t=buildClockTree(); S.clockTree=t; startReveal("clock");
+    out(`CCOpt: ${t.sinks} sinks, ${t.levels} levels, ${t.bufs.length-t.dly} clock buffers + ${t.dly} delay cells`,"d");
+    out(`  skew before balancing ${(t.rawSkew).toFixed(1)} ps -> after ${(t.skew).toFixed(1)} ps (target ${(S.cts.targetSkew*1000).toFixed(0)} ps)`);
+    out(`  insertion delay min ${(t.minLat).toFixed(1)} ps  max ${(t.maxLat).toFixed(1)} ps | clock wire ${fmt(t.wire,0)} um`);
+    t.skew<=S.cts.targetSkew*1000?ok("Clock tree meets the skew target."):warn("Skew target not met. Leaf wires differ too much; try a lower max_fanout.");
+    explain("ccopt_design",`<p>Clock tree synthesis replaced the single ${c2("clk")} net, which had ${t.sinks} loads (far too many for one driver), with a buffered tree (yellow):</p>${ul([`<b>Recursive partitioning</b>: the core is split into quadrants, and a buffer is placed at the center of each group of flops until a group has ≤ ${S.cts.maxFanout} sinks. That gives ${t.levels} levels and ${t.bufs.length-t.dly} buffers.`,`<b>Skew balancing</b>: branches that reach their flops early got ${t.dly} delay cells, bringing skew from ${t.rawSkew.toFixed(1)} ps down to <b>${t.skew.toFixed(1)} ps</b>.`,`Insertion delay (clock port to flop) is ${t.minLat.toFixed(0)}–${t.maxLat.toFixed(0)} ps. That's fine: only the difference (skew) eats into timing.`])}<p>Timing is now "propagated": run ${c2("timeDesign -postCTS")} or ${c2("optDesign -postCTS")}.</p>`);
+  }});
+def({name:"report_ccopt_skew_groups",aliases:["report_clock_timing","report_ccopt_clock_trees","report_clock_qor"],group:"Clock tree",
+  syn:"report_ccopt_skew_groups", ex:"report_ccopt_skew_groups", desc:"Prints clock latency, skew and tree statistics.",
+  run(){
+    need(S.clockTree,"No clock tree. Run ccopt_design first."); const t=S.clockTree;
+    out("Skew group clk/func:"); out(`  min ID ${t.minLat.toFixed(1)} ps | max ID ${t.maxLat.toFixed(1)} ps | skew ${t.skew.toFixed(1)} ps | target ${(S.cts.targetSkew*1000).toFixed(0)} ps`);
+    out(`  levels ${t.levels} | buffers ${t.bufs.length-t.dly} | delay cells ${t.dly} | sinks ${t.sinks} | wire ${fmt(t.wire,0)} um`);
+    ok("Report done.");
+    explain("report_ccopt_skew_groups",`<p>A skew group is a set of sinks that must be balanced against each other. ID = insertion delay. Skew = max ID − min ID.</p>`);
+  }});
+
+/* ---------- Routing ---------- */
+def({name:"setNanoRouteMode",aliases:["set_route_mode","setRouteMode"],group:"Routing",
+  syn:"setNanoRouteMode -routeTopRoutingLayer <3..7> [-routeWithTimingDriven true]", ex:"setNanoRouteMode -routeTopRoutingLayer 5",
+  desc:"Limits which metal layers signal routing may use (M8/M9 stay reserved for power).",
+  run(a){
+    if(a.o.routeTopRoutingLayer){const v=parseInt(a.o.routeTopRoutingLayer);need(v>=3&&v<=7,"Top routing layer must be 3–7 (M8/M9 are the power grid).");S.routeMode.top=v;}
+    if(a.o.routeWithTimingDriven!=null)S.routeMode.timingDriven=String(a.o.routeWithTimingDriven)!=="false";
+    ok(`route mode: top layer M${S.routeMode.top}, timing-driven ${S.routeMode.timingDriven}`);
+    explain("setNanoRouteMode",`<p>Fewer routing layers means fewer tracks per µm². Try ${c2("-routeTopRoutingLayer 3")}, then ${c2("earlyGlobalRoute")}, to see congestion jump, then ${c2("routeDesign")} to see the extra DRC violations.</p>`);
+  }});
+def({name:"earlyGlobalRoute",aliases:["trialRoute","global_route"],group:"Routing",
+  syn:"earlyGlobalRoute", ex:"earlyGlobalRoute", desc:"Fast congestion estimate; shows (toggles) the congestion heat map.",
+  run(){
+    needPlaced(); if(S.overlay==="congestion"){S.overlay=null;S.overlayData=null;ok("Congestion map hidden.");explain("earlyGlobalRoute","<p>Overlay removed.</p>");return;}
+    const cm=congestionMap(); S.overlay="congestion"; S.overlayData=cm;
+    const pct=cm.over/(cm.N*cm.N)*100;
+    out(`Global routing grid ${cm.N}x${cm.N} GCells, layers M2–M${S.routeMode.top}`,"d");
+    out(`  peak demand/supply ${(cm.max*100).toFixed(0)}% | overflowed GCells ${cm.over} (${pct.toFixed(2)}%)`, cm.over?"w":"o");
+    ok("Congestion map on.");
+    explain("earlyGlobalRoute",`<p>The chip is divided into GCells (routing bins). Each net spreads its expected wire over its bounding box (the RUDY estimate), and each bin compares that demand with the tracks available on M2–M${S.routeMode.top}. Red bins are over capacity and will turn into detours or DRC violations. Here ${cm.over} of ${cm.N*cm.N} bins overflow.</p>`);
+  }});
+def({name:"routeDesign",aliases:["route_design","detailed_route","route_auto"],group:"Routing",
+  syn:"routeDesign [-globalDetail]", ex:"routeDesign", desc:"Global + detailed routing of all signal nets on M2–M7 with vias.",
+  run(){
+    needPlaced(); if(!S.clockTree) warn("No clock tree: clk is routed as one ordinary net with 125 loads. Run ccopt_design first.");
+    if(S.routed) clearFrom(LV.ROUTE);
+    if(S.overlay==="congestion"){S.overlay=null;S.overlayData=null;}
+    S.routes=routeAll(); S.routed=true; S.drcs=makeDRCs(); startReveal("routes");
+    out("NanoRoute: global route -> track assignment -> detailed route (search & repair)","d");
+    Object.keys(S.routes.byLayer).sort().forEach(L=>out(`  ${L} (${LAYER_DIR[L]}) ${fmt(S.routes.byLayer[L],0).padStart(8)} um`));
+    out(`  total wire ${fmt(S.routes.wl,0)} um | vias ${S.routes.vias} | nets ${S.routes.nets.length}`);
+    S.drcs.length?warn(`${S.drcs.length} DRC violations remain (red X). Run ecoRoute -fix_drc.`):ok("0 DRC violations.");
+    const tiers=["M2/M3","M4/M5","M6/M7"];
+    explain("routeDesign",`<p>Every connection became real metal:</p>${ul([`Each net is broken into a minimum spanning tree of two-pin connections, and each connection becomes an L of one horizontal and one vertical wire joined by a via.`,`<b>Layer assignment by length</b>: short hops use ${tiers[0]}, medium ${tiers[1]}, and long nets ${tiers[Math.min(2,S.routeMode.top>=7?2:S.routeMode.top>=5?1:0)]}, because higher layers are thicker with lower resistance. Colors in the legend show which is which.`,`Routed length ${fmt(S.routes.wl,0)} µm vs. HPWL estimate ${fmt(totalHPWL(),0)} µm. The difference is the detour from Steiner trees and pin access.`])}<p>${S.drcs.length} spots in the most congested GCells ended up with rule violations (red X). Real routers iterate "search and repair"; here you trigger that with ${c2("ecoRoute -fix_drc")}.</p>`);
+  }});
+def({name:"ecoRoute",aliases:["route_eco"],group:"Routing",
+  syn:"ecoRoute -fix_drc", ex:"ecoRoute -fix_drc", desc:"Incremental reroute that repairs remaining DRC violations.",
+  run(){
+    need(S.routed,"Nothing is routed. Run routeDesign first."); const n=S.drcs.length;
+    if(!n){ok("No DRC violations to fix.");explain("ecoRoute","<p>Nothing to repair.</p>");return;}
+    S.drcs=[]; S.routes.wl*=1.004; ok(`Fixed ${n} violations by rip-up and reroute; wire +0.4%.`);
+    explain("ecoRoute -fix_drc",`<p>Search and repair rips up the wires around each violation and reroutes them with a small detour or a different via position. ${n} markers cleared, total wirelength went up by 0.4%.</p>`);
+  }});
+def({name:"verify_drc",aliases:["verifyGeometry","check_drc","verifyDRC"],group:"Routing",
+  syn:"verify_drc", ex:"verify_drc", desc:"Checks spacing, width, short and via rules; lists violations with coordinates.",
+  run(){
+    needFP(); const ov=S.legal?overlapCount():0;
+    if(!S.routed){out(`Placement overlaps: ${ov}`);warn("Design is not routed; only placement checks ran.");explain("verify_drc","<p>Route the design to get metal DRC.</p>");return;}
+    S.drcs.slice(0,20).forEach((d,i)=>out(`  #${i+1} ${d.type.padEnd(26)} at (${d.x.toFixed(2)}, ${d.y.toFixed(2)})`,"e"));
+    (S.drcs.length+ov)?err(`verify_drc: ${S.drcs.length+ov} violations.`):ok("verify_drc: 0 violations.");
+    explain("verify_drc",`<p>Design rule checks confirm the layout can be manufactured: minimum width and spacing per layer, via enclosure, no shorts between nets. ${S.drcs.length?"Each violation is marked with a red X.":"The design is clean."}</p>`);
+  }});
+def({name:"verifyConnectivity",aliases:["verify_connectivity","check_connectivity"],group:"Routing",
+  syn:"verifyConnectivity [-type all|special|regular]", ex:"verifyConnectivity",
+  desc:"Finds opens and unconnected pins on power and signal nets.",
+  run(){
+    needFP(); let bad=0;
+    const pgO=(!S.pg.rails?S.rows.length+1:0)+(!S.pg.ring&&!S.pg.stripes.length?1:0);
+    out(`Special nets VDD/VSS: ${pgO} open(s)`,pgO?"e":"o"); bad+=pgO;
+    const unr=S.routed?0:signalNets().length; out(`Regular nets: ${unr} unrouted`,unr?"e":"o"); bad+=unr;
+    const unp=stdCells().filter(c=>!c.placed).length; if(unp){out(`${unp} instances unplaced`,"e");bad+=unp;}
+    bad?err(`verifyConnectivity: ${bad} problem(s).`):ok("verifyConnectivity: no opens.");
+    explain("verifyConnectivity",`<p>The check compares the physical shapes with the logical netlist. Any pin whose net isn't physically connected is an open. ${pgO?"The power grid is incomplete: run addRing/addStripe/sroute.":""}${unr?" Signal nets are still flight lines until routeDesign runs.":""}</p>`);
+  }});
+def({name:"verifyProcessAntenna",aliases:["check_antenna"],group:"Routing",
+  syn:"verifyProcessAntenna", ex:"verifyProcessAntenna", desc:"Checks long low-layer wires that could damage gates during manufacturing.",
+  run(){
+    need(S.routed,"Nothing is routed. Run routeDesign first.");
+    const n=S.routeMode.top<5?S.routes.nets.filter(r=>r.len>55).length:0;
+    n?warn(`${n} antenna violations (long wires on low layers). Allow higher layers or insert diodes.`):ok("0 antenna violations.");
+    explain("verifyProcessAntenna",`<p>While metal is being etched, a long wire connected only to a gate collects charge that can punch through the gate oxide. Routers avoid this by jumping to a higher layer near the gate or adding a diode. With the top routing layer at M${S.routeMode.top}, ${n} long nets are at risk.</p>`);
+  }});
+def({name:"extractRC",aliases:["extract_rc"],group:"Routing",
+  syn:"extractRC", ex:"extractRC", desc:"Extracts wire resistance and capacitance from the routed geometry.",
+  run(){
+    need(S.routed,"Nothing is routed. Run routeDesign first."); S.extracted=true;
+    const Cp=S.routes.wl*0.19/1000, Rk=S.routes.wl*0.85/1000;
+    ok(`Extracted ${S.routes.nets.length} nets: total C ${Cp.toFixed(2)} pF, total R ${Rk.toFixed(1)} kΩ`);
+    explain("extractRC",`<p>Extraction turns each routed wire into resistors and capacitors from its layer, width, length and neighbours. Post-route timing and power use these numbers instead of the placement-stage estimates.</p>`);
+  }});
+def({name:"report_power",aliases:["reportPower"],group:"Routing",
+  syn:"report_power", ex:"report_power", desc:"Estimates internal, switching and leakage power.",
+  run(){
+    needPlaced(); const f=1/S.clockPeriod, wl=S.routed?S.routes.wl:totalHPWL();
+    const internal=stdCells().reduce((a,c)=>a+(c.ff?1.9:0.55),0)*f/1000, sw=wl*0.19e-3*0.81*0.15*f, clk=S.clockTree?(S.clockTree.wire*0.19e-3*0.81*f+S.clockTree.bufs.length*0.004*f):0, leak=S.cells.length*0.0000125;
+    if(!S.extracted) warn("No extracted RC: switching power uses estimated wirelength.");
+    out(`  internal  ${internal.toFixed(3)} mW`); out(`  switching ${sw.toFixed(3)} mW`); out(`  clock net ${clk.toFixed(3)} mW`); out(`  leakage   ${leak.toFixed(4)} mW`);
+    ok(`Total ${(internal+sw+clk+leak).toFixed(3)} mW at ${f.toFixed(2)} GHz`);
+    explain("report_power",`<p>Switching power is ½·C·V²·f·activity: it scales with wire capacitance, so shorter routing saves power. The clock tree toggles every cycle, which is why it's usually the largest single consumer.</p>`);
+  }});
+
+/* ---------- Signoff & output ---------- */
+def({name:"addFiller",aliases:["add_fillers","create_stdcell_fillers","filler_placement"],group:"Signoff & output",
+  syn:"addFiller -cell {FILL8 FILL4 FILL2 FILL1} -prefix FILLER", ex:"addFiller -cell {FILL8 FILL4 FILL2 FILL1} -prefix FILLER",
+  desc:"Fills every empty site in the rows so wells and implants are continuous.",
+  run(a){
+    needPlaced(); removeKinds(["filler"]); const r=insertFillers(a.o.prefix||"FILLER");
+    ok(`Inserted ${r.n} filler cells (${fmt(r.area,0)} um²); rows are now 100% occupied.`);
+    explain("addFiller",`<p>Gaps between cells would leave breaks in the n-well, implant layers and power rails. Fillers are empty cells that carry just those layers. The widest filler that fits goes first (FILL8, then 4, 2, 1), so every free site is covered with as few instances as possible: ${r.n} here.</p>`);
+  }});
+def({name:"deleteFiller",aliases:["remove_fillers"],group:"Signoff & output",
+  syn:"deleteFiller -prefix FILLER", ex:"deleteFiller -prefix FILLER", desc:"Removes filler cells (needed before ECO changes).",
+  run(){const n=cellsOf("filler").length;removeKinds(["filler"]);ok(`Deleted ${n} fillers.`);explain("deleteFiller","<p>Fillers must be removed before an ECO so new buffers have somewhere to go.</p>");}});
+function writeFile(kind,name,extra){
+  needFP(); S.written.add(kind); ok(`Wrote ${name}${extra?" "+extra:""}.`);
+}
+def({name:"saveNetlist",aliases:["write_verilog"],group:"Signoff & output",
+  syn:"saveNetlist <file.v>", ex:"saveNetlist mini_soc_final.v", desc:"Writes the post-layout netlist, including inserted buffers.",
+  run(a){const extra=S.cells.filter(c=>["buf","clkbuf","tie"].includes(c.kind)).length; writeFile("v",a.pos[0]||"mini_soc_final.v",`(${stdCells().length+extra} logic instances, ${extra} added by PnR)`);
+    explain("saveNetlist",`<p>The layout netlist differs from the synthesis netlist: it includes ${extra} buffers, clock cells and tie cells inserted during implementation. Formal equivalence checking (LEC) proves both still implement the same logic.</p>`);}});
+def({name:"defOut",aliases:["write_def"],group:"Signoff & output",
+  syn:"defOut <file.def>", ex:"defOut mini_soc.def", desc:"Writes DEF: die area, rows, placed components, pins, special and regular wiring.",
+  run(a){writeFile("def",a.pos[0]||"mini_soc.def",`(${S.cells.filter(c=>c.placed).length} components${S.routed?", routed":""})`);
+    explain("defOut","<p>DEF (Design Exchange Format) is the text form of everything on screen: DIEAREA, ROWs, COMPONENTS with coordinates, PINS, SPECIALNETS (power) and NETS (routing). It is how layouts move between tools.</p>");}});
+def({name:"streamOut",aliases:["write_gds","write_stream"],group:"Signoff & output",
+  syn:"streamOut <file.gds> -mapFile streamOut.map -units 1000", ex:"streamOut mini_soc.gds -units 1000",
+  desc:"Writes the final GDSII layout for tape-out, merging cell and macro layouts.",
+  run(a){
+    const issues=[]; if(!S.routed)issues.push("not routed"); if(S.drcs.length)issues.push(`${S.drcs.length} DRC violations`); if(!cellsOf("filler").length)issues.push("no fillers"); if(!S.pg.rails)issues.push("power grid incomplete");
+    if(issues.length) warn(`Streaming out anyway, but the layout is not tape-out ready: ${issues.join(", ")}.`);
+    writeFile("gds",a.pos[0]||"mini_soc.gds","(units 1000 dbu/um)");
+    explain("streamOut",`<p>GDSII is the polygon database sent to the foundry. The tool merges the cell and macro layouts (real transistors) into the abstracts it has been working with. ${issues.length?"This one still has issues: "+issues.join(", ")+".":"This design is routed, filled and DRC-clean, so the flow is complete."}</p>`);
+  }});
+def({name:"saveDesign",aliases:["write_db"],group:"Signoff & output",
+  syn:"saveDesign <name.enc>", ex:"saveDesign mini_soc_final.enc", desc:"Saves a restorable snapshot of the whole database.",
+  run(a){writeFile("enc",a.pos[0]||"mini_soc.enc"); explain("saveDesign","<p>A checkpoint of the whole database, so a later session can restore it without re-running the flow.</p>");}});
+def({name:"summaryReport",aliases:["report_design","report_qor"],group:"Signoff & output",
+  syn:"summaryReport", ex:"summaryReport", desc:"One-page summary of the design at its current stage.",
+  run(){
+    needInit(); const st=stageInfo();
+    out(`Stage             : ${st.names[st.cur]||"complete"}`);
+    if(S.core){out(`Core              : ${fmt(S.core.x2-S.core.x1,1)} x ${fmt(S.core.y2-S.core.y1,1)} um, ${S.rows.length} rows, util ${(S.util*100).toFixed(1)}%`);}
+    out(`Instances         : ${S.cells.length} (${S.cells.filter(c=>c.placed).length} placed) + ${S.macros.length} macros`);
+    if(S.legal)out(`HPWL              : ${fmt(totalHPWL(),0)} um`);
+    if(S.clockTree)out(`Clock skew        : ${S.clockTree.skew.toFixed(1)} ps`);
+    if(S.routed)out(`Routed wire / DRC : ${fmt(S.routes.wl,0)} um / ${S.drcs.length}`);
+    if(S.timing)out(`WNS / TNS (${S.timing.mode}) : ${fmt(S.timing.wns,3)} / ${fmt(S.timing.tns,3)} ns`);
+    out(`Files written     : ${[...S.written].join(", ")||"none"}`); ok("summaryReport done.");
+    explain("summaryReport","<p>A snapshot of the numbers that decide whether a block is done: area, timing, clock quality, wirelength and DRC.</p>");
+  }});
+
+/* ---------- Shell ---------- */
+def({name:"help",aliases:["man"],group:"Shell",syn:"help [command]",ex:"help floorPlan",desc:"Lists commands, or shows syntax and purpose of one command.",
+  run(a){
+    if(a.pos[0]){const c=CMAP.get(a.pos[0]);need(c,`No command '${a.pos[0]}'. Type help for the list.`);out(c.name,"i");out("  "+c.desc);out("  Usage:   "+c.syn);out("  Example: "+c.ex,"d");if(c.aliases?.length)out("  Aliases: "+c.aliases.join(", "),"d");return;}
+    GROUPS.forEach(g=>out(`${g}: ${CMDS.filter(c=>c.group===g).map(c=>c.name).join(" ")}`));
+  }});
+def({name:"history",group:"Shell",syn:"history",ex:"history",desc:"Shows the commands you've run.",run(){HIST.forEach((h,i)=>out(`${String(i+1).padStart(3)}  ${h}`,"d"));}});
+def({name:"clear",aliases:["cls"],group:"Shell",syn:"clear",ex:"clear",desc:"Clears the console (the design is kept).",run(){clearLog();}});
+def({name:"reset",aliases:["reset_design","freeDesign","close_design"],group:"Shell",syn:"reset",ex:"reset",desc:"Deletes the whole design and returns to the empty floorplan.",
+  run(){resetDesign(false);ok("Design reset. The floorplan is empty.");}});
+def({name:"fit",aliases:["gui_fit","zoom_fit"],group:"Shell",syn:"fit",ex:"fit",desc:"Zooms the layout view to fit the die.",run(){fitView(true);ok("View fitted.");}});
+def({name:"run_flow",aliases:["source"],group:"Shell",syn:"run_flow  |  source flow.tcl",ex:"source flow.tcl",desc:"Runs the complete reference flow step by step.",
+  run(a){need(!a.pos[0]||/flow\.tcl$/.test(a.pos[0]),`File '${a.pos[0]}' not found. Available script: flow.tcl`);runFlow();}});
+def({name:"set",group:"Shell",syn:"set <var> <value>",ex:"set util 0.65",desc:"Sets a TCL variable; use it later as $var.",
+  run(a){need(a.pos.length>=1,"Usage: set var value");if(a.pos.length===1){need(a.pos[0] in VARS,`can't read "${a.pos[0]}": no such variable`);out(VARS[a.pos[0]]);return;}VARS[a.pos[0]]=a.pos.slice(1).join(" ");out(VARS[a.pos[0]]);}});
+def({name:"puts",aliases:["echo"],group:"Shell",syn:"puts \"text $var\"",ex:"puts \"core util = $util\"",desc:"Prints text.",run(a,t){out(t.join(" "));}});
+
+const FLOW = [
+  "read_lef tech.lef stdcells.lef macros.lef","read_lib slow.lib fast.lib","read_verilog mini_soc.v","read_sdc mini_soc.sdc","init_design",
+  "floorPlan -r 1.0 0.70 12 12 12 12","assignIoPins","planDesign","setInstancePlacementStatus -allHardMacros -status fixed","addHaloToBlock 2 2 2 2 -allBlock",
+  "addEndCap -preCap ENDCAP -postCap ENDCAP -prefix ENDCAP","addWellTap -cell TAPCELL -cellInterval 30 -prefix WELLTAP",
+  "globalNetConnect VDD -type pgpin -pin VDD -all","globalNetConnect VSS -type pgpin -pin VSS -all",
+  "addRing -nets {VDD VSS} -type core_rings -layer {top M9 bottom M9 left M8 right M8} -width 2 -spacing 1 -offset 1",
+  "addStripe -nets {VDD VSS} -layer M8 -direction vertical -width 1 -spacing 1 -set_to_set_distance 20 -start_offset 6",
+  "sroute -connect {corePin blockPin} -nets {VDD VSS}",
+  "setPlaceMode -timingDriven true -congEffort medium","placeDesign","timeDesign -preCTS","optDesign -preCTS",
+  "create_ccopt_clock_tree_spec","set_ccopt_property target_skew 0.05","ccopt_design","optDesign -postCTS",
+  "setNanoRouteMode -routeTopRoutingLayer 7","routeDesign","ecoRoute -fix_drc","optDesign -postRoute",
+  "addFiller -cell {FILL8 FILL4 FILL2 FILL1} -prefix FILLER","verify_drc","verifyConnectivity","streamOut mini_soc.gds -units 1000"
+];
+function nextStep(){
+  if(!S.lef)return FLOW[0]; if(!S.lib)return FLOW[1]; if(!S.netlist)return FLOW[2]; if(!S.sdc)return FLOW[3]; if(!S.init)return FLOW[4];
+  if(!S.core)return FLOW[5]; if(S.pins.some(p=>!p.placed))return FLOW[6]; if(S.macros.some(m=>!m.placed))return FLOW[7];
+  if(!S.macros.every(m=>m.fixed))return FLOW[8]; if(!S.halo)return FLOW[9];
+  if(!S.legal&&!cellsOf("endcap").length)return FLOW[10]; if(!S.legal&&!cellsOf("tap").length)return FLOW[11];
+  if(!S.pg.gnc.VDD)return FLOW[12]; if(!S.pg.gnc.VSS)return FLOW[13]; if(!S.pg.ring)return FLOW[14]; if(!S.pg.stripes.length)return FLOW[15]; if(!S.pg.rails)return FLOW[16];
+  if(!S.legal)return FLOW[18]; if(!S.optDone.preCTS&&!S.clockTree)return FLOW[20]; if(!S.clockTree)return FLOW[23]; if(!S.optDone.postCTS&&!S.routed)return FLOW[24];
+  if(!S.routed)return FLOW[26]; if(S.drcs.length)return FLOW[27]; if(!S.optDone.postRoute)return FLOW[28];
+  if(!cellsOf("filler").length)return FLOW[29]; if(!S.written.has("gds"))return FLOW[32]; return "summaryReport";
+}
+
+/* =====================================================================
+   UI: layout renderer, console, reference, stepper, metrics
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const cv=$("cv"), ctx=cv.getContext("2d"), cwrap=$("cwrap");
+const REDUCED = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+const MOD_COLORS={u_alu:"#5B9BD5",u_regfile:"#A184E6",u_ctrl:"#45B5A5",u_memif:"#D6A23E",u_io:"#E0789A"};
+const KIND_COL={endcap:"#8C9AA1",tap:"#6DB36D",filler:"#26313A",clkbuf:"#F2C94C",buf:"#7CFC9A",tie:"#D7D7D7"};
+const LAYER_COL={M1:"#5A93E8",M2:"#E0625C",M3:"#4CBF7F",M4:"#E6A23C",M5:"#43C1D6",M6:"#C07BE0",M7:"#D9D35B",M8:"#B98CE8",M9:"#F0C27A"};
+const NET_COL={VDD:"#E8664F",VSS:"#4F8FEA"};
+const vis={rows:true,cells:true,macros:true,power:true,signal:true,clock:true,pins:true,heat:true};
+const LEGEND=[["rows","Rows","#3C505A"],["cells","Std cells","#5B9BD5"],["macros","Macros","#D0895A"],["power","Power grid","#E8664F"],["signal","Signal wires","#4CBF7F"],["clock","Clock tree","#F2C94C"],["pins","IO pins","#E6A23C"],["heat","Heat maps","#D94A3A"]];
+const STAGES=["Import","Floorplan","Power","Place","CTS","Route","Signoff"];
+let view={s:5,ox:0,oy:0,user:false}, dpr=1, W=600, H=400;
+let anim=null, reveal=null, raf=0, hover=null, curBin=null;
+
+/* ---------- output helpers used by commands ---------- */
+const logEl=$("log"); let lineNo=1;
+function out(t,cls){const d=document.createElement("div");if(cls)d.className=cls;d.textContent=t;logEl.appendChild(d);
+  while(logEl.childNodes.length>1600)logEl.removeChild(logEl.firstChild); logEl.scrollTop=logEl.scrollHeight;}
+const ok=t=>out(t,"o"), warn=t=>out("**WARN: "+t,"w"), err=t=>out("**ERROR: "+t,"e"), info=t=>out(t,"i");
+function clearLog(){logEl.textContent="";}
+let lastExplain=null;
+function explain(title,html){lastExplain={title,html};}
+const INTRO={title:"Start with an empty floorplan",html:`<p>This lab drives a teaching model of a place-and-route tool through its console. Each command changes the design database and the layout redraws, so you can see what happens inside the tool at every step:</p>${ul(["<b>Import</b>: LEF, Liberty, Verilog and SDC in; init_design links them.","<b>Floorplan</b>: die/core/rows, IO pins, macros, halos, endcaps, well taps.","<b>Power</b>: rings, stripes and M1 follow-pin rails.","<b>Place</b>: global placement, legalization, timing optimization.","<b>CTS</b>: a buffered, skew-balanced clock tree.","<b>Route</b>: real wires on M2–M7, DRC repair.","<b>Signoff</b>: fillers, checks and GDSII out."])}<p>Type ${c2("reset")} at any point to start over. Commands run out of order return the error a real tool would give, which is part of the lesson.</p>`};
+
+/* ---------- geometry of the view ---------- */
+const sx=x=>(x-view.ox)*view.s, sy=y=>H-(y-view.oy)*view.s;
+const wxp=px=>px/view.s+view.ox, wyp=py=>(H-py)/view.s+view.oy;
+function baseBox(){return S.die?{...S.die}:{x1:0,y1:0,x2:100,y2:100};}
+function binLayout(){
+  if(!S.netlist)return null;
+  const uc=S.cells.filter(c=>!c.placed&&c.kind==="std"), um=S.macros.filter(m=>!m.placed);
+  if(!uc.length&&!um.length)return null;
+  const b=baseBox(), bw=Math.max(46,(b.x2-b.x1)*0.5), x0=b.x2+12; let y=b.y2-4; const pos=new Map();
+  let mx=x0,rowH=0;
+  for(const m of um){if(mx+m.w>x0+bw){mx=x0;y-=rowH+2;rowH=0;}pos.set(m,[mx,y-m.h]);mx+=m.w+2;rowH=Math.max(rowH,m.h);}
+  y-=rowH+(um.length?4:0); let cx=x0; y-=RH;
+  for(const c of uc){if(cx+c.w>x0+bw){cx=x0;y-=RH+0.5;}pos.set(c,[cx,y]);cx+=c.w+0.25;}
+  return {pos,x0,x1:x0+bw,yTop:b.y2,yBot:y,n:uc.length+um.length};
+}
+function worldBounds(){
+  const b=baseBox(); let x1=b.x1-8,y1=b.y1-8,x2=b.x2+8,y2=b.y2+8; const bl=binLayout();
+  if(bl){x2=Math.max(x2,bl.x1+4);y1=Math.min(y1,bl.yBot-4);y2=Math.max(y2,bl.yTop+10);}
+  return {x1,y1,x2,y2};
+}
+function fitView(force){
+  if(force)view.user=false;
+  const B=worldBounds(); const s=Math.min(W/(B.x2-B.x1),H/(B.y2-B.y1))*0.96;
+  view.s=s; view.ox=(B.x1+B.x2)/2-W/2/s; view.oy=(B.y1+B.y2)/2-H/2/s; redraw();
+}
+function resize(){
+  const r=cv.getBoundingClientRect(); dpr=Math.min(2,window.devicePixelRatio||1);
+  W=Math.max(200,r.width); H=Math.max(200,r.height); cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
+  if(!view.user)fitView(); else redraw();
+}
+
+/* ---------- animation ---------- */
+function startPlaceAnim(movers,frames){
+  if(REDUCED){redraw();return;}
+  if(frames.length>2){const cx=(S.core.x1+S.core.x2)/2,cy=(S.core.y1+S.core.y2)/2;frames=[movers.map(c=>[cx-c.w/2,cy-RH/2]),...frames];}
+  anim={movers:new Map(movers.map((c,k)=>[c,k])),frames,t0:performance.now(),dur:frames.length>2?1900:700}; loop();
+}
+function startReveal(key){if(REDUCED)return;reveal={key,t0:performance.now(),dur:key==="clock"?1300:1500};loop();}
+function redraw(){loop();}
+function loop(){if(!raf)raf=requestAnimationFrame(tick);}
+function tick(now){
+  raf=0; draw(now);
+  const busy=(anim&&now-anim.t0<anim.dur)||(reveal&&now-reveal.t0<reveal.dur);
+  if(busy)raf=requestAnimationFrame(tick); else if(anim||reveal){anim=null;reveal=null;draw(now);}
+}
+const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+function cellXY(c,now){
+  if(anim&&anim.movers.has(c)){
+    const k=anim.movers.get(c), t=clamp((now-anim.t0)/anim.dur,0,1)*(anim.frames.length-1);
+    const i=Math.min(anim.frames.length-2,Math.floor(t)), f=ease(t-i), a=anim.frames[i][k], b=anim.frames[i+1][k];
+    return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f];
+  }
+  return [c.x,c.y];
+}
+const revealFrac=(key,now)=>(reveal&&reveal.key===key)?clamp((now-reveal.t0)/reveal.dur,0,1):1;
+
+/* ---------- drawing ---------- */
+function rectPath(x1,y1,x2,y2){ctx.rect(sx(x1),sy(y2),(x2-x1)*view.s,(y2-y1)*view.s);}
+function hatch(x1,y1,x2,y2,color,gap){
+  ctx.save();ctx.beginPath();rectPath(x1,y1,x2,y2);ctx.clip();ctx.strokeStyle=color;ctx.lineWidth=1;ctx.beginPath();
+  const X1=sx(x1),Y1=sy(y2),w=(x2-x1)*view.s,h=(y2-y1)*view.s;
+  for(let d=-h;d<w;d+=gap){ctx.moveTo(X1+d,Y1+h);ctx.lineTo(X1+d+h,Y1);} ctx.stroke();ctx.restore();
+}
+function heatCol(v,a){
+  const st=[[0,[40,90,200]],[0.5,[50,170,110]],[0.8,[235,200,60]],[1.0,[225,70,50]],[1.4,[200,30,90]]];
+  v=clamp(v,0,1.4); let i=0; while(i<st.length-2&&v>st[i+1][0])i++;
+  const [p,c1]=st[i],[q,c2]=st[i+1],f=(v-p)/(q-p||1);
+  return `rgba(${c1.map((x,j)=>Math.round(x+(c2[j]-x)*f)).join(",")},${a})`;
+}
+function drawGrid(){
+  const B={x1:wxp(0),x2:wxp(W),y1:wyp(H),y2:wyp(0)};
+  let step=10; while(step*view.s<22)step*=2; while(step*view.s>160&&step>1)step/=2;
+  ctx.strokeStyle="rgba(120,150,165,0.08)";ctx.lineWidth=1;ctx.beginPath();
+  for(let x=Math.ceil(B.x1/step)*step;x<=B.x2;x+=step){const X=Math.round(sx(x))+.5;ctx.moveTo(X,0);ctx.lineTo(X,H);}
+  for(let y=Math.ceil(B.y1/step)*step;y<=B.y2;y+=step){const Y=Math.round(sy(y))+.5;ctx.moveTo(0,Y);ctx.lineTo(W,Y);}
+  ctx.stroke();
+  // scale bar
+  const nice=[0.5,1,2,5,10,20,50,100]; let L=nice.find(n=>n*view.s>=60)||100;
+  ctx.fillStyle="#8FA0A5";ctx.fillRect(12,H-18,L*view.s,2);ctx.fillRect(12,H-22,1,8);ctx.fillRect(12+L*view.s-1,H-22,1,8);
+  ctx.font="10px 'JetBrains Mono',monospace";ctx.fillText(`${L} µm`,16+L*view.s,H-14);
+}
+function drawDieCore(){
+  if(!S.die){
+    ctx.setLineDash([4,6]);ctx.strokeStyle="rgba(143,160,165,0.35)";ctx.lineWidth=1;ctx.beginPath();rectPath(0,0,100,100);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle="rgba(143,160,165,0.55)";ctx.font="11px 'JetBrains Mono',monospace";ctx.fillText("(0,0)",sx(0)+2,sy(0)+14);return;
+  }
+  const D=S.die,C=S.core;
+  ctx.fillStyle="#0F171B";ctx.beginPath();rectPath(D.x1,D.y1,D.x2,D.y2);ctx.fill();
+  ctx.strokeStyle="#A7B7BE";ctx.lineWidth=1.5;ctx.stroke();
+  if(vis.rows){
+    for(const r of S.rows){ctx.fillStyle=r.flip?"rgba(90,120,135,0.10)":"rgba(90,120,135,0.17)";ctx.fillRect(sx(C.x1),sy(r.y+RH),(C.x2-C.x1)*view.s,RH*view.s);}
+    if(RH*view.s>7){ctx.strokeStyle="rgba(120,150,165,0.18)";ctx.lineWidth=1;ctx.beginPath();for(const r of S.rows){const Y=Math.round(sy(r.y))+.5;ctx.moveTo(sx(C.x1),Y);ctx.lineTo(sx(C.x2),Y);}ctx.stroke();}
+  }
+  ctx.setLineDash([6,4]);ctx.strokeStyle="#6F8A96";ctx.lineWidth=1;ctx.beginPath();rectPath(C.x1,C.y1,C.x2,C.y2);ctx.stroke();ctx.setLineDash([]);
+  ctx.font="10px 'JetBrains Mono',monospace";ctx.fillStyle="#8FA0A5";
+  ctx.fillText(`DIE ${fmt(D.x2,1)} x ${fmt(D.y2,1)}`,sx(D.x1)+3,sy(D.y2)-5);
+  ctx.fillText("CORE",sx(C.x1)+3,sy(C.y2)-4);
+}
+function drawBlockages(){
+  for(const b of S.pblk){
+    const c=b.type==="hard"?"rgba(242,120,109,":b.type==="soft"?"rgba(230,180,70,":"rgba(90,160,230,";
+    ctx.fillStyle=c+"0.12)";ctx.beginPath();rectPath(b.x1,b.y1,b.x2,b.y2);ctx.fill();
+    hatch(b.x1,b.y1,b.x2,b.y2,c+"0.45)",b.type==="partial"?10:6);
+    ctx.strokeStyle=c+"0.9)";ctx.lineWidth=1;if(b.type!=="hard")ctx.setLineDash([4,3]);ctx.beginPath();rectPath(b.x1,b.y1,b.x2,b.y2);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=c+"1)";ctx.font="10px 'JetBrains Mono',monospace";ctx.fillText(`${b.type}${b.type==="partial"?" "+b.density+"%":""}`,sx(b.x1)+3,sy(b.y2)+12);
+  }
+  for(const b of S.rblk){
+    ctx.strokeStyle=LAYER_COL[b.layer];ctx.lineWidth=1.2;ctx.setLineDash([2,3]);ctx.beginPath();rectPath(b.x1,b.y1,b.x2,b.y2);ctx.stroke();ctx.setLineDash([]);
+    hatch(b.x1,b.y1,b.x2,b.y2,LAYER_COL[b.layer]+"55",9);
+    ctx.fillStyle=LAYER_COL[b.layer];ctx.font="10px 'JetBrains Mono',monospace";ctx.fillText(`route blk ${b.layer}`,sx(b.x1)+3,sy(b.y1)-4);
+  }
+}
+function drawMacro(m,x,y,placed){
+  const X=sx(x),Y=sy(y+m.h),w=m.w*view.s,h=m.h*view.s;
+  if(placed&&S.halo){const hr=macroRect({...m,x,y},true);ctx.setLineDash([3,3]);ctx.strokeStyle="rgba(208,137,90,0.55)";ctx.lineWidth=1;ctx.beginPath();rectPath(hr.x1,hr.y1,hr.x2,hr.y2);ctx.stroke();ctx.setLineDash([]);}
+  ctx.fillStyle=placed?"#35261F":"#2A221E";ctx.fillRect(X,Y,w,h);
+  ctx.strokeStyle="rgba(208,137,90,0.13)";ctx.lineWidth=1;ctx.beginPath();
+  for(let k=3;k<m.h;k+=3){const yy=Math.round(sy(y+k))+.5;ctx.moveTo(X+2,yy);ctx.lineTo(X+w-2,yy);}ctx.stroke();
+  ctx.strokeStyle=placed?"#D0895A":"#8A6A55";ctx.lineWidth=1.5;ctx.strokeRect(X,Y,w,h);
+  const side=orientPinSide(m.orient);ctx.strokeStyle="#FFB27A";ctx.lineWidth=3;ctx.beginPath();
+  const ex=side==="R"?X+w-1.5:X+1.5;ctx.moveTo(ex,Y+3);ctx.lineTo(ex,Y+h-3);ctx.stroke();
+  const tri=Math.min(12,w*.2),left=(m.orient==="R0"||m.orient==="MX"),bottom=(m.orient==="R0"||m.orient==="MY");
+  const cx=left?X:X+w,cy=bottom?Y+h:Y;ctx.fillStyle="#D0895A";ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+(left?tri:-tri),cy);ctx.lineTo(cx,cy+(bottom?-tri:tri));ctx.closePath();ctx.fill();
+  if(w>50){ctx.fillStyle="#F1D5C2";ctx.font=`600 ${Math.min(13,Math.max(9,w/9))}px 'Barlow Semi Condensed',sans-serif`;ctx.textAlign="center";
+    ctx.fillText(m.name,X+w/2,Y+h/2);ctx.font="9px 'JetBrains Mono',monospace";ctx.fillStyle="#B89A86";ctx.fillText(`${m.ref} ${m.orient}`,X+w/2,Y+h/2+12);
+    if(m.fixed){ctx.fillStyle="#FFB27A";ctx.fillText("FIXED",X+w/2,Y+h/2-14);}ctx.textAlign="left";}
+}
+function drawCells(now){
+  if(!vis.cells)return; const s=view.s, outline=s*0.8>3.2;
+  for(const c of S.cells){
+    if(!c.placed&&!(anim&&anim.movers.has(c)))continue;
+    const [x,y]=cellXY(c,now); const X=sx(x)+0.3,Y=sy(y+RH)+0.5,w=Math.max(0.8,c.w*s-0.6),h=Math.max(0.8,RH*s-1);
+    const col=c.kind==="std"?MOD_COLORS[c.mod]:c.dly?"#E8A33C":KIND_COL[c.kind];
+    if(c.kind==="filler"){ctx.fillStyle=col;ctx.fillRect(X,Y,w,h);if(outline){ctx.strokeStyle="#34424B";ctx.lineWidth=0.7;ctx.strokeRect(X,Y,w,h);}continue;}
+    ctx.globalAlpha=c.kind==="std"?(c.ff?0.9:0.6):0.95;ctx.fillStyle=col;ctx.fillRect(X,Y,w,h);ctx.globalAlpha=1;
+    if(c.ff&&h>5){ctx.fillStyle="rgba(11,16,19,0.55)";ctx.fillRect(X+w*0.72,Y+1,Math.max(1,w*0.12),h-2);}
+    if(outline){ctx.strokeStyle=c.kind==="std"?col:"#0B1013";ctx.lineWidth=0.8;ctx.strokeRect(X,Y,w,h);}
+    if(c.resized){ctx.strokeStyle="#FF8A3D";ctx.lineWidth=1.6;ctx.strokeRect(X,Y,w,h);}
+  }
+}
+function drawBin(now){
+  curBin=binLayout(); if(!curBin)return;
+  ctx.fillStyle="#8FA0A5";ctx.font="11px 'JetBrains Mono',monospace";
+  ctx.fillText(`UNPLACED (${curBin.n})`,sx(curBin.x0),sy(curBin.yTop)-6);
+  ctx.setLineDash([3,4]);ctx.strokeStyle="rgba(143,160,165,0.3)";ctx.beginPath();rectPath(curBin.x0-2,curBin.yBot-2,curBin.x1+2,curBin.yTop+1);ctx.stroke();ctx.setLineDash([]);
+  for(const [o,[x,y]] of curBin.pos){
+    if(o.npins){drawMacro(o,x,y,false);continue;}
+    if(!vis.cells)continue;
+    ctx.globalAlpha=0.5;ctx.fillStyle=MOD_COLORS[o.mod];ctx.fillRect(sx(x),sy(y+RH),Math.max(0.8,o.w*view.s-0.5),Math.max(0.8,RH*view.s-0.8));ctx.globalAlpha=1;
+  }
+}
+function drawPower(){
+  if(!vis.power||!S.core)return; const C=S.core,s=view.s,pg=S.pg;
+  if(pg.rails){
+    ctx.lineWidth=Math.max(0.8,0.22*s);
+    for(const net of ["VSS","VDD"]){ctx.strokeStyle=NET_COL[net];ctx.globalAlpha=0.42;ctx.beginPath();
+      for(const r of railSegments()) if(r.net===net){ctx.moveTo(sx(r.x1),sy(r.y));ctx.lineTo(sx(r.x2),sy(r.y));} ctx.stroke();}
+    ctx.globalAlpha=1;
+  }
+  const ext=pg.ring?pg.ring.o+2*pg.ring.w+pg.ring.s:0;
+  for(const st of pg.stripes){
+    ctx.lineWidth=Math.max(1.2,st.w*s);ctx.globalAlpha=0.55;
+    for(const p of st.pos){ctx.strokeStyle=NET_COL[p.net];ctx.beginPath();
+      if(st.dir==="V"){ctx.moveTo(sx(p.x),sy(C.y1-ext));ctx.lineTo(sx(p.x),sy(C.y2+ext));} else {ctx.moveTo(sx(C.x1-ext),sy(p.y));ctx.lineTo(sx(C.x2+ext),sy(p.y));}
+      ctx.stroke();}
+    ctx.globalAlpha=1;
+  }
+  if(pg.ring){
+    const {w,s:sp,o}=pg.ring;
+    [["VDD",o+w/2],["VSS",o+w+sp+w/2]].forEach(([net,d])=>{ctx.strokeStyle=NET_COL[net];ctx.lineWidth=Math.max(1.5,w*s);ctx.globalAlpha=0.85;ctx.beginPath();rectPath(C.x1-d,C.y1-d,C.x2+d,C.y2+d);ctx.stroke();});
+    ctx.globalAlpha=1;
+  }
+  if(pg.rails&&s>2.5){const sz=Math.max(2,0.7*s);ctx.fillStyle="#EDEFF0";for(const v of railVias())ctx.fillRect(sx(v.x)-sz/2,sy(v.y)-sz/2,sz,sz);}
+}
+function drawRoutes(now){
+  if(!vis.signal||!S.routes)return; const f=revealFrac("routes",now), nets=S.routes.nets, n=Math.ceil(nets.length*f);
+  const by={}; for(let i=0;i<n;i++)for(const sg of nets[i].segs)(by[sg.L]=by[sg.L]||[]).push(sg);
+  const wOf=L=>(L==="M2"||L==="M3")?Math.max(0.8,0.16*view.s):(L==="M4"||L==="M5")?Math.max(1,0.24*view.s):Math.max(1.2,0.34*view.s);
+  for(const L of ["M2","M3","M4","M5","M6","M7"]){const a=by[L];if(!a)continue;ctx.strokeStyle=LAYER_COL[L];ctx.lineWidth=wOf(L);ctx.globalAlpha=0.82;ctx.beginPath();
+    for(const g of a){ctx.moveTo(sx(g.x1),sy(g.y1));ctx.lineTo(sx(g.x2),sy(g.y2));}ctx.stroke();}
+  ctx.globalAlpha=1;
+  if(view.s>7){ctx.fillStyle="#E6ECEC";const z=Math.max(2,0.3*view.s);for(let i=0;i<n;i++)for(const b of nets[i].bends)ctx.fillRect(sx(b[0])-z/2,sy(b[1])-z/2,z,z);}
+}
+function drawClock(now){
+  const t=S.clockTree; if(!vis.clock||!t)return;
+  if(!t.sorted)t.sorted=t.edges.slice().sort((p,q)=>p.level-q.level);
+  const n=Math.ceil(t.sorted.length*revealFrac("clock",now));
+  for(let i=0;i<n;i++){const e=t.sorted[i];
+    ctx.strokeStyle="#F2C94C";ctx.globalAlpha=e.leaf?0.5:0.95;ctx.lineWidth=e.leaf?0.9:Math.max(1.2,3.2-e.level*0.5);
+    ctx.beginPath();ctx.moveTo(sx(e.a[0]),sy(e.a[1]));ctx.lineTo(sx(e.b[0]),sy(e.a[1]));ctx.lineTo(sx(e.b[0]),sy(e.b[1]));ctx.stroke();}
+  ctx.globalAlpha=1;
+}
+function drawPins(){
+  if(!vis.pins||!S.die)return; const s=view.s;
+  const bySide={}; S.pins.forEach(p=>{if(p.placed)(bySide[p.side]=bySide[p.side]||[]).push(p);});
+  ctx.font="9px 'JetBrains Mono',monospace";
+  for(const side in bySide){const list=bySide[side]; const gap=list.length>1?Math.abs((side==="Left"||side==="Right")?(list[0].y-list[1].y):(list[0].x-list[1].x))*s:99;
+    for(const p of list){const col=LAYER_COL[p.layer]||"#E6A23C";const X=sx(p.x),Y=sy(p.y),z=Math.max(4,1.2*s),st=Math.max(6,2*s);
+      ctx.fillStyle=col;ctx.strokeStyle=col;ctx.lineWidth=Math.max(1.5,0.4*s);ctx.beginPath();
+      if(side==="Left"){ctx.moveTo(X,Y);ctx.lineTo(X+st,Y);} else if(side==="Right"){ctx.moveTo(X,Y);ctx.lineTo(X-st,Y);} else if(side==="Top"){ctx.moveTo(X,Y);ctx.lineTo(X,Y+st);} else {ctx.moveTo(X,Y);ctx.lineTo(X,Y-st);}
+      ctx.stroke();ctx.fillRect(X-z/2,Y-z/2,z,z);
+      if(gap>10){ctx.fillStyle="#C9D4D6";
+        if(side==="Left"){ctx.textAlign="left";ctx.fillText(p.name,X+st+3,Y+3);} else if(side==="Right"){ctx.textAlign="right";ctx.fillText(p.name,X-st-3,Y+3);} else {ctx.textAlign="center";ctx.fillText(p.name,X,side==="Top"?Y+st+11:Y-st-4);}
+        ctx.textAlign="left";}
+    }}
+}
+function drawOverlay(){
+  const d=S.overlayData; if(!vis.heat||!d)return; const {N,bw,bh,C}=d;
+  const cur=S.overlay==="density"?densityMap():congestionMap(); S.overlayData=cur;
+  for(let j=0;j<N;j++)for(let i=0;i<N;i++){const v=cur.val[j*N+i];if(v<0.02)continue;
+    ctx.fillStyle=heatCol(v,0.5);const X=sx(C.x1+i*bw),Y=sy(C.y1+(j+1)*bh);ctx.fillRect(X,Y,bw*view.s,bh*view.s);
+    if(bw*view.s>34){ctx.fillStyle="#fff";ctx.font="10px 'JetBrains Mono',monospace";ctx.textAlign="center";ctx.fillText(Math.round(v*100),X+bw*view.s/2,Y+bh*view.s/2+3);ctx.textAlign="left";}}
+  ctx.fillStyle="#C9D4D6";ctx.font="11px 'JetBrains Mono',monospace";ctx.fillText(S.overlay==="density"?"placement density %":"routing demand / supply %",sx(C.x1)+40,sy(C.y2)-4);
+}
+function drawCrit(){
+  if(!S.crit||!S.timing)return; const n=S.crit.n; const parts=[n]; if(n.child!=null)parts.push(S.nets[n.child]);
+  ctx.strokeStyle="#FF4FD8";ctx.lineWidth=2.4;ctx.setLineDash([6,3]);ctx.beginPath();
+  for(const net of parts){const pts=net.pins.map(refPos).filter(Boolean);if(pts.length<2)continue;const d=pts[0];for(const q of pts.slice(1)){ctx.moveTo(sx(d[0]),sy(d[1]));ctx.lineTo(sx(q[0]),sy(d[1]));ctx.lineTo(sx(q[0]),sy(q[1]));}}
+  ctx.stroke();ctx.setLineDash([]);
+  const d=refPos(n.pins[0]); if(d){ctx.fillStyle="#FF4FD8";ctx.beginPath();ctx.arc(sx(d[0]),sy(d[1]),4,0,7);ctx.fill();
+    ctx.font="600 11px 'JetBrains Mono',monospace";ctx.fillText(`worst path ${S.crit.slack.toFixed(3)} ns`,sx(d[0])+7,sy(d[1])-7);}
+}
+function drawDRC(){
+  for(const d of S.drcs){const X=sx(d.x),Y=sy(d.y);ctx.strokeStyle="#FF5252";ctx.lineWidth=2;ctx.beginPath();
+    ctx.moveTo(X-5,Y-5);ctx.lineTo(X+5,Y+5);ctx.moveTo(X+5,Y-5);ctx.lineTo(X-5,Y+5);ctx.stroke();ctx.beginPath();ctx.arc(X,Y,8,0,7);ctx.stroke();}
+}
+function drawLayerKey(){
+  if(!S.routes||!vis.signal)return; const used=["M2","M3","M4","M5","M6","M7"].filter(L=>S.routes.byLayer[L]);
+  const x=W-12-used.length*38, y=10; ctx.fillStyle="rgba(11,16,19,0.8)";ctx.fillRect(x-6,y-2,used.length*38+8,20);
+  ctx.font="10px 'JetBrains Mono',monospace";used.forEach((L,i)=>{ctx.fillStyle=LAYER_COL[L];ctx.fillRect(x+i*38,y+4,10,10);ctx.fillStyle="#C9D4D6";ctx.fillText(L,x+i*38+13,y+13);});
+}
+function draw(now){
+  now=now||performance.now();
+  ctx.setTransform(dpr,0,0,dpr,0,0); ctx.fillStyle="#0B1013"; ctx.fillRect(0,0,W,H);
+  drawGrid(); drawDieCore(); drawBlockages();
+  if(vis.macros) for(const m of S.macros) if(m.placed) drawMacro(m,m.x,m.y,true);
+  drawCells(now); drawBin(now); drawPower(); drawRoutes(now); drawClock(now); drawPins(); drawOverlay(); drawCrit(); drawDRC(); drawLayerKey();
+  if(hover&&hover.rect){ctx.strokeStyle="#FFFFFF";ctx.lineWidth=1.5;const r=hover.rect;ctx.strokeRect(sx(r[0])-1,sy(r[3])-1,(r[2]-r[0])*view.s+2,(r[3]-r[1])*view.s+2);}
+}
+
+/* ---------- hover / pan / zoom ---------- */
+function hitTest(px,py){
+  const x=wxp(px),y=wyp(py);
+  if(vis.pins) for(const p of S.pins) if(p.placed&&Math.abs(p.x-x)<1.4&&Math.abs(p.y-y)<1.4) return {kind:"pin",o:p,rect:[p.x-.8,p.y-.8,p.x+.8,p.y+.8]};
+  for(let i=S.cells.length-1;i>=0;i--){const c=S.cells[i];if(c.placed&&x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+RH)return {kind:"cell",o:c,rect:[c.x,c.y,c.x+c.w,c.y+RH]};}
+  for(const m of S.macros) if(m.placed&&x>=m.x&&x<=m.x+m.w&&y>=m.y&&y<=m.y+m.h) return {kind:"macro",o:m,rect:[m.x,m.y,m.x+m.w,m.y+m.h]};
+  if(curBin) for(const [o,[bx,by]] of curBin.pos){const w=o.w,h=o.npins?o.h:RH;if(x>=bx&&x<=bx+w&&y>=by&&y<=by+h)return {kind:o.npins?"macro":"cell",o,rect:[bx,by,bx+w,by+h],unplaced:true};}
+  return null;
+}
+function tipHTML(h){
+  const o=h.o;
+  if(h.kind==="pin")return `<b>${esc(o.name)}</b> · ${o.dir}put port<br>${o.side} edge, ${o.layer}<br>(${o.x.toFixed(2)}, ${o.y.toFixed(2)})`;
+  if(h.kind==="macro")return `<b>${o.name}</b> · ${o.ref}<br>${o.w} × ${o.h} µm, ${o.npins} signal pins<br>${h.unplaced?"UNPLACED":`${o.orient} at (${o.x}, ${o.y})${o.fixed?" · FIXED":""}`}`;
+  const kindTxt={std:o.ff?"flip-flop":"logic",endcap:"endcap (physical only)",tap:"well tap (physical only)",filler:"filler (physical only)",clkbuf:o.dly?"CTS delay cell":`clock buffer, level ${o.level}`,buf:"buffer from optDesign",tie:"tie cell"}[o.kind];
+  return `<b>${esc(o.name)}</b><br>${o.type} · ${kindTxt}${o.mod?`<br>${o.mod}`:""}<br>${h.unplaced?"UNPLACED":`(${o.x.toFixed(2)}, ${o.y.toFixed(2)}) ${o.orient||"R0"}`}${o.resized?"<br>upsized by optDesign":""}${o.lat!=null&&S.clockTree&&o.ff?`<br>clock latency ${o.lat.toFixed(1)} ps`:""}`;
+}
+let drag=null; const tip=$("tip");
+cv.addEventListener("pointerdown",e=>{drag={x:e.clientX,y:e.clientY};cv.setPointerCapture(e.pointerId);cv.classList.add("drag");});
+cv.addEventListener("pointerup",e=>{drag=null;cv.classList.remove("drag");});
+cv.addEventListener("pointermove",e=>{
+  const r=cv.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;
+  if(drag){view.ox-=(e.clientX-drag.x)/view.s;view.oy+=(e.clientY-drag.y)/view.s;drag={x:e.clientX,y:e.clientY};view.user=true;tip.hidden=true;redraw();return;}
+  $("coord").textContent=`x ${wxp(px).toFixed(2)} · y ${wyp(py).toFixed(2)} µm`;
+  const h=hitTest(px,py); const changed=(h&&h.o)!==(hover&&hover.o); hover=h;
+  if(h){tip.innerHTML=tipHTML(h);tip.hidden=false;const tw=tip.offsetWidth,th=tip.offsetHeight;tip.style.left=Math.min(px+14,W-tw-6)+"px";tip.style.top=Math.max(6,Math.min(py+14,H-th-6))+"px";}
+  else tip.hidden=true;
+  if(changed)redraw();
+});
+cv.addEventListener("pointerleave",()=>{tip.hidden=true;if(hover){hover=null;redraw();}});
+function zoomAt(px,py,f){const x=wxp(px),y=wyp(py);view.s=clamp(view.s*f,0.5,220);view.ox=x-px/view.s;view.oy=y-(H-py)/view.s;view.user=true;redraw();}
+cv.addEventListener("wheel",e=>{e.preventDefault();const r=cv.getBoundingClientRect();zoomAt(e.clientX-r.left,e.clientY-r.top,Math.exp(-e.deltaY*0.0015));},{passive:false});
+$("zIn").onclick=()=>zoomAt(W/2,H/2,1.4); $("zOut").onclick=()=>zoomAt(W/2,H/2,1/1.4); $("zFit").onclick=()=>fitView(true);
+new ResizeObserver(resize).observe(cwrap);
+
+/* ---------- stepper, metrics, explain ---------- */
+function stageInfo(){
+  const d=[S.init, !!S.core&&S.macros.length>0&&S.macros.every(m=>m.placed)&&S.pins.every(p=>p.placed), !!(S.pg.rails&&(S.pg.ring||S.pg.stripes.length)),
+    S.legal, !!S.clockTree, S.routed&&!S.drcs.length, S.written.has("gds")&&S.routed&&!S.drcs.length&&cellsOf("filler").length>0];
+  const cur=d.findIndex(x=>!x); return {names:STAGES,done:d,cur:cur<0?7:cur};
+}
+function renderStepper(){
+  const st=stageInfo();
+  $("stepper").innerHTML=STAGES.map((n,i)=>`<li class="${st.done[i]?"done":i===st.cur?"cur":""}"><span class="n">${st.done[i]?"✓":i+1}</span>${n}</li>`).join("");
+}
+function renderMetrics(){
+  const st=stageInfo(), std=stdCells(), placed=std.filter(c=>c.placed).length, t=S.timing;
+  const items=[
+    ["Stage",st.cur>=7?"Complete":STAGES[st.cur],st.cur>=7?"good":""],
+    ["Core util",S.util?(S.util*100).toFixed(1)+"%":"—",S.util>0.85?"meh":""],
+    ["Placed",S.netlist?`${placed}/${std.length}`:"—",S.netlist&&placed===std.length?"good":""],
+    [S.routed?"Wirelength":"HPWL",S.routed?fmt(S.routes.wl,0)+" µm":S.legal?fmt(totalHPWL(),0)+" µm":"—",""],
+    ["Setup WNS",t?fmt(t.wns,3)+" ns":"—",t?(t.wns<0?"bad":"good"):"",t?`${t.mode} timing`:""],
+    ["TNS",t?fmt(t.tns,3)+" ns":"—",t?(t.tns<0?"bad":"good"):""],
+    ["Clock skew",S.clockTree?S.clockTree.skew.toFixed(1)+" ps":"—",S.clockTree?(S.clockTree.skew<=S.cts.targetSkew*1000?"good":"meh"):""],
+    ["DRC",S.routed?String(S.drcs.length):"—",S.routed?(S.drcs.length?"bad":"good"):""]
+  ];
+  $("metrics").innerHTML=items.map(([k,v,c,tt])=>`<div class="metric" title="${esc(tt||k)}"><div class="k">${esc(k)}</div><div class="v ${c}">${esc(v)}</div></div>`).join("");
+}
+function renderExplain(){
+  const e=lastExplain||INTRO, nx=nextStep();
+  $("explain").innerHTML=`<p class="eyebrow">${e===INTRO?"How to use this lab":"What the tool just did"}</p><h2>${esc(e.title)}</h2><div class="body">${e.html}</div>
+  <div class="next"><span>Next in the reference flow:</span><button type="button" data-ins="${esc(nx)}" title="Put this command in the console">${esc(nx)}</button><button type="button" data-run="${esc(nx)}" class="btn" style="padding:3px 10px;font-size:.8rem">Run it</button></div>`;
+}
+$("explain").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.ins){setInput(b.dataset.ins);}else if(b.dataset.run){execLine(b.dataset.run);}});
+function renderLegend(){
+  $("legend").innerHTML=LEGEND.map(([k,l,c])=>`<button type="button" class="lg" data-k="${k}" aria-pressed="${vis[k]}"><i style="background:${c}"></i>${l}</button>`).join("");
+}
+$("legend").addEventListener("click",e=>{const b=e.target.closest(".lg");if(!b)return;vis[b.dataset.k]=!vis[b.dataset.k];b.setAttribute("aria-pressed",vis[b.dataset.k]);redraw();});
+function afterCommand(){
+  renderStepper(); renderMetrics(); renderExplain();
+  $("emptyHint").hidden=!!S.netlist; $("prompt").textContent=`innovus ${lineNo}>`;
+  if(!view.user)fitView(); else redraw();
+}
+
+/* ---------- console ---------- */
+const HIST=[]; let hIdx=-1;
+function suggest(name){
+  const lc=name.toLowerCase(); const names=[...CMAP.keys()];
+  const exact=names.find(n=>n.toLowerCase()===lc); if(exact)return exact;
+  const lev=(a,b)=>{const d=Array.from({length:a.length+1},(_,i)=>[i]);for(let j=1;j<=b.length;j++)d[0][j]=j;for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[a.length][b.length];};
+  let best=null,bd=4; for(const n of names){const d=lev(lc,n.toLowerCase());if(d<bd){bd=d;best=n;}} return best;
+}
+function execLine(line){
+  let good=true;
+  for(const st of splitStatements(subst(line))){
+    const d=document.createElement("div");d.className="c";d.dataset.p=`innovus ${lineNo}> `;d.textContent=st;logEl.appendChild(d);
+    HIST.push(st); lineNo++; hIdx=-1;
+    const toks=tokenize(st); const name=toks[0]; const c=CMAP.get(name);
+    if(!c){const sg=suggest(name);err(`invalid command name "${name}"${sg?`. Did you mean ${sg}?`:""}`);good=false;continue;}
+    try{c.run(opts(toks.slice(1)),toks.slice(1));}
+    catch(e){good=false;if(e instanceof CmdError)err(e.message);else{err("Internal error: "+e.message);console.error(e);}}
+  }
+  logEl.scrollTop=logEl.scrollHeight; afterCommand(); return good;
+}
+const inp=$("cmd"), hintEl=$("hint");
+function setInput(v){inp.value=v;inp.focus();inp.setSelectionRange(v.length,v.length);updateHint();}
+function updateHint(){
+  const v=inp.value.trim(); const first=v.split(/\s+/)[0]||"";
+  if(!first){hintEl.textContent="Enter runs · Tab completes · ↑↓ recall history · try: help";return;}
+  const c=CMAP.get(first); if(c){hintEl.textContent=c.syn;return;}
+  const m=CMDS.filter(x=>x.name.toLowerCase().startsWith(first.toLowerCase())).map(x=>x.name);
+  hintEl.textContent=m.length?m.slice(0,8).join("  "):`no command starts with "${first}"`;
+}
+inp.addEventListener("input",updateHint);
+inp.addEventListener("keydown",e=>{
+  if(e.key==="ArrowUp"){if(!HIST.length)return;e.preventDefault();hIdx=hIdx<0?HIST.length-1:Math.max(0,hIdx-1);setInput(HIST[hIdx]);}
+  else if(e.key==="ArrowDown"){if(hIdx<0)return;e.preventDefault();hIdx++;if(hIdx>=HIST.length){hIdx=-1;setInput("");}else setInput(HIST[hIdx]);}
+  else if(e.key==="Tab"){e.preventDefault();const v=inp.value;if(/\s/.test(v.trim()))return;
+    const m=[...new Set(CMDS.map(c=>c.name))].filter(n=>n.toLowerCase().startsWith(v.toLowerCase()));
+    if(m.length===1)setInput(m[0]+" "); else if(m.length>1){let p=m[0];for(const n of m)while(!n.toLowerCase().startsWith(p.toLowerCase()))p=p.slice(0,-1);if(p.length>v.length)setInput(p);out(m.join("  "),"d");}}
+});
+$("cmdForm").addEventListener("submit",e=>{e.preventDefault();const v=inp.value.trim();if(!v)return;inp.value="";updateHint();
+  if(flowTimer&&!/^(reset|reset_design|freeDesign|close_design)$/.test(v)){warn("The flow script is running. Stop it first or wait for it to finish.");return;}
+  execLine(v);});
+$("btnClear").onclick=()=>clearLog();
+
+/* ---------- reference ---------- */
+function renderRef(){
+  const q=$("refSearch").value.trim().toLowerCase(); let html="",n=0;
+  for(const g of GROUPS){
+    const list=CMDS.filter(c=>c.group===g&&(!q||c.name.toLowerCase().includes(q)||c.desc.toLowerCase().includes(q)||(c.aliases||[]).some(a=>a.toLowerCase().includes(q))));
+    if(!list.length)continue; n+=list.length;
+    html+=`<div class="grp"><b>${GROUPS.indexOf(g)+1}</b>${g}</div>`;
+    html+=list.map(c=>`<div class="cmdrow" data-ex="${esc(c.ex)}" title="${esc(c.syn)}"><span class="nm">${esc(c.name)}</span><button type="button" class="run" data-run="${esc(c.ex)}" aria-label="Run ${esc(c.ex)}">Run</button><span class="ds">${esc(c.desc)}</span></div>`).join("");
+  }
+  $("refList").innerHTML=html||`<p style="padding:12px;color:var(--muted)">No command matches "${esc(q)}".</p>`;
+  $("refCount").textContent=`${n} commands`;
+}
+$("refSearch").addEventListener("input",renderRef);
+$("refList").addEventListener("click",e=>{
+  const r=e.target.closest("[data-run]"); if(r){if(flowTimer){warn("The flow script is running. Stop it first.");return;}execLine(r.dataset.run);return;}
+  const row=e.target.closest(".cmdrow"); if(row)setInput(row.dataset.ex);
+});
+
+/* ---------- flow & reset ---------- */
+let flowTimer=null;
+function stopFlow(){if(flowTimer){clearTimeout(flowTimer);flowTimer=null;} $("btnFlow").textContent="Run full flow"; inp.disabled=false;}
+function runFlow(){
+  if(flowTimer)return;
+  let i=FLOW.indexOf(nextStep()); if(i<0){info("The reference flow is already complete. Type reset to start again.");return;}
+  info(`source flow.tcl: ${FLOW.length-i} steps${i?`, continuing from step ${i+1}`:""}`);
+  $("btnFlow").textContent="Stop flow";
+  const step=()=>{
+    if(i>=FLOW.length){stopFlow();ok("flow.tcl finished.");afterCommand();return;}
+    const line=FLOW[i++]; const good=execLine(line);
+    if(!good){stopFlow();warn("flow.tcl stopped at the error above.");return;}
+    const slow=/^(placeDesign|ccopt_design|routeDesign)/.test(line);
+    flowTimer=setTimeout(step,REDUCED?220:(slow?2100:650));
+  };
+  flowTimer=setTimeout(step,300);
+}
+$("btnFlow").onclick=()=>{if(flowTimer){stopFlow();warn("Flow stopped.");return;} execLine("source flow.tcl");};
+function resetDesign(silent){
+  S=freshState(); anim=null; reveal=null; hover=null; tip.hidden=true;
+  if(!silent){stopFlow(); lastExplain=INTRO; view.user=false;}
+}
+$("btnReset").onclick=()=>execLine("reset");
+$("emptyCmds").innerHTML=[FLOW[0],FLOW[1],FLOW[2],FLOW[3],FLOW[4]].map(l=>`<button type="button" data-run="${esc(l)}">${esc(l.split(" ")[0])}</button>`).join("");
+$("emptyCmds").addEventListener("click",e=>{const b=e.target.closest("[data-run]");if(b)execLine(b.dataset.run);});
+
+/* ---------- boot ---------- */
+S=freshState();
+renderLegend(); renderRef(); updateHint();
+out("PnR Command Lab: Innovus-style TCL shell over a teaching model of place & route","i");
+out("Design mini_soc.v: 422 std cells, 3 macros, 34 ports (not loaded yet)","d");
+out("Type help for every command, or click a command in the reference to insert it.","d");
+lastExplain=INTRO; afterCommand(); resize();
+
+/* =====================================================================
+   COMMAND CATEGORIES & CHARACTERIZATION
+   Each command belongs to exactly one core category. Attributes mirror
+   what the handler in this lab actually does.
+   ===================================================================== */
+const ROLES={in:"Input",setup:"Setup",build:"Changes the layout",measure:"Measure",out:"Output & session"};
+const CATS=[
+  {k:"IN",   name:"Readers",                       pat:"read_*",                                  role:"in",     what:"Load technology, libraries, netlist and constraint files into memory."},
+  {k:"SDC",  name:"Timing constraints",            pat:"create_clock · set_clock_*",              role:"in",     what:"SDC commands that state the timing goal every engine works toward."},
+  {k:"LINK", name:"Database & connectivity",       pat:"init_design · globalNetConnect",          role:"setup",  what:"Build the in-memory design and make logical connections. No geometry yet."},
+  {k:"MODE", name:"Modes, properties & attributes",pat:"set*Mode · set_*_property · set*Status",  role:"setup",  what:"Configure how the next engine run behaves, or tag objects. Nothing moves."},
+  {k:"BUILD",name:"Physical construction",         pat:"floorPlan · create* · add* · edit* · delete*", role:"build", what:"Create, move or delete specific physical objects exactly where you say."},
+  {k:"ENG",  name:"Implementation engines",        pat:"*Design · *_design · refinePlace · sroute", role:"build", what:"Algorithms that decide positions and wires for thousands of objects at once."},
+  {k:"RPT",  name:"Analysis & reports",            pat:"report* · time* · extract* · earlyGlobalRoute", role:"measure", what:"Measure timing, power, density or congestion without changing the layout."},
+  {k:"CHK",  name:"Verification",                  pat:"check* · verify*",                        role:"measure",what:"Pass/fail checks against rules: legality, DRC, shorts, opens, antenna."},
+  {k:"OUT",  name:"Writers",                       pat:"save* · *Out · write_*",                  role:"out",    what:"Export the database to files for the next tool or the foundry."},
+  {k:"SH",   name:"TCL shell & session",           pat:"set · puts · source · help",              role:"out",    what:"Plain TCL and session control: variables, printing, scripts, history, reset."}
+];
+const STG=[["im","Import"],["fp","Floorplan"],["pw","Power"],["pl","Place"],["ct","CTS"],["rt","Route"],["so","Signoff"],["any","Any time"]];
+const EFF={load:"Loads files",time:"Timing intent",logic:"Logical only",set:"Settings only",geom:"Changes layout",read:"Read-only",file:"Writes files",sess:"Session"};
+const COST=["","light","moderate","heavy"];
+/* name, category, stage(s), DB effect, visible layout change, needs first, clears downstream, uses SDC, runtime on a real chip */
+const CHAR_ROWS=[
+  ["read_lef","IN","im","load","None; cell abstracts only","—","—",0,2],
+  ["read_lib","IN","im","load","None","—","—",0,2],
+  ["read_verilog","IN","im","load","Cells and macros appear as UNPLACED","read_lef","Whole design (on reload)",0,2],
+  ["read_sdc","IN","im","time","None; timing becomes checkable","read_verilog","—",1,1],
+  ["create_clock","SDC","im","time","None; slack values change","read_verilog","—",1,1],
+  ["set_clock_uncertainty","SDC","im","time","None; slack values change","A defined clock","—",1,1],
+  ["init_design","LINK","im","logic","None","LEF, Liberty and netlist","—",0,2],
+  ["globalNetConnect","LINK","pw","logic","None; logical connection only","init_design","—",0,1],
+  ["setInstancePlacementStatus","MODE","fp","set","FIXED tag on macros","Placed macros","—",0,1],
+  ["setPlaceMode","MODE","pl","set","None","—","—",0,1],
+  ["create_ccopt_clock_tree_spec","MODE","ct","set","None","A defined clock","—",1,1],
+  ["set_ccopt_property","MODE","ct","set","None","—","—",0,1],
+  ["setNanoRouteMode","MODE","rt","set","None","—","—",0,1],
+  ["floorPlan","BUILD","fp","geom","Die, core and rows drawn","init_design","Everything after import",0,1],
+  ["assignIoPins","BUILD","fp","geom","34 pins placed on the die edges","floorPlan","Routing",0,1],
+  ["editPin","BUILD","fp","geom","Matching pins move to another edge","floorPlan","Routing",0,1],
+  ["placeInstance","BUILD","fp","geom","One macro moves or flips","floorPlan","Placement and later steps; endcaps, taps",0,1],
+  ["addHaloToBlock","BUILD","fp","geom","Dashed keep-out ring around macros","floorPlan","—",0,1],
+  ["createPlaceBlockage","BUILD","fp","geom","Hatched blockage box","floorPlan","—",0,1],
+  ["deletePlaceBlockage","BUILD","fp","geom","Blockage boxes removed","floorPlan","—",0,1],
+  ["createRouteBlk","BUILD","fp","geom","Layer-colored hatched box","floorPlan","Routing",0,1],
+  ["addEndCap","BUILD","fp","geom","Boundary cells at every row end","Placed macros; before placement","Previous endcaps",0,1],
+  ["addWellTap","BUILD","fp","geom","Tap cells in a checkerboard","floorPlan; before placement","Previous taps",0,1],
+  ["addRing","BUILD","pw","geom","VDD/VSS rings around the core","floorPlan with enough margin","—",0,1],
+  ["addStripe","BUILD","pw","geom","VDD/VSS straps across the core","floorPlan","—",0,1],
+  ["addTieHiLo","BUILD","pl","geom","Tie cells next to their loads","Placement","Previous tie cells",0,1],
+  ["addFiller","BUILD","so","geom","Every empty site filled","Placement","Previous fillers",0,1],
+  ["deleteFiller","BUILD","so","geom","Filler cells removed","—","—",0,1],
+  ["planDesign","ENG","fp","geom","Macros snap to the core boundary","floorPlan","Placement and later steps; endcaps, taps",0,2],
+  ["sroute","ENG","pw","geom","M1 rails on every row, vias to stripes","globalNetConnect VDD and VSS","—",0,2],
+  ["placeDesign","ENG","pl","geom","Cells spread out, then snap into rows","Placed macros","Earlier placement, buffers, CTS, routing",1,3],
+  ["place_opt_design","ENG","pl","geom","Placement plus new buffers","Placed macros; a clock","Earlier placement, buffers, CTS, routing",1,3],
+  ["refinePlace","ENG","pl","geom","Small legalizing moves","Placement","Clock tree, routing",0,2],
+  ["optDesign","ENG",["pl","ct","rt"],"geom","New buffers, upsized cells","Placement; a clock","—",1,3],
+  ["ccopt_design","ENG","ct","geom","Clock tree and clock buffers","Placement; a clock","Earlier tree, routing, fillers",1,3],
+  ["routeDesign","ENG","rt","geom","Wires on M2–M7, DRC markers","Placement (CTS advised)","Earlier routing, written files",0,3],
+  ["ecoRoute","ENG","rt","geom","DRC markers cleared","routeDesign","—",0,2],
+  ["timeDesign","RPT",["pl","ct","rt"],"read","Worst path highlighted","Placement; a clock","—",1,2],
+  ["report_timing","RPT",["pl","ct","rt"],"read","Worst path highlighted","Placement; a clock","—",1,2],
+  ["reportDensityMap","RPT","pl","read","Density heat map overlay","floorPlan","—",0,1],
+  ["report_area","RPT","any","read","None","init_design","—",0,1],
+  ["report_ccopt_skew_groups","RPT","ct","read","None","ccopt_design","—",1,1],
+  ["earlyGlobalRoute","RPT","rt","read","Congestion heat map overlay","Placement","—",0,2],
+  ["extractRC","RPT","rt","read","None; RC annotated for timing","routeDesign","—",0,2],
+  ["report_power","RPT",["rt","so"],"read","None","Placement","—",1,2],
+  ["summaryReport","RPT","any","read","None","init_design","—",0,1],
+  ["checkFPlan","CHK","fp","read","None","floorPlan","—",0,1],
+  ["verify_PG_short","CHK","pw","read","None","floorPlan","—",0,2],
+  ["checkPlace","CHK","pl","read","None","floorPlan","—",0,1],
+  ["verify_drc","CHK",["rt","so"],"read","Lists the red DRC markers","floorPlan","—",0,2],
+  ["verifyConnectivity","CHK",["pw","rt","so"],"read","None","floorPlan","—",0,2],
+  ["verifyProcessAntenna","CHK","rt","read","None","routeDesign","—",0,2],
+  ["saveNetlist","OUT","so","file","None","floorPlan","—",0,1],
+  ["defOut","OUT","so","file","None","floorPlan","—",0,1],
+  ["streamOut","OUT","so","file","None","floorPlan","—",0,2],
+  ["saveDesign","OUT","so","file","None","floorPlan","—",0,2],
+  ["help","SH","any","sess","None","—","—",0,1],
+  ["history","SH","any","sess","None","—","—",0,1],
+  ["clear","SH","any","sess","Console cleared","—","—",0,1],
+  ["reset","SH","any","sess","Back to the empty floorplan","—","Everything",0,1],
+  ["fit","SH","any","sess","View zooms to the die","—","—",0,1],
+  ["run_flow","SH","any","sess","The whole flow plays out","—","—",0,1],
+  ["set","SH","any","sess","None","—","—",0,1],
+  ["puts","SH","any","sess","None","—","—",0,1]
+];
+const CHAR=new Map(CHAR_ROWS.map(r=>[r[0],{name:r[0],cat:r[1],st:[].concat(r[2]),eff:r[3],vis:r[4],needs:r[5],clears:r[6],sdc:!!r[7],cost:r[8]}]));
+CMDS.forEach(c=>{if(!CHAR.has(c.name))console.warn("No characterization for",c.name);});
+const catOf=k=>CATS.find(c=>c.k===k);
+const cmdsIn=(k,st)=>CHAR_ROWS.filter(r=>r[1]===k&&(!st||[].concat(r[2]).includes(st))).map(r=>r[0]);
+
+function renderCatStats(){
+  const all=[...CHAR.values()];
+  const n=(f)=>all.filter(f).length;
+  $("catStats").innerHTML=[
+    [all.length,"commands"],[CATS.length,"categories"],[n(c=>c.eff==="geom"),"change the layout"],
+    [n(c=>c.eff==="read"),"are read-only"],[n(c=>c.sdc),"use the SDC clock"]
+  ].map(([v,l])=>`<div><b>${v}</b><span>${l}</span></div>`).join("");
+}
+function renderLife(){
+  const order=["in","setup","build","measure","out"];
+  $("life").innerHTML=order.map((r,i)=>`<li class="r-${r}"><span class="ln">${i+1}</span><b>${ROLES[r]}</b><span>${CATS.filter(c=>c.role===r).map(c=>c.name).join(" · ")}</span></li>`).join("");
+}
+function renderMatrix(){
+  let h=`<thead><tr><th scope="col" class="mh">Category</th>${STG.map(([,l])=>`<th scope="col">${l}</th>`).join("")}</tr></thead><tbody>`;
+  for(const c of CATS){
+    const count=cmdsIn(c.k).length;
+    h+=`<tr><th scope="row" class="mh"><button type="button" class="cathead" data-cat="${c.k}" title="Show these ${count} commands in the table"><span class="sw r-${c.role}"></span><span class="cn">${esc(c.name)} <em>${count}</em></span><code>${esc(c.pat)}</code><span class="cw">${esc(c.what)}</span></button></th>`;
+    for(const [s] of STG){const l=cmdsIn(c.k,s);
+      h+=`<td class="${l.length?"":"emp"}">${l.map(n=>`<button type="button" class="mchip r-${c.role}" data-show="${n}">${n}</button>`).join("")||"<span aria-hidden=\"true\">·</span>"}</td>`;}
+    h+="</tr>";
+  }
+  $("matrix").innerHTML=h+"</tbody>";
+}
+function populateFilters(){
+  $("fCat").innerHTML=`<option value="">All categories</option>`+CATS.map(c=>`<option value="${c.k}">${esc(c.name)}</option>`).join("");
+  $("fEff").innerHTML=`<option value="">Any effect</option>`+Object.entries(EFF).map(([k,v])=>`<option value="${k}">${v}</option>`).join("");
+  $("fStg").innerHTML=`<option value="">Any stage</option>`+STG.map(([k,l])=>`<option value="${k}">${l}</option>`).join("");
+}
+function renderCharTable(flash){
+  const fc=$("fCat").value, fe=$("fEff").value, fs=$("fStg").value, q=$("fQ").value.trim().toLowerCase();
+  const rows=CHAR_ROWS.map(r=>CHAR.get(r[0])).filter(c=>{
+    const cmd=CMAP.get(c.name);
+    if(fc&&c.cat!==fc)return false; if(fe&&c.eff!==fe)return false; if(fs&&!c.st.includes(fs))return false;
+    if(q&&!(c.name.toLowerCase().includes(q)||(cmd&&(cmd.aliases||[]).some(a=>a.toLowerCase().includes(q)))||c.vis.toLowerCase().includes(q)))return false;
+    return true;});
+  const stName=k=>STG.find(s=>s[0]===k)[1];
+  $("charBody").innerHTML=rows.map(c=>{const cat=catOf(c.cat),cmd=CMAP.get(c.name);
+    return `<tr id="cr-${c.name}" class="${flash===c.name?"flash":""}">
+      <th scope="row"><code class="cmdn">${c.name}</code>${cmd&&cmd.aliases&&cmd.aliases.length?`<span class="al">${cmd.aliases.map(esc).join(", ")}</span>`:""}</th>
+      <td><span class="catl"><span class="sw r-${cat.role}"></span>${esc(cat.name)}</span></td>
+      <td>${c.st.map(stName).join(", ")}</td>
+      <td><span class="eff e-${c.eff}">${EFF[c.eff]}</span></td>
+      <td>${esc(c.vis)}</td><td>${esc(c.needs)}</td><td>${esc(c.clears)}</td>
+      <td class="ctr">${c.sdc?`<span class="yes" title="Timing-aware">Yes</span>`:`<span class="no">No</span>`}</td>
+      <td><span class="cost" title="${COST[c.cost]} on a full chip">${[1,2,3].map(i=>`<i class="${i<=c.cost?"on":""}"></i>`).join("")}<span>${COST[c.cost]}</span></span></td>
+      <td><button type="button" class="try" data-try="${esc(cmd?cmd.ex:c.name)}">Try</button></td></tr>`;}).join("")
+    ||`<tr><td colspan="10" class="none">No command matches these filters.</td></tr>`;
+  $("charCount").textContent=`${rows.length} of ${CHAR.size} commands`;
+}
+function showCommand(name){
+  $("fCat").value="";$("fEff").value="";$("fStg").value="";$("fQ").value=name;renderCharTable(name);
+  const el=document.getElementById("cr-"+name); if(el) el.scrollIntoView({behavior:REDUCED?"auto":"smooth",block:"center"});
+}
+$("matrix").addEventListener("click",e=>{
+  const ch=e.target.closest("[data-show]"); if(ch){showCommand(ch.dataset.show);return;}
+  const hd=e.target.closest("[data-cat]"); if(hd){$("fCat").value=hd.dataset.cat;$("fEff").value="";$("fStg").value="";$("fQ").value="";renderCharTable();
+    $("charWrap").scrollIntoView({behavior:REDUCED?"auto":"smooth",block:"start"});}
+});
+["fCat","fEff","fStg"].forEach(id=>$(id).addEventListener("change",()=>renderCharTable()));
+$("fQ").addEventListener("input",()=>renderCharTable());
+$("fReset").addEventListener("click",()=>{["fCat","fEff","fStg"].forEach(id=>$(id).value="");$("fQ").value="";renderCharTable();});
+$("charBody").addEventListener("click",e=>{const b=e.target.closest("[data-try]");if(!b)return;
+  $("cwrap").scrollIntoView({behavior:REDUCED?"auto":"smooth",block:"start"}); setTimeout(()=>setInput(b.dataset.try),REDUCED?0:350);});
+renderCatStats(); renderLife(); renderMatrix(); populateFilters(); renderCharTable();
+</script>
+
+</body>
+</html>

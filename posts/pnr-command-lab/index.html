@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PnR Command Lab | Vijay</title>
+<meta name="description" content="An interactive place-and-route simulator: type Innovus-style TCL commands and watch a gate-level Verilog netlist become a placed, clocked and routed layout.">
+<meta name="author" content="Vijay">
+<link rel="canonical" href="https://vijay007-glitch.github.io/posts/pnr-command-lab/">
+<meta property="og:type" content="article">
+<meta property="og:title" content="PnR Command Lab">
+<meta property="og:description" content="Type Innovus-style TCL commands and watch a gate-level Verilog netlist become a placed, clocked and routed layout.">
+<meta property="og:url" content="https://vijay007-glitch.github.io/posts/pnr-command-lab/">
+<meta property="og:image" content="https://vijay007-glitch.github.io/simulations/pnr-command-lab/thumb.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="site-head">
+<a class="brand" href="../../">Vijay</a>
+<nav aria-label="Site"><a href="../../">All posts</a></nav>
+</header>
+
+<main>
+<article>
+<header>
+<h1>PnR Command Lab</h1>
+<p class="dek">Type Innovus-style TCL commands and watch a gate-level Verilog netlist become a placed, clocked and routed layout.</p>
+<p class="meta">September 30, 2026, interactive simulator</p>
+</header>
+
+<div class="prose">
+<p>Place and route is where a gate-level netlist becomes geometry. The tool reads the technology, the cell libraries and the Verilog, then builds a floorplan, a power grid, a legal placement, a clock tree and routed wires, one TCL command at a time. Each command changes the design database, and the next one depends on what the last one left behind.</p>
+<p>This lab lets you type those commands and watch each one change the layout. It opens on an empty floorplan. Every physical-design command, from <code>floorPlan</code> and <code>addRing</code> to <code>placeDesign</code>, <code>ccopt_design</code> and <code>routeDesign</code>, updates the layout view, and a panel explains what the tool did and suggests the next step.</p>
+</div>
+
+<p class="lab-open"><a href="../../simulations/pnr-command-lab/">Open the simulator full screen</a>. On a phone, that works better than the embedded view below.</p>
+<div class="lab-embed">
+<iframe src="../../simulations/pnr-command-lab/" title="PnR Command Lab: interactive place-and-route simulator" loading="lazy"></iframe>
+</div>
+
+<div class="prose">
+<h2>How to use it</h2>
+<ul>
+<li>Press <b>Run full flow</b> to watch every step, from reading the LEF files to writing GDS. Type <code>reset</code> to go back to the empty floorplan.</li>
+<li>Or type the commands yourself. Tab completes a command, the arrow keys step through history, and the panel under the layout always suggests what to run next.</li>
+<li>The command reference lists all 64 commands, each with a Run button. Common ICC2 and OpenROAD names work as aliases.</li>
+<li>Below the lab, <b>Core TCL command categories</b> sorts every command into one of ten categories, maps them against the flow stages, and lists what each one changes, what it needs first and what it clears when re-run.</li>
+</ul>
+
+<h2>The flow</h2>
+<p>Run full flow issues these commands in order, across the seven stages in the lab’s progress bar.</p>
+<ul>
+<li><b>Import.</b> <code>read_lef</code>, <code>read_lib</code>, <code>read_verilog</code>, <code>read_sdc</code>, <code>init_design</code></li>
+<li><b>Floorplan.</b> <code>floorPlan</code>, <code>assignIoPins</code>, <code>planDesign</code>, <code>setInstancePlacementStatus</code>, <code>addHaloToBlock</code>, <code>addEndCap</code>, <code>addWellTap</code></li>
+<li><b>Power.</b> <code>globalNetConnect</code>, <code>addRing</code>, <code>addStripe</code>, <code>sroute</code></li>
+<li><b>Place.</b> <code>setPlaceMode</code>, <code>placeDesign</code>, <code>timeDesign -preCTS</code>, <code>optDesign -preCTS</code></li>
+<li><b>CTS.</b> <code>create_ccopt_clock_tree_spec</code>, <code>set_ccopt_property</code>, <code>ccopt_design</code>, <code>optDesign -postCTS</code></li>
+<li><b>Route.</b> <code>setNanoRouteMode</code>, <code>routeDesign</code>, <code>ecoRoute -fix_drc</code>, <code>optDesign -postRoute</code></li>
+<li><b>Signoff.</b> <code>addFiller</code>, <code>verify_drc</code>, <code>verifyConnectivity</code>, <code>streamOut</code></li>
+</ul>
+<p>The metrics bar under the layout tracks core utilization, placed cells, wirelength, setup WNS and TNS, clock skew and DRC count as the design moves through the stages.</p>
+
+<h2>How this model is simplified</h2>
+<p>The design is a small SoC, <code>mini_soc.v</code>, on a generic 45 nm library with nine metal layers, M1 to M9. Commands follow Cadence Innovus naming. The netlist, library, timing and congestion numbers are a deliberately simplified teaching model computed from the layout, not signoff results. Use it to learn what each command does and why the order matters, not to predict real results.</p>
+</div>
+</article>
+</main>
+
+<footer class="site-foot">
+<p>Written by Vijay. Built with plain HTML, CSS, and JavaScript.</p>
+<p><a href="../../">Back to all posts</a></p>
+</footer>
+</body>
+</html>

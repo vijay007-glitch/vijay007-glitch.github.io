@@ -10,6 +10,9 @@ First post: https://vijay007-glitch.github.io/posts/high-na-euv/
 ```
 index.html                     Home page with the list of posts
 posts/high-na-euv/index.html   Blog post with the interactive EUV simulator
+posts/pnr-command-lab/index.html
+                               Blog post that embeds the PnR Command Lab
+simulations/pnr-command-lab/   PnR Command Lab: one self-contained page, plus thumb.png
 assets/css/style.css           Shared styles (light and dark mode)
 assets/js/euv-simulator.js     Simulator code
 assets/img/                    Screenshots used in the post
