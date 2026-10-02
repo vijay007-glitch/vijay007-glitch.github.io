@@ -283,7 +283,8 @@ button { font: inherit; color: inherit; }
 .furnace.hot .fn-state { color: #d4661f; }
 .fn-head { font-family: var(--f-display); font-weight: 700; font-size: 20px; letter-spacing: 0.02em; text-transform: uppercase; line-height: 1.05; }
 .fn-chem { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); }
-.fn-read { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.fn-read { display: flex; flex-wrap: wrap; gap: 2px 16px; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.fn-read span { white-space: nowrap; }
 .fn-read b { font-family: var(--f-mono); font-weight: 500; font-size: 14px; color: var(--ink); font-variant-numeric: tabular-nums; }
 #fnChart { width: 100%; aspect-ratio: 560 / 230; display: block; margin-top: 2px; cursor: crosshair; }
 .fn-note { margin: 0; font-size: 11.5px; color: var(--muted); }
@@ -299,6 +300,18 @@ button { font: inherit; color: inherit; }
   #fnChart { display: none; aspect-ratio: 560 / 170; }
   .furnace.open #fnChart { display: block; }
   .vp.step1 .legend { display: none; }
+}
+
+/* ---------- scanner card (litho step) */
+.scan .fn-bar { display: block; }
+.scan .fn-bar i { background: #7c3aed; }
+.scan.hot { border-color: #7c3aed; box-shadow: 0 0 0 1px #7c3aed, 0 8px 30px rgba(124, 58, 237, .28); }
+.scan.hot .fn-state { color: #7c3aed; }
+#scPupil { width: 100%; aspect-ratio: 560 / 250; display: block; margin-top: 2px; }
+@media (max-width: 860px) {
+  #scPupil { display: none; }
+  .scan.open #scPupil { display: block; }
+  .vp.step2 .legend { display: none; }
 }
 
 </style>
@@ -343,6 +356,16 @@ button { font: inherit; color: inherit; }
         <canvas id="fnChart" width="560" height="230" aria-label="Oxide thickness against time in the furnace (Deal-Grove)"></canvas>
         <button type="button" class="linkbtn fn-more" id="fnMore" aria-expanded="false">Show growth curve</button>
         <p class="fn-note" id="fnNote"></p>
+      </div>
+      <div class="ov furnace scan" id="scan" hidden role="region" aria-label="Scanner exposure">
+        <div class="fn-top"><span class="fn-k">Scanner</span><span class="fn-state" id="scState"></span></div>
+        <div class="fn-head">ArF excimer · 193 nm</div>
+        <div class="fn-chem" id="scSpec"></div>
+        <div class="fn-read"><span>pulses <b id="scP"></b></span><span>dose <b id="scD"></b></span></div>
+        <div class="fn-bar" aria-hidden="true"><i id="scBar"></i></div>
+        <canvas id="scPupil" width="560" height="250" aria-label="Pupil plane: the illumination shape and the diffraction orders the lens collects"></canvas>
+        <p class="fn-note" id="scNote"></p>
+        <button type="button" class="linkbtn fn-more" id="scMore" aria-expanded="false">Show pupil</button>
       </div>
       <div class="ov metro" id="metro" hidden role="region" aria-label="Wafer metrology">
         <div class="mt-row"><label for="mtSel">Map</label><select id="mtSel"></select></div>
@@ -391,10 +414,13 @@ button { font: inherit; color: inherit; }
 
   // ---------- litho constants
   const NLEV = 16, DZ = H0 / NLEV;
+  const SIG_RES = 18;                                   // resist blur (photo-acid diffusion), nm
   const SIG0 = 32, KF = 170, FBEST = 0.04, NRES = 1.7, ALPHA = 0.0009;
   const RMAX = 100, RMIN = 0.05, ETH = 11.2;
   const TDEV = H0 / (RMIN + RMAX);
-  const SIG_EPS = 0.045;                                // local dose noise (shot noise + PEB blur), relative
+  const SIG_EPS = 0.045;
+  const PULSE_DOSE = 0.45;                              // mJ/cm2 delivered to the wafer per laser pulse in the slit
+  const DIPOLE_ORTHO_LOSS = 0.12;                       // dies lost to perpendicular features that dipole light cannot image                                // local dose noise (shot noise + PEB blur), relative
   const N_SITES = 2e6;                                  // independent edge sites per die (dense array)
 
   // ---------- recipe defaults & ranges
@@ -410,7 +436,7 @@ button { font: inherit; color: inherit; }
     dose: 26, focus: 0.0,
     bias: 200, etchT: 60,
     impE: 25, impDoseLog: Math.log10(8e12), tilt: 7,
-    psi: 3.5, cmpT: 158, ceria: false
+    psi: 3.5, cmpT: 158, ceria: false, illum: 'annular'
   };
 
   // ================= OXIDATION (Deal-Grove, <100> Si) =================
@@ -430,10 +456,39 @@ button { font: inherit; color: inherit; }
   }
 
   // ================= LITHO =================
-  function sigmaAt(focus, k) {
+  // ---------- illumination: which diffraction orders of the 180 nm pitch the NA 0.85 pupil collects
+  const LAMBDA = 193, NA = 0.85, MAG = 4, ORDER_SHIFT = LAMBDA / (PITCH * NA);   // 1st orders land 1.26 pupil radii off axis
+  const ILLUM_SHAPE = {
+    conventional: (x, y) => x * x + y * y <= 0.25,                                      // disk, sigma 0.5
+    annular: (x, y) => { const r2 = x * x + y * y; return r2 >= 0.36 && r2 <= 0.81; },     // ring, sigma 0.6-0.9
+    dipole: (x, y) => (Math.abs(x) - 0.7) ** 2 + y * y <= 0.04                           // two poles at +/-0.7, radius 0.2
+  };
+  function twoBeamFraction(mode) {          // share of the source whose 0th order and at least one 1st order both pass the pupil
+    const inside = ILLUM_SHAPE[mode]; let n = 0, k = 0;
+    for (let i = -100; i <= 100; i++) for (let j = -100; j <= 100; j++) {
+      const x = i / 100, y = j / 100; if (!inside(x, y)) continue; n++;
+      if ((x + ORDER_SHIFT) ** 2 + y * y <= 1 || (x - ORDER_SHIFT) ** 2 + y * y <= 1) k++;
+    }
+    return n ? k / n : 0;
+  }
+  const ILLUM = {};
+  (function () {
+    // total blur = optical blur (set by the two-beam fraction) + 18 nm resist acid diffusion; annular reproduces the calibrated 32 nm
+    const att = s => Math.exp(-2 * Math.PI * Math.PI * s * s / (PITCH * PITCH));
+    const sigOf = a => PITCH / (Math.PI * Math.SQRT2) * Math.sqrt(-Math.log(a));
+    const fA = twoBeamFraction('annular'), c = att(SIG0) / att(SIG_RES) / fA;
+    const KFM = { conventional: 205, annular: KF, dipole: 125 };   // symmetric two-beam imaging (dipole) holds up best through focus
+    for (const mode of ['conventional', 'annular', 'dipole']) {
+      const f2 = twoBeamFraction(mode), sigOpt = sigOf(Math.min(0.95, Math.max(1e-4, c * f2)));
+      const sig0 = mode === 'annular' ? SIG0 : Math.sqrt(sigOpt * sigOpt + SIG_RES * SIG_RES);
+      ILLUM[mode] = { f2, sig0, kf: KFM[mode] };
+    }
+  })();
+  function sigmaAt(focus, k, illum) {
+    const I = ILLUM[illum] || ILLUM.annular;
     const z = H0 - (k + 0.5) * DZ;                       // height in resist
     const fz = (focus - FBEST) - (z - H0 / 2) / (1000 * NRES);
-    return Math.sqrt(SIG0 * SIG0 + (KF * fz) * (KF * fz));
+    return Math.sqrt(I.sig0 * I.sig0 + (I.kf * fz) * (I.kf * fz));
   }
   const ATT = []; for (let k = 0; k < NLEV; k++) ATT.push(Math.exp(-ALPHA * (k + 0.5) * DZ));
   // dense grating (trench centred at x=0), Fourier
@@ -477,7 +532,7 @@ button { font: inherit; color: inherit; }
   }
   // dense-period litho for a given dose & focus. half period samples x=0..90 (0 = trench centre)
   const HX = []; for (let x = 0; x <= 90.0001; x += 1.5) HX.push(x);
-  function gratingImgs(focus) { const imgs = []; for (let k = 0; k < NLEV; k++) imgs.push(gratingImage(HX, sigmaAt(focus, k))); return imgs; }
+  function gratingImgs(focus, illum) { const imgs = []; for (let k = 0; k < NLEV; k++) imgs.push(gratingImage(HX, sigmaAt(focus, k, illum))); return imgs; }
   function gratingProfile(imgs, dose) {
     const h = new Float64Array(HX.length), tc = new Float64Array(HX.length);
     for (let i = 0; i < HX.length; i++) { h[i] = developColumn(imgs, i, dose); tc[i] = Math.log(DEV_T / TDEV); }
@@ -489,8 +544,8 @@ button { font: inherit; color: inherit; }
     for (let i = 1; i < tc.length; i++) if (tc[i] >= 0) { const f = (0 - tc[i - 1]) / (tc[i] - tc[i - 1]); return HX[i - 1] + f * (HX[i] - HX[i - 1]); }
     return 90;
   }
-  function lithoDense(dose, focus, imgs) {
-    imgs = imgs || gratingImgs(focus);
+  function lithoDense(dose, focus, imgs, illum) {
+    imgs = imgs || gratingImgs(focus, illum);
     const h = gratingProfile(imgs, dose);
     const half = openingHalf(h);
     const space = 2 * half, cd = PITCH - space;
@@ -511,7 +566,9 @@ button { font: inherit; color: inherit; }
     const mid = imgs[NLEV >> 1]; let ils = 0;
     { const xe = clamp(half, 3, 87); const i = Math.min(HX.length - 2, Math.floor(xe / 1.5)); const I = mid[i], dI = (mid[i + 1] - mid[i]) / 1.5; ils = Math.abs(dI) / Math.max(1e-6, I); }
     const ler = space < 20 ? NaN : 3 * SIG_EPS / Math.max(ils, 1e-4);      // 3-sigma LER, nm
-    return { h, cd, space, lineH, mbSig: dB / SIG_EPS, mpSig: dP / SIG_EPS, ler, ils };
+    let iMax = -1, iMin = 9; for (const v of mid) { iMax = Math.max(iMax, v); iMin = Math.min(iMin, v); }
+    const contrast = (iMax - iMin) / Math.max(1e-9, iMax + iMin);
+    return { h, cd, space, lineH, mbSig: dB / SIG_EPS, mpSig: dP / SIG_EPS, ler, ils, contrast };
   }
   function stochFail(sig) { if (sig <= 0) return 1; return 1 - Math.exp(-N_SITES * Q(sig)); }
 
@@ -567,7 +624,7 @@ button { font: inherit; color: inherit; }
     const c = {};
     c.base = 2950;
     c.ox = 4 + 0.06 * (r.oxTime + 40) + (r.wet ? 1.5 : 0) + 0.006 * (r.oxT - 800);
-    c.litho = 38 + 0.45 * r.dose;
+    c.litho = 38 + 0.45 * r.dose + (r.illum === 'dipole' ? 3 : 0);
     c.etch = 14 + 0.16 * r.etchT + 0.00012 * r.bias * r.etchT;
     const dose = Math.pow(10, r.impDoseLog);
     c.imp = 9 + 4 * dose / 1e13 + (r.impE < 10 ? 6 * (10 - r.impE) / 5 : 0);
@@ -595,7 +652,8 @@ button { font: inherit; color: inherit; }
     m.dDisl = 0.9 * Math.pow(Math.max(0, (9 - tox) / 9), 1.5);
     // --- litho (dense array)
     const dose = r.dose * loc.dose, focus = r.focus + loc.focus;
-    const L = lithoDense(dose, focus, opts.imgs);
+    const L = lithoDense(dose, focus, opts.imgs, r.illum);
+    m.contrast = L.contrast; m.pulses = Math.max(1, Math.round(r.dose / PULSE_DOSE));
     m.cd = L.cd; m.lineH = L.lineH; m.ler = L.ler; m.mbSig = L.mbSig; m.mpSig = L.mpSig; m.space = L.space;
     m.pBridge = stochFail(L.mbSig); m.pPinch = stochFail(L.mpSig);
     // --- etch (dense period columns)
@@ -718,7 +776,7 @@ button { font: inherit; color: inherit; }
     return loc;
   }
   const IMG_CACHE = new Map();
-  function imgsFor(focus) { const key = Math.round(focus * 400); if (IMG_CACHE.has(key)) return IMG_CACHE.get(key); const v = gratingImgs(key / 400); if (IMG_CACHE.size > 600) IMG_CACHE.clear(); IMG_CACHE.set(key, v); return v; }
+  function imgsFor(focus, illum) { illum = illum || 'annular'; const key = illum + Math.round(focus * 400); if (IMG_CACHE.has(key)) return IMG_CACHE.get(key); const v = gratingImgs(Math.round(focus * 400) / 400, illum); if (IMG_CACHE.size > 600) IMG_CACHE.clear(); IMG_CACHE.set(key, v); return v; }
   function runWafer(r, waferSeed) {
     const dies = dieList();
     const res = [];
@@ -726,11 +784,12 @@ button { font: inherit; color: inherit; }
     let good = 0;
     for (const d of dies) {
       const loc = localFor(r, d, waferSeed);
-      const m = evaluate(r, loc, { imgs: imgsFor(r.focus + loc.focus) });
+      const m = evaluate(r, loc, { imgs: imgsFor(r.focus + loc.focus, r.illum) });
       let fail = m.fails.length ? m.fails[0] : null;
       if (!fail) {
         const g = loc.rand;
-        if (g() < m.pBridge) fail = { code: 'sbridge', step: 1, msg: 'Stochastic bridge somewhere in the array (' + m.mbSig.toFixed(1) + 'σ margin)' };
+        if (r.illum === 'dipole' && g() < DIPOLE_ORTHO_LOSS) fail = { code: 'ortho', step: 1, msg: 'Line ends and perpendicular features blurred out: dipole light only images lines parallel to the poles' };
+        else if (g() < m.pBridge) fail = { code: 'sbridge', step: 1, msg: 'Stochastic bridge somewhere in the array (' + m.mbSig.toFixed(1) + 'σ margin)' };
         else if (g() < m.pPinch) fail = { code: 'spinch', step: 1, msg: 'Stochastic line break (' + m.mpSig.toFixed(1) + 'σ margin)' };
         else if (m.voidSev > 0 && g() < m.voidSev * 2) fail = { code: 'void', step: 2, msg: 'Fill void in a dense trench' };
         else if (g() < m.pRand) {
@@ -751,6 +810,7 @@ button { font: inherit; color: inherit; }
     erf, erfc, Q, Phi, clamp, rng, gauss,
     get DEV_T() { return DEV_T; }, WIN, PITCH, CLEAR, WIDE, T_NIT, H0, FILL, NLEV, DZ, ATT, ETH, RMAX, RMIN, TDEV, SIG_EPS,
     RANGES, DEFAULTS, SPEC, NOMLOC,
+    LAMBDA, NA, MAG, ORDER_SHIFT, ILLUM, ILLUM_SHAPE, PULSE_DOSE, DIPOLE_ORTHO_LOSS,
     dealGrove, oxUniformity, sigmaAt, gratingImage, windowImage, developColumn, gratingImgs, lithoDense, stochFail,
     etchRates, arde, etchColumn, hmOpenTime, openThreshold, openingHalf, HMO, implantRange, cost, evaluate, dieList, localFor, nominalLoc, runWafer, WAFER_R, DIE, imgsFor, HX
   };
@@ -764,6 +824,7 @@ button { font: inherit; color: inherit; }
   const DX = 4, NX = Math.round(WIN / DX) + 1, NS = 24, SLICE = 50, YB = -760;
   const XS = new Float64Array(NX); for (let i = 0; i < NX; i++) XS[i] = i * DX;
   const DENSE = [CLEAR[0][0], CLEAR[5][1]];
+  const LITHO_PHASE = { expose: 0.05, peb: 0.62, develop: 0.72 };
 
   // ---------- smooth noise field eps[s][i] ~ N(0,1), correlated ~20 nm in x, ~1.5 slices in z
   function noiseField(seed) {
@@ -787,16 +848,17 @@ button { font: inherit; color: inherit; }
   function noiseFor(seed) { if (!NOISE_CACHE.has(seed)) { if (NOISE_CACHE.size > 6) NOISE_CACHE.clear(); NOISE_CACHE.set(seed, noiseField(seed)); } return NOISE_CACHE.get(seed); }
 
   const IMG = new Map();
-  function windowImgs(focus) {
-    const key = Math.round(focus * 500);
+  function windowImgs(focus, illum) {
+    illum = illum || 'annular';
+    const key = illum + Math.round(focus * 500);
     if (IMG.has(key)) return IMG.get(key);
-    const imgs = []; for (let k = 0; k < NLEV; k++) imgs.push(F.windowImage(XS, F.sigmaAt(key / 500, k)));
+    const imgs = []; for (let k = 0; k < NLEV; k++) imgs.push(F.windowImage(XS, F.sigmaAt(Math.round(focus * 500) / 500, k, illum)));
     if (IMG.size > 40) IMG.clear(); IMG.set(key, imgs); return imgs;
   }
 
   // ---------- litho in the window, per slice
   function lithoSlices(r, loc, eps) {
-    const imgs = windowImgs(r.focus + loc.focus);
+    const imgs = windowImgs(r.focus + loc.focus, r.illum);
     const dose = r.dose * loc.dose, sig = F.SIG_EPS;
     const out = [];
     for (let s = 0; s < NS; s++) {
@@ -846,7 +908,9 @@ button { font: inherit; color: inherit; }
     const R = F.etchRates(r.bias), ke = loc.etch;
     const t1 = F.hmOpenTime(tox);
     const tau = stage === 3 ? anim * (t1 + r.etchT) : (stage > 3 ? t1 + r.etchT : 0);
-    const litAnim = stage === 2 ? anim : 1;
+    // litho run timeline: expose (scan) -> post-exposure bake -> develop; resist only dissolves in the develop phase
+    const litAnim = stage === 2 ? clamp((anim - LITHO_PHASE.develop) / (1 - LITHO_PHASE.develop), 0, 1) : 1;
+    if (stage === 2) out.litho = { imgs: L.imgs, dose: r.dose * loc.dose, yN };
     let bridges = [], pinches = [], lifts = [], voids = [];
 
     for (let s = 0; s < NS; s++) {
@@ -1205,7 +1269,7 @@ button { font: inherit; color: inherit; }
     return o;
   }
 
-  G.GEOM = { build, NS, SLICE, YB, DX, NX, XS, noiseFor, sci };
+  G.GEOM = { build, NS, SLICE, YB, DX, NX, XS, noiseFor, sci, LITHO_PHASE };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 (function () {
@@ -1236,10 +1300,11 @@ button { font: inherit; color: inherit; }
         { k: 'oxTime', label: 'Time', unit: 'min', d: 0 },
         { k: 'wet', label: 'Ambient', seg: [['Dry O₂', false], ['Wet H₂O', true]] }
       ] },
-    { n: 2, key: 'litho', name: 'Litho', title: 'Lithography', tool: 'ArF scanner, NA 0.85 · 90 nm lines / 180 nm pitch',
+    { n: 2, key: 'litho', name: 'Litho', title: 'Lithography', tool: 'ArF scanner · 193 nm · NA 0.85 · 4× reticle · 180 nm pitch',
       auto: 'LPCVD Si₃N₄ 110 nm, then 250 nm resist coat',
-      desc: 'Expose the active-area pattern. Dose sets the line width; focus sets how much contrast survives. Low dose or positive defocus leaves scum that bridges lines; high dose or negative defocus thins and pinches them.',
+      desc: 'An ArF excimer laser pulses deep-UV light through the reticle, and the projection lens shrinks its chrome pattern 4× onto the resist while a slit scans the field. Illumination decides which diffraction orders reach the wafer. Dose sets the line width; focus sets how much contrast survives. Low dose or positive defocus bridges lines; high dose or negative defocus pinches them.',
       knobs: [
+        { k: 'illum', label: 'Illumination', seg: [['Conventional', 'conventional'], ['Annular', 'annular'], ['Dipole', 'dipole']] },
         { k: 'dose', label: 'Dose', unit: 'mJ/cm²', d: 1 },
         { k: 'focus', label: 'Focus offset', unit: 'µm', d: 2, signed: true }
       ] },
@@ -1271,7 +1336,7 @@ button { font: inherit; color: inherit; }
   ];
 
   const CAT = {
-    litho: { name: 'Litho', color: '#e0553d', codes: { bridge: 'Bridged lines', pinch: 'Pinched lines', sbridge: 'Stochastic bridge', spinch: 'Stochastic line break' } },
+    litho: { name: 'Litho', color: '#e0553d', codes: { bridge: 'Bridged lines', pinch: 'Pinched lines', sbridge: 'Stochastic bridge', spinch: 'Stochastic line break', ortho: 'Perpendicular features lost (dipole)' } },
     etch: { name: 'Etch / fill', color: '#e6a019', codes: { act: 'Active width out of spec', liftoff: 'Lift-off (undercut)', erode: 'Mask erosion', void: 'Fill voids' } },
     imp: { name: 'Implant', color: '#a35bd0', codes: { pen: 'Mask punch-through', bv: 'Junction breakdown', side: 'Sidewall doping', iso: 'Isolation leakage' } },
     cmp: { name: 'CMP', color: '#3d8ee0', codes: { residue: 'Oxide residue', dish: 'Dishing / STI recess', erosion: 'Nitride erosion', high: 'Field oxide too high' } },
@@ -1301,6 +1366,8 @@ button { font: inherit; color: inherit; }
       add('Growth regime', m.tox < A / 2 ? 'linear' : 'parabolic', 'A = ' + fmt(A, 0) + ' nm', 'info');
       add('Nitride stress risk', m.dDisl > 0.01 ? fmt(m.dDisl, 2) + ' /cm²' : 'none', 't ≥ 9 nm', m.dDisl > 0.05 ? 'fail' : (m.dDisl > 0.005 ? 'warn' : 'ok'));
     } else if (stepKey === 'litho') {
+      add('Image contrast', fmt(m.contrast, 2), '\u2265 0.45', m.contrast < 0.3 ? 'fail' : status(m.contrast, 0.45, null, 0.25));
+      add('Exposure', m.pulses + ' pulses \u00d7 ' + F.PULSE_DOSE + ' mJ/cm\u00b2', '', 'info');
       add('Line CD (resist foot)', fmt(m.cd, 1) + ' nm', '81–99', status(m.cd, 81, 99));
       add('Resist line height', fmt(m.lineH, 0) + ' nm', '≥ 150', status(m.lineH, 150, null, 0.1));
       add('LER (3σ)', fmt(m.ler, 1) + ' nm', '≤ 8', status(m.ler, null, 8, 0.15));
@@ -1406,7 +1473,7 @@ button { font: inherit; color: inherit; }
   function rebuildXsec() {
     const loc = currentLoc();
     const stNow = stageNow();
-    const anim = S.anim ? S.anim.p : 1;
+    const anim = S.anim ? S.anim.p : (stNow === 2 && !S.done[2] && S.mode === 'xsec' ? 0 : 1);
     // thermal oxide is drawn translucent while it grows, so the oxidant can be seen diffusing through it
     const glassy = stNow <= 1;
     if (MAT.ox.transparent !== glassy) { MAT.ox.transparent = glassy; MAT.ox.opacity = glassy ? 0.58 : 1; MAT.ox.depthWrite = !glassy; MAT.ox.needsUpdate = true; }
@@ -1450,6 +1517,8 @@ button { font: inherit; color: inherit; }
     buildDecals(out, L);
     buildAerial(out);
     updatePad(out);
+    prepLatent(out);
+    scannerLabels(out);
     setCallouts(out.callouts);
     if (MS.on) renderPresets();
   }
@@ -1497,7 +1566,7 @@ button { font: inherit; color: inherit; }
   const thrMat = new THREE.LineDashedMaterial({ color: '#e8a900', dashSize: 0.18, gapSize: 0.12, transparent: true, opacity: 0.8 });
   function buildAerial(out) {
     disposeGroup(aerialGroup);
-    if (!out.aerial) return;
+    if (!out.aerial || S.anim) return;
     const a = out.aerial, pts = [];
     for (let i = 0; i < a.pts.length; i += 2) pts.push(P(a.pts[i], a.base + a.scale * a.pts[i + 1], 0.6));
     aerialGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), aerialMat));
@@ -1506,7 +1575,7 @@ button { font: inherit; color: inherit; }
     tl.computeLineDistances(); aerialGroup.add(tl);
     const base = new THREE.Line(new THREE.BufferGeometry().setFromPoints([P(0, a.base, 0.6), P(F.WIN, a.base, 0.6)]), new THREE.LineBasicMaterial({ color: '#8794a0', transparent: true, opacity: 0.5 }));
     aerialGroup.add(base);
-    out.callouts.push({ x: 2470, y: a.base + a.scale * 0.95, z: 0, kind: 'info', text: 'Aerial image · dashed = clearing threshold' });
+    out.callouts.push({ x: 120, y: a.base + a.scale * 0.95, z: 0, kind: 'info', text: 'Aerial image · dashed = clearing threshold' });
   }
   // rulers: depth ticks on the left front edge
   (function buildRulers() {
@@ -1616,6 +1685,10 @@ button { font: inherit; color: inherit; }
   }
   const heat = $('#heat');
   function updateHeat() {
+    if (S.anim && S.anim.stage === 2 && S.mode === 'xsec') {
+      const p = S.anim.p, ph = G.LITHO_PHASE;
+      heat.style.opacity = p >= ph.peb && p < ph.develop ? 0.45 * Math.min(1, (p - ph.peb) * 40, (ph.develop - p) * 40) : 0; return;
+    }
     const on = S.anim && S.anim.stage === 1 && S.mode === 'xsec';
     if (!on) { heat.style.opacity = 0; return; }
     const p = S.anim.p, env = Math.min(1, p * 6, (1 - p) * 6);
@@ -1683,12 +1756,194 @@ button { font: inherit; color: inherit; }
     cv.addEventListener('pointerleave', () => { furnHoverT = null; drawFurnace(); });
   })();
 
+
+  // ======================= LITHO: ArF scanner (laser, illuminator, reticle, projection lens), scan, latent image =======================
+  const SCN = { yLensBot: 9.5, yLensTop: 25, yRet: 29.5, yCond: 35.5, yMir: 41, xLaser: -30, k: 34 / F.WIN, slitR: 1.6, slitW: 1.35 };
+  const Xret = xnm => -(xnm - F.WIN / 2) * SCN.k;            // the lens inverts the image, so the reticle is drawn mirrored
+  const Xw = xnm => xnm * SC + OX;
+  const scanner = new THREE.Group(); scanner.visible = false; xsec.add(scanner);
+  const glassMat = new THREE.MeshStandardMaterial({ color: '#cfe6f5', roughness: 0.08, metalness: 0, transparent: true, opacity: 0.3, depthWrite: false });
+  const housingMat = new THREE.MeshStandardMaterial({ color: '#8a96a3', roughness: 0.5, metalness: 0.5, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false });
+  const quartzMat = new THREE.MeshStandardMaterial({ color: '#dff3f8', roughness: 0.05, transparent: true, opacity: 0.32, depthWrite: false });
+  const chromeMat = new THREE.MeshStandardMaterial({ color: '#2a3036', roughness: 0.28, metalness: 0.85 });
+  const bodyMat = new THREE.MeshStandardMaterial({ color: '#3b4653', roughness: 0.5, metalness: 0.45 });
+  const mirrorMat = new THREE.MeshStandardMaterial({ color: '#e9eef2', roughness: 0.05, metalness: 0.95 });
+  const beamMat = new THREE.MeshBasicMaterial({ color: '#8b5cf6', transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
+  const apertureMat = new THREE.MeshBasicMaterial({ color: '#a78bfa' });
+  (function buildScanner() {
+    const add = (geo, mat, x, y, z, ry) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); if (ry) m.rotation.z = ry; scanner.add(m); return m; };
+    // projection lens: housing + four elements
+    add(new THREE.CylinderGeometry(11, 8.6, SCN.yLensTop - SCN.yLensBot, 48, 1, true), housingMat, 0, (SCN.yLensTop + SCN.yLensBot) / 2, 0);
+    for (const [y, r] of [[SCN.yLensBot + 1.4, 7.4], [14.2, 9.2], [18.6, 9.8], [23.2, 8.6]]) { const m = add(new THREE.SphereGeometry(1, 40, 14), glassMat, 0, y, 0); m.scale.set(r, 0.75, r); m.renderOrder = 5; }
+    // reticle: quartz plate with chrome on its underside (dark = active lines and pads, clear = trenches)
+    const plate = add(new THREE.BoxGeometry(36.5, 0.6, 15), quartzMat, 0, SCN.yRet + 0.3, 0); plate.renderOrder = 5;
+    const dark = []; let x0 = -80;
+    for (const [a, b] of F.CLEAR) { dark.push([x0, a]); x0 = b; }
+    dark.push([x0, F.WIN + 80]);
+    for (const [a, b] of dark) { const xa = Xret(b), xb = Xret(a); add(new THREE.BoxGeometry(xb - xa, 0.14, 12.4), chromeMat, (xa + xb) / 2, SCN.yRet - 0.07, 0); }
+    for (const sx of [-16.6, 16.6]) for (const sz of [-6.9, 6.9]) { add(new THREE.BoxGeometry(1.4, 0.14, 0.22), chromeMat, sx, SCN.yRet - 0.07, sz); add(new THREE.BoxGeometry(0.22, 0.14, 1.4), chromeMat, sx, SCN.yRet - 0.07, sz); }
+    // reticle stage rails
+    for (const sz of [-8.2, 8.2]) add(new THREE.BoxGeometry(40, 0.5, 0.8), bodyMat, 0, SCN.yRet + 0.3, sz);
+    // illuminator (condenser), fold mirror, laser
+    const cond = add(new THREE.SphereGeometry(1, 40, 14), glassMat, 0, SCN.yCond, 0); cond.scale.set(12, 0.55, 6.5); cond.renderOrder = 5;
+    add(new THREE.CylinderGeometry(12.6, 12.6, 0.5, 40, 1, true), housingMat, 0, SCN.yCond, 0).scale.set(1, 1, 0.56);
+    add(new THREE.BoxGeometry(4.2, 0.3, 4.2), mirrorMat, 0, SCN.yMir, 0, Math.PI / 4);
+    add(new THREE.BoxGeometry(12, 4.6, 5.6), bodyMat, SCN.xLaser, SCN.yMir, 0);
+    add(new THREE.BoxGeometry(0.3, 1.6, 1.6), apertureMat, SCN.xLaser + 6.1, SCN.yMir, 0);
+    for (let i = 0; i < 5; i++) add(new THREE.BoxGeometry(0.25, 3.6, 5.7), mirrorMat, SCN.xLaser - 4.5 + i * 1.1, SCN.yMir, 0);   // cooling fins
+    // static beams: laser -> mirror, mirror -> condenser
+    const bh = add(new THREE.BoxGeometry(-SCN.xLaser - 6.1, 1.1, 1.1), beamMat, (SCN.xLaser + 6.1) / 2, SCN.yMir, 0); bh.renderOrder = 6;
+    const bv = add(new THREE.CylinderGeometry(0.6, 5.5, SCN.yMir - SCN.yCond - 0.6, 24, 1, true), beamMat, 0, (SCN.yMir + SCN.yCond + 0.6) / 2, 0); bv.renderOrder = 6;
+  })();
+  // dynamic light: illuminated slit on the reticle, diffraction fans into the lens, converging cones onto the wafer
+  const lightGeo = new THREE.BufferGeometry(); lightGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(16 * 36 * 3), 3));
+  const lightMesh = new THREE.Mesh(lightGeo, beamMat); lightMesh.renderOrder = 6; lightMesh.frustumCulled = false; scanner.add(lightMesh);
+  function prism(arr, k, a, b) {   // a: top {x0,x1,y,z0,z1}; b: bottom
+    const v = [[a.x0, a.y, a.z0], [a.x1, a.y, a.z0], [a.x1, a.y, a.z1], [a.x0, a.y, a.z1], [b.x0, b.y, b.z0], [b.x1, b.y, b.z0], [b.x1, b.y, b.z1], [b.x0, b.y, b.z1]];
+    const f = [[0, 1, 2], [0, 2, 3], [4, 6, 5], [4, 7, 6], [0, 4, 5], [0, 5, 1], [1, 5, 6], [1, 6, 2], [2, 6, 7], [2, 7, 3], [3, 7, 4], [3, 4, 0]];
+    for (const t of f) for (const i of t) { arr[k++] = v[i][0]; arr[k++] = v[i][1]; arr[k++] = v[i][2]; }
+    return k;
+  }
+  const SC_STATE = { pulseT: 9, pulses: 0, lastPulse: -1, devCam: false, lat: null };
+  function scanPos(p) { const ph = G.LITHO_PHASE; return Math.max(0, Math.min(1, (p - ph.expose) / (ph.peb - ph.expose))); }
+  function updateLight(s, resistTop) {
+    const arr = lightGeo.attributes.position.array; let k = 0;
+    const zw = OZ - 12 * s, zr = -(zw - 0) * 1.12, hr = SCN.slitR, hw = SCN.slitW;
+    k = prism(arr, k, { x0: -17, x1: 17, y: SCN.yCond - 0.35, z0: zr - hr, z1: zr + hr }, { x0: -17.5, x1: 17.5, y: SCN.yRet + 0.62, z0: zr - hr, z1: zr + hr });
+    F.CLEAR.forEach(([a, b], idx) => {
+      const wide = idx === F.WIDE, xa = Math.min(Xret(a), Xret(b)), xb = Math.max(Xret(a), Xret(b)), spread = wide ? 0.9 : 2.3;
+      const lc = (xa + xb) / 2 * 0.62;
+      k = prism(arr, k, { x0: xa, x1: xb, y: SCN.yRet - 0.15, z0: zr - hr, z1: zr + hr }, { x0: lc - (xb - xa) / 2 * 0.62 - spread, x1: lc + (xb - xa) / 2 * 0.62 + spread, y: SCN.yLensTop + 0.6, z0: -1.9, z1: 1.9 });
+      const wc = (Xw(a) + Xw(b)) / 2 * 0.5, half = wide ? (Xw(b) - Xw(a)) * 0.3 : 1.3;
+      k = prism(arr, k, { x0: wc - half, x1: wc + half, y: SCN.yLensBot - 0.6, z0: -1.6, z1: 1.6 }, { x0: Xw(a), x1: Xw(b), y: resistTop + 0.01, z0: zw - hw, z1: zw + hw });
+    });
+    lightGeo.setDrawRange(0, k / 3); lightGeo.attributes.position.needsUpdate = true;
+  }
+  // latent image: exposure dose relative to the clearing dose, painted on the resist front face and top surface
+  function makeLatPlane(w, h) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0 });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat); mesh.renderOrder = 7; mesh.visible = false; xsec.add(mesh);
+    return { c, ctx: c.getContext('2d'), img: c.getContext('2d').createImageData(w, h), tex, mat, mesh };
+  }
+  const latFront = makeLatPlane(G.NX, 32), latTop = makeLatPlane(G.NX, 48);
+  const RES_RGB = [222, 106, 44], ACID_RGB = [255, 242, 176];
+  function paintLatent(s, fade) {
+    const L = SC_STATE.lat; if (!L) return;
+    const zw = OZ - 12 * s, hw = SCN.slitW;
+    const fracAt = z => Math.max(0, Math.min(1, (z - (zw - hw)) / (2 * hw)));
+    // front face (x across, resist depth down)
+    { const P0 = latFront, d = P0.img.data, W = P0.c.width, H = P0.c.height, fr = fracAt(OZ);
+      for (let j = 0; j < H; j++) { const kk = Math.min(F.NLEV - 1, Math.floor(j * F.NLEV / H)), row = L.e[kk];
+        for (let i = 0; i < W; i++) { const t = Math.pow(Math.min(1, row[i] * fr / 1.15), 1.3), o = (j * W + i) * 4;
+          d[o] = RES_RGB[0] + (ACID_RGB[0] - RES_RGB[0]) * t; d[o + 1] = RES_RGB[1] + (ACID_RGB[1] - RES_RGB[1]) * t; d[o + 2] = RES_RGB[2] + (ACID_RGB[2] - RES_RGB[2]) * t; d[o + 3] = 255; } }
+      P0.ctx.putImageData(P0.img, 0, 0); P0.tex.needsUpdate = true; P0.mat.opacity = fade; }
+    // top surface (x across, z from front to back)
+    { const P1 = latTop, d = P1.img.data, W = P1.c.width, H = P1.c.height, row = L.e[0];
+      for (let j = 0; j < H; j++) { const fr = fracAt(OZ - 12 * (H - 1 - j) / (H - 1));   // canvas row 0 lands at the back after the plane's rotation
+        for (let i = 0; i < W; i++) { const t = Math.pow(Math.min(1, row[i] * fr / 1.15), 1.3), o = (j * W + i) * 4;
+          d[o] = ACID_RGB[0]; d[o + 1] = ACID_RGB[1]; d[o + 2] = ACID_RGB[2]; d[o + 3] = 235 * t; } }
+      P1.ctx.putImageData(P1.img, 0, 0); P1.tex.needsUpdate = true; P1.mat.opacity = fade; }
+  }
+  function prepLatent(out) {
+    if (!out.litho) { SC_STATE.lat = null; return; }
+    const { imgs, dose, yN } = out.litho;
+    const e = imgs.map((row, k) => { const a = new Float32Array(row.length); for (let i = 0; i < row.length; i++) a[i] = dose * row[i] * F.ATT[k] / F.ETH; return a; });
+    SC_STATE.lat = { e, yN };
+    const yTop = (yN + F.H0) * SC + OY, yBot = yN * SC + OY;
+    latFront.mesh.scale.set(F.WIN * SC, yTop - yBot, 1); latFront.mesh.position.set(OX + F.WIN * SC / 2, (yTop + yBot) / 2, OZ + 0.012);
+    latTop.mesh.scale.set(F.WIN * SC, 12, 1); latTop.mesh.rotation.set(-Math.PI / 2, 0, 0); latTop.mesh.position.set(OX + F.WIN * SC / 2, yTop + 0.01, OZ - 6);
+  }
+  function scannerOn() { return S.mode === 'xsec' && stageNow() === 2 && (S.lastView !== 'zoom' || !!S.anim); }
+  function scannerLabels(out) {
+    if (!scannerOn() || vp.clientWidth < 700) return;
+    const n = (X, Y, Z) => ({ x: (X - OX) / SC, y: (Y - OY) / SC, z: (Z - OZ) / SC });
+    out.callouts.unshift(
+      { ...n(SCN.xLaser - 2, SCN.yMir + 2.4, 0), kind: 'info', text: 'ArF excimer laser · 193 nm, pulsed' },
+      { ...n(-12, SCN.yCond + 0.4, 0), kind: 'info', text: 'Illuminator: shapes the beam into a slit' },
+      { ...n(-17.5, SCN.yRet + 0.5, 6.5), kind: 'info', text: 'Reticle: chrome on quartz, 4× size, mirrored' },
+      { ...n(-10.6, 17, 0), kind: 'info', text: 'Projection lens · NA 0.85 · 4:1 reduction' });
+  }
+  function updateScanner(dt) {
+    scanner.visible = scannerOn();
+    const running = S.anim && S.anim.stage === 2 && S.mode === 'xsec';
+    if (!scanner.visible || !built) { latFront.mesh.visible = latTop.mesh.visible = false; lightMesh.visible = false; return; }
+    const ph = G.LITHO_PHASE, p = running ? S.anim.p : (S.done[2] ? 1 : 0);
+    const resistTop = ((built.litho ? built.litho.yN : F.T_NIT) + F.H0) * SC + OY;
+    const exposing = running && p >= ph.expose && p < ph.peb;
+    lightMesh.visible = exposing;
+    if (exposing) {
+      const s = scanPos(p); updateLight(s, resistTop);
+      SC_STATE.pulseT += dt; if (SC_STATE.pulseT > 0.09) { SC_STATE.pulseT = 0; SC_STATE.lastPulse = performance.now(); }
+      const since = (performance.now() - SC_STATE.lastPulse) / 1000;
+      beamMat.opacity = 0.13 + 0.34 * Math.exp(-since * 28);
+    } else beamMat.opacity = 0.0;
+    // latent image visible while exposing and baking, fades as the developer starts
+    const showLat = running && p >= ph.expose && p < ph.develop + 0.06;
+    latFront.mesh.visible = latTop.mesh.visible = showLat;
+    if (showLat) {
+      const fade = p < ph.develop ? 1 : Math.max(0, 1 - (p - ph.develop) / 0.06);
+      paintLatent(scanPos(p), fade);
+    }
+    if (running && p >= ph.develop && !SC_STATE.devCam) { SC_STATE.devCam = true; goView('zoom'); }
+  }
+  // scanner card + pupil diagram
+  let scMoreOpen = false;
+  function scanCardVisible() { return S.step === 2 && S.mode === 'xsec'; }
+  const ILL_NAME = { conventional: 'Conventional σ 0.5', annular: 'Annular σ 0.6–0.9', dipole: 'Dipole ±0.7' };
+  function drawScanCard() {
+    const box = $('#scan'), vis = scanCardVisible(); box.hidden = !vis; vp.classList.toggle('step2', vis); updateHint();
+    if (!vis) return;
+    const r = S.r, m = F.evaluate(r, currentLoc()), ph = G.LITHO_PHASE;
+    const running = S.anim && S.anim.stage === 2, p = running ? S.anim.p : (S.done[2] ? 1 : 0);
+    const s = running ? scanPos(p) : (S.done[2] ? 1 : 0), N = m.pulses, fired = Math.round(N * s);
+    const state = !running ? (S.done[2] ? 'Exposed and developed' : 'Reticle loaded, laser idle') : (p < ph.expose ? 'Aligning reticle to wafer' : p < ph.peb ? 'Scanning the slit' : p < ph.develop ? 'Post-exposure bake · 110 °C' : 'Developing in TMAH');
+    $('#scState').textContent = state; box.classList.toggle('hot', !!running && p >= ph.expose && p < ph.develop);
+    $('#scSpec').textContent = 'NA ' + F.NA + ' · ' + F.MAG + '× reduction · ' + ILL_NAME[r.illum || 'annular'];
+    $('#scP').textContent = fired + ' / ' + N;
+    $('#scD').textContent = (fired * F.PULSE_DOSE).toFixed(1) + ' / ' + (N * F.PULSE_DOSE).toFixed(1) + ' mJ/cm²';
+    $('#scBar').style.width = (s * 100) + '%';
+    const I = F.ILLUM[r.illum || 'annular'];
+    const extra = r.illum === 'conventional' ? ' Most first orders miss the lens, so the lines barely resolve.' : r.illum === 'dipole' ? ' Sharpest image for these lines, but perpendicular features elsewhere on the chip blur out (about ' + Math.round(F.DIPOLE_ORTHO_LOSS * 100) + ' % of dies).' : ' A good compromise for lines in any direction.';
+    $('#scNote').textContent = Math.round(I.f2 * 100) + ' % of the light sends the 0 and a ±1 order through the lens, so the 180 nm pitch images at contrast ' + m.contrast.toFixed(2) + '.' + extra;
+    drawPupil(r.illum || 'annular');
+  }
+  function drawPupil(mode) {
+    const cv = $('#scPupil'), ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
+    const cs = getComputedStyle(document.documentElement), col = n => cs.getPropertyValue(n).trim();
+    const R = 74, cx = W / 2, cy = H / 2 + 6, sh = F.ORDER_SHIFT * R;
+    ctx.clearRect(0, 0, W, H);
+    const shape = (ox) => {
+      ctx.beginPath();
+      if (mode === 'conventional') ctx.arc(cx + ox, cy, 0.5 * R, 0, Math.PI * 2);
+      else if (mode === 'annular') { ctx.arc(cx + ox, cy, 0.9 * R, 0, Math.PI * 2); ctx.moveTo(cx + ox + 0.6 * R, cy); ctx.arc(cx + ox, cy, 0.6 * R, 0, Math.PI * 2, true); }
+      else { ctx.arc(cx + ox - 0.7 * R, cy, 0.2 * R, 0, Math.PI * 2); ctx.moveTo(cx + ox + 0.9 * R, cy); ctx.arc(cx + ox + 0.7 * R, cy, 0.2 * R, 0, Math.PI * 2); }
+    };
+    // pupil
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = col('--chip'); ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = col('--ink'); ctx.stroke();
+    // +/-1 orders: captured part filled, full outline dashed
+    for (const s of [-1, 1]) {
+      ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip(); shape(s * sh); ctx.fillStyle = 'rgba(139, 92, 246, 0.55)'; ctx.fill('evenodd'); ctx.restore();
+      shape(s * sh); ctx.setLineDash([6, 5]); ctx.lineWidth = 1.6; ctx.strokeStyle = 'rgba(139, 92, 246, 0.85)'; ctx.stroke(); ctx.setLineDash([]);
+    }
+    shape(0); ctx.fillStyle = 'rgba(109, 40, 217, 0.9)'; ctx.fill('evenodd');
+    ctx.fillStyle = col('--muted'); ctx.font = '600 19px "IBM Plex Mono", monospace'; ctx.textAlign = 'center';
+    ctx.fillText('0', cx, cy - R - 12); ctx.fillText('−1', cx - sh, cy - R - 12); ctx.fillText('+1', cx + sh, cy - R - 12);
+    ctx.font = '17px "IBM Plex Mono", monospace'; ctx.textAlign = 'left';
+    ctx.fillText('pupil NA ' + F.NA, 8, H - 12);
+    ctx.textAlign = 'right'; ctx.fillText('1st orders at ±' + F.ORDER_SHIFT.toFixed(2) + ' NA', W - 8, H - 12);
+  }
+  (function wireScan() {
+    $('#scMore').addEventListener('click', e => { scMoreOpen = !scMoreOpen; $('#scan').classList.toggle('open', scMoreOpen); e.target.setAttribute('aria-expanded', scMoreOpen); e.target.textContent = scMoreOpen ? 'Hide pupil' : 'Show pupil'; });
+  })();
+
   // ======================= CALLOUTS (projected HTML) =======================
   const coLayer = $('#callouts');
   let coEls = [];
   function setCallouts(list) {
     for (const el of coEls) el.remove();
-    coEls = (list || []).slice(0, 7).map(c => {
+    coEls = (list || []).slice(0, 10).map(c => {
       const el = document.createElement('div'); el.className = 'co ' + c.kind;
       el.innerHTML = '<span class="stem"></span><span class="dot"></span><span class="tag"></span>';
       el.querySelector('.tag').textContent = c.text;
@@ -1745,6 +2000,7 @@ button { font: inherit; color: inherit; }
     const w = vp.clientWidth, h = vp.clientHeight, wide = w > 700;
     let dx = 0;
     if (wide && MS.on && S.mode !== 'wafer') dx -= 140;
+    else if (wide && S.mode === 'xsec' && stageNow() === 2 && S.lastView === 'iso' && scanCardVisible()) dx -= 150;
     if (wide && S.mode === 'wafer') dx += MS.on ? 0 : 150;
     viewDx = dx;
     if (dx === 0) camera.clearViewOffset();
@@ -1752,6 +2008,7 @@ button { font: inherit; color: inherit; }
     else camera.setViewOffset(w + 2 * dx, h, 0, 0, w, h);
   }
   function goView(name, instant) {
+    if (S.mode === 'xsec' && stageNow() === 2) { S.lastView = name; applyViewOffset(); camera.updateProjectionMatrix(); }
     if (S.mode !== 'wafer' && (name === 'zoom' || name === 'surface') && stageNow() <= 1) name = 'surface';
     else if (name === 'surface') name = 'zoom';
     S.lastView = name;
@@ -1772,6 +2029,11 @@ button { font: inherit; color: inherit; }
       const dist = Math.max(fitW, fitH) * (name === 'front' ? 1.0 : 1.08);
       const dir = name === 'front' ? new THREE.Vector3(0, 0, 1) : name === 'top' ? new THREE.Vector3(0, 1, 0.0005) : new THREE.Vector3(0.42, 0.36, 0.83).normalize();
       pos = tgt.clone().add(dir.multiplyScalar(dist + (name === 'front' ? 6 : 0)));
+      if (name === 'iso' && S.mode === 'xsec' && stageNow() === 2) {
+        tgt = new THREE.Vector3(-9, 19.5, 0);
+        const d4 = Math.max(29.5 / Math.tan(hf / 2), 28.5 / Math.tan(vf / 2)) * 1.04;
+        pos = tgt.clone().add(new THREE.Vector3(0.42, 0.2, 0.885).normalize().multiplyScalar(d4));
+      }
       if (name === 'surface') {
         // close-up of the front-left corner of the top surface: the oxide band and the incoming oxidant
         tgt = P(125, vp.clientWidth < 700 ? -30 : 22, -30);
@@ -2079,7 +2341,7 @@ button { font: inherit; color: inherit; }
         let y0 = Infinity, xa = Infinity, xb = -Infinity, top = -Infinity;
         for (let i = 1; i < poly.o.length; i += 2) y0 = Math.min(y0, poly.o[i]);
         for (let i = 0; i < poly.o.length; i += 2) { if (Math.abs(poly.o[i + 1] - y0) < 0.5) { xa = Math.min(xa, poly.o[i]); xb = Math.max(xb, poly.o[i]); } if (Math.abs(poly.o[i] - 755) < 8) top = Math.max(top, poly.o[i + 1]); }
-        out.push(['Resist CD', [{ x: xa, y: y0, z: 0 }, { x: xb, y: y0, z: 0 }, 'x']]);
+        if (xb - xa < 400) out.push(['Resist CD', [{ x: xa, y: y0, z: 0 }, { x: xb, y: y0, z: 0 }, 'x']]);
         if (isFinite(top)) out.push(['Resist height', [{ x: 755, y: y0, z: 0 }, { x: 755, y: top, z: 0 }, 'y']]);
       }
     }
@@ -2243,12 +2505,12 @@ button { font: inherit; color: inherit; }
     MS.pending = null; MS.wPending = null; rubber.visible = false; hovPts.visible = false;
     drawMeasures(); renderPresets();
     applyViewOffset(); camera.updateProjectionMatrix();
-    drawFurnace();
+    drawFurnace(); drawScanCard();
     updateBadge(); updateHint();
   }
   function updateHint() {
     const h = $('#hint3d');
-    h.hidden = MS.on || furnaceVisible();
+    h.hidden = MS.on || furnaceVisible() || scanCardVisible();
     h.textContent = isTouch ? 'One finger rotate · two fingers pan & zoom' : (S.mode === 'wafer' ? 'Drag rotate · scroll zoom · click a die to inspect' : 'Drag rotate · right-drag pan · scroll zoom');
   }
   const isTouch = window.matchMedia('(pointer: coarse)').matches;
@@ -2303,10 +2565,10 @@ button { font: inherit; color: inherit; }
     panel.innerHTML = html;
     // wire
     panel.querySelectorAll('input[type=range]').forEach(inp => inp.addEventListener('input', () => { S.r[inp.dataset.k] = parseFloat(inp.value); onRecipe(); const kn = st.knobs.find(k => k.k === inp.dataset.k); $('#v-' + inp.dataset.k).innerHTML = knobValueText(kn); }));
-    panel.querySelectorAll('.seg button[data-k]').forEach(b => b.addEventListener('click', () => { S.r[b.dataset.k] = b.dataset.v === 'true'; b.parentElement.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); onRecipe(); }));
+    panel.querySelectorAll('.seg button[data-k]').forEach(b => b.addEventListener('click', () => { S.r[b.dataset.k] = b.dataset.v === 'true' ? true : b.dataset.v === 'false' ? false : b.dataset.v; b.parentElement.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); onRecipe(); }));
     panel.querySelectorAll('.seg button[data-die]').forEach(b => b.addEventListener('click', () => { S.die = b.dataset.die; b.parentElement.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); onRecipe(); $('#readsH').textContent = readsTitle(); }));
     if (st.key === 'yield') wireYield();
-    renderFoot(); updateReadouts(); updateBadge(); drawFurnace();
+    renderFoot(); updateReadouts(); updateBadge(); drawFurnace(); drawScanCard();
     if (st.key === 'litho') drawPW();
     panel.scrollTop = keepScroll;
   }
@@ -2367,20 +2629,21 @@ button { font: inherit; color: inherit; }
     const st = STEPS[S.step - 1];
     if (S.anim) { b.textContent = 'Processing…'; b.className = 'ov badge'; }
     else if (S.done[st.n]) { b.textContent = 'Processed · live'; b.className = 'ov badge done'; }
-    else { b.textContent = st.n === 1 ? 'Bare substrate · not run' : 'Preview · not run'; b.className = 'ov badge'; }
+    else { b.textContent = st.n === 1 ? 'Bare substrate · not run' : st.n === 2 ? 'Coated wafer · not exposed' : 'Preview · not run'; b.className = 'ov badge'; }
   }
 
   // ---------- process window (litho)
   let PW = null, pwBusy = false;
   function computePW(cb) {
+    if (PW && PW.illum !== (S.r.illum || 'annular')) PW = null;
     if (PW) return cb();
     if (pwBusy) return; pwBusy = true;
     const NF = 33, ND = 31, fr = F.RANGES.focus, dr = F.RANGES.dose;
-    const grid = new Uint8Array(NF * ND); let j = 0;
+    const grid = new Uint8Array(NF * ND); let j = 0; const illumPW = S.r.illum || 'annular';
     function chunk() {
       const t0 = performance.now();
       while (j < NF && performance.now() - t0 < 25) {
-        const f = fr[0] + (fr[1] - fr[0]) * j / (NF - 1), imgs = F.gratingImgs(f);
+        const f = fr[0] + (fr[1] - fr[0]) * j / (NF - 1), imgs = F.gratingImgs(f, illumPW);
         for (let i = 0; i < ND; i++) {
           const d = dr[0] + (dr[1] - dr[0]) * i / (ND - 1);
           const L = F.lithoDense(d, f, imgs);
@@ -2388,7 +2651,7 @@ button { font: inherit; color: inherit; }
         }
         j++;
       }
-      if (j < NF) setTimeout(chunk, 0); else { PW = { grid, NF, ND }; pwBusy = false; cb(); }
+      if (j < NF) setTimeout(chunk, 0); else { PW = { grid, NF, ND, illum: illumPW }; pwBusy = false; if (illumPW !== (S.r.illum || 'annular')) { PW = null; computePW(cb); } else cb(); }
     }
     chunk();
   }
@@ -2470,6 +2733,7 @@ button { font: inherit; color: inherit; }
       sbridge: 'Stochastic bridges: your dose margin is too thin. Move to the centre of the process window.',
       spinch: 'Stochastic line breaks: your dose margin is too thin on the high side.',
       particle: 'Random particles dominate. You are close to the yield ceiling.',
+      ortho: 'Dipole light images these lines beautifully but blurs line ends and perpendicular features elsewhere on the chip. Switch to annular unless you need the extra focus margin.',
       disl: 'Slip dislocations from a thin pad oxide. Grow at least 9 nm.',
       scratch: 'CMP scratches from high down-force.'
     }[code] || '';
@@ -2502,9 +2766,10 @@ button { font: inherit; color: inherit; }
   function runStep() {
     if (S.mode !== 'xsec') { S.mode = 'xsec'; S.inspect = null; applyMode(); goView('iso'); }
     const st = STEPS[S.step - 1];
-    const dur = { ox: 5.0, litho: 1.6, etch: 2.4, imp: 1.8, cmp: 3.0 }[st.key];
+    const dur = { ox: 5.0, litho: 9.0, etch: 2.4, imp: 1.8, cmp: 3.0 }[st.key];
     S.anim = { stage: S.step, p: 0, dur, t: 0 };
     if (S.step === 1) { rebuildXsec(); molReset(); if (S.lastView !== 'surface') goView('surface'); }
+    if (S.step === 2) { SC_STATE.devCam = false; SC_STATE.pulseT = 9; rebuildXsec(); goView('iso'); }
     document.querySelectorAll('#panelFoot button').forEach(b => b.disabled = true);
     updateBadge();
   }
@@ -2512,6 +2777,7 @@ button { font: inherit; color: inherit; }
     const st = STEPS[S.step - 1];
     S.anim = null; S.done[st.n] = true; S.dirty = true;
     renderPanel();
+    if (st.n === 2) { toast(`Exposed with ${F.evaluate(S.r, currentLoc()).pulses} laser pulses and developed. Rotate, zoom and pan to inspect the resist lines.`); return; }
     toast(st.n === 1 ? `Oxidation done: ${F.evaluate(S.r, currentLoc()).tox.toFixed(1)} nm of ${S.r.wet ? 'wet' : 'dry'} oxide. Rotate, zoom and pan to inspect it.` : `${st.title || st.name} done. Rotate, zoom and pan to inspect the result.`);
   }
   let toastT = null;
@@ -2520,7 +2786,7 @@ button { font: inherit; color: inherit; }
     t.textContent = msg; t.hidden = false; t.style.opacity = 1;
     clearTimeout(toastT); toastT = setTimeout(() => { t.style.opacity = 0; setTimeout(() => t.hidden = true, 320); }, 3600);
   }
-    function onRecipe() { S.dirty = true; S.waferStale = true; if (S.step === 1) drawFurnace(); updateReadouts(); if (STEPS[S.step - 1].key === 'litho') drawPW(); if (S.mode === 'wafer') scheduleWafer(); }
+    function onRecipe() { S.dirty = true; S.waferStale = true; if (S.step === 1) drawFurnace(); if (S.step === 2) drawScanCard(); updateReadouts(); if (STEPS[S.step - 1].key === 'litho') drawPW(); if (S.mode === 'wafer') scheduleWafer(); }
 
   // ======================= LOOP =======================
   function resize() {
@@ -2544,8 +2810,9 @@ button { font: inherit; color: inherit; }
       if (camTween.k >= 1) camTween = null;
     }
     if (sortAnim) { sortAnim.t += raw / (reduced ? 0.01 : 2.6); layoutDies(Math.min(1.08, sortAnim.t)); if (sortAnim.t >= 1.08) { sortAnim = null; layoutDies(); } }
-    updateIons(dt); updateMolecules(raw); updateHeat();
+    updateIons(dt); updateMolecules(raw); updateHeat(); updateScanner(raw);
     if (S.anim && S.anim.stage === 1) drawFurnace();
+    if (S.anim && S.anim.stage === 2) drawScanCard();
     controls.update();
     renderer.render(scene, camera);
     placeOverlays();

@@ -35,7 +35,7 @@
 
 <div class="prose">
 <p>Shallow trench isolation, or STI, is the module that keeps neighbouring transistors from talking to each other. Trenches are etched into the silicon between the active areas, filled with oxide and polished flat, and a channel-stop implant under the trenches holds leakage down. Every step has to land inside a narrow window, and one bad setting early in the flow shows up as a failed die at the end.</p>
-<p>This simulator lets you run that module yourself on a 300 mm wafer. It opens on a bare silicon block. At each step you set the process knobs and run the step, and a 3D cross-section builds live. Bad settings show real failure modes, such as bridged lines, an undercut etch and CMP dishing, instead of a number turning red. At the end a wafer map lights up with passing and failing dies, and your score is the cost per good die.</p>
+<p>This simulator lets you run that module yourself on a 300 mm wafer. It opens on a bare silicon block. At each step you set the process knobs and run the step, and a 3D cross-section builds live. Lithography plays out in a 3D ArF scanner, from the pulsed laser through the reticle and projection lens to the resist. Bad settings show real failure modes, such as bridged lines, an undercut etch and CMP dishing, instead of a number turning red. At the end a wafer map lights up with passing and failing dies, and your score is the cost per good die.</p>
 </div>
 
 <p class="lab-open"><a href="../../simulations/sti-wafer-run/">Open the simulator full screen</a>. On a phone, that works better than the embedded view below.</p>
@@ -48,6 +48,7 @@
 <ul>
 <li>Choose dry or wet oxidation, set the temperature and time, and press <b>Run oxidation</b>. The furnace card tracks the oxide thickness along the Deal-Grove growth curve.</li>
 <li>Work through lithography, etch, implant and CMP the same way. The cross-section previews the result while you move a knob, and Run plays the process. <b>Previous</b> and <b>Next</b> let you go back and forth.</li>
+<li>In lithography, choose conventional, annular or dipole illumination, then press <b>Expose &amp; develop</b>. The scanner scans a slit across the field, and the pupil diagram shows which diffraction orders the lens collects.</li>
 <li>Drag to rotate the model, right-drag to pan and scroll to zoom. The Front, Top and Zoom buttons snap the camera to a clear view.</li>
 <li>Open <b>Measure</b>, click any two points on the model and read the distance. Presets measure the fin width, fin height, mask stack, trench depth, dishing and more.</li>
 <li>Switch to <b>Wafer map</b> at any step to see per-die metrology on a blue scale, with a red rim on every die that is out of spec.</li>
@@ -58,7 +59,7 @@
 <ul>
 <li><b>Oxidation.</b> A pad oxide grown with the Deal-Grove model, dry or wet.</li>
 <li><b>Nitride and resist.</b> A 110 nm LPCVD silicon nitride layer, then a 250 nm resist coat. This step runs automatically.</li>
-<li><b>Lithography.</b> An ArF scanner prints 90 nm lines on a 180 nm pitch. You set the dose and focus.</li>
+<li><b>Lithography.</b> An ArF scanner prints 90 nm lines on a 180 nm pitch. You set the illumination, dose and focus.</li>
 <li><b>Etch.</b> A fixed hard-mask open, then the silicon trench etch. You set the bias power and the etch time.</li>
 <li><b>Implant.</b> A boron channel stop into the trench floors. You set the energy, dose and tilt.</li>
 <li><b>Fill.</b> Resist strip, a 10 nm liner oxidation and a 550 nm HDP oxide fill. This step runs automatically.</li>
@@ -68,7 +69,7 @@
 
 <h2>What can go wrong</h2>
 <ul>
-<li><b>Lithography.</b> Bridged lines, pinched lines, and stochastic bridges and line breaks.</li>
+<li><b>Lithography.</b> Bridged lines, pinched lines, stochastic bridges and line breaks, and, with dipole illumination, perpendicular features that the light cannot image.</li>
 <li><b>Etch.</b> Undercut, lift-off, mask erosion and a shallow trench.</li>
 <li><b>Fill.</b> Keyhole voids in a trench that is too deep and narrow to fill cleanly.</li>
 <li><b>Implant.</b> Boron through the mask, a weak channel stop, sidewall doping and a channeling tail.</li>
@@ -79,6 +80,7 @@
 
 <h2>A score to beat</h2>
 <p>With every knob left at its default, 336 of the 616 dies pass, about 54.5 percent, at $9.14 per good die. The top killer is active width out of spec, followed by dishing at the wafer edge. A well-tuned recipe reaches 598 good dies, 97.1 percent, at $5.13 per good die, and random particles become the top killer. Dies near the edge fail differently from dies in the centre, because focus, etch rate and polish rate all drift across the wafer.</p>
+<p>Illumination matters as much as dose and focus. Conventional illumination collects too little of the light at this pitch, so the default recipe then passes only 17 dies. Dipole images the lines sharply but loses the features that run perpendicular to its poles: the tuned recipe drops to 512 good dies at $6.00 per good die.</p>
 
 <h2>How this model is simplified</h2>
 <p>This is a teaching model. The equations are physically motivated: Deal-Grove oxide growth, a blurred aerial image with a Mack-style resist development rate, and per-die variation in focus, etch and polish. They are not calibrated to any real fab. Use it to build intuition for how the steps interact, not to predict a real process.</p>
