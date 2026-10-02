@@ -1795,6 +1795,21 @@ button { font: inherit; color: inherit; }
     const bh = add(new THREE.BoxGeometry(-SCN.xLaser - 6.1, 1.1, 1.1), beamMat, (SCN.xLaser + 6.1) / 2, SCN.yMir, 0); bh.renderOrder = 6;
     const bv = add(new THREE.CylinderGeometry(0.6, 5.5, SCN.yMir - SCN.yCond - 0.6, 24, 1, true), beamMat, 0, (SCN.yMir + SCN.yCond + 0.6) / 2, 0); bv.renderOrder = 6;
   })();
+  (function labelScanner() {
+    for (const m of scanner.children) {
+      if (m.material === beamMat) continue;
+      const x = m.position.x, y = m.position.y;
+      let L = null;
+      if (m.material === housingMat) L = Math.abs(y - SCN.yCond) < 1 ? ['Illuminator housing', 'holds the condenser optics'] : ['Projection lens barrel', 'holds the lens elements in alignment'];
+      else if (m.material === glassMat) L = Math.abs(y - SCN.yCond) < 1 ? ['Illuminator condenser', 'shapes the laser beam into a uniform slit of light'] : ['Projection lens element', 'fused silica, one of the elements that shrink the reticle image 4:1'];
+      else if (m.material === quartzMat) L = ['Reticle substrate', 'fused quartz plate that carries the chrome pattern'];
+      else if (m.material === chromeMat) L = Math.abs(x) > 16 ? ['Reticle alignment mark', 'chrome cross used to line the reticle up with the wafer'] : ['Chrome absorber', 'blocks the light over the active lines; the clear gaps print as trenches'];
+      else if (m.material === bodyMat) L = Math.abs(y - SCN.yRet - 0.3) < 0.5 ? ['Reticle stage rail', 'carries the reticle through the slit during the scan'] : ['ArF excimer laser', 'argon-fluoride gas laser, 193 nm deep UV, pulsed'];
+      else if (m.material === mirrorMat) L = x < -10 ? ['ArF excimer laser', 'cooling fins on the laser body'] : ['Fold mirror', 'turns the beam down into the illuminator'];
+      else if (m.material === apertureMat) L = ['Laser output window', 'where the 193 nm pulses leave the laser'];
+      if (L) m.userData.label = L;
+    }
+  })();
   // dynamic light: illuminated slit on the reticle, diffraction fans into the lens, converging cones onto the wafer
   const lightGeo = new THREE.BufferGeometry(); lightGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(16 * 36 * 3), 3));
   const lightMesh = new THREE.Mesh(lightGeo, beamMat); lightMesh.renderOrder = 6; lightMesh.frustumCulled = false; scanner.add(lightMesh);
@@ -2030,8 +2045,8 @@ button { font: inherit; color: inherit; }
       const dir = name === 'front' ? new THREE.Vector3(0, 0, 1) : name === 'top' ? new THREE.Vector3(0, 1, 0.0005) : new THREE.Vector3(0.42, 0.36, 0.83).normalize();
       pos = tgt.clone().add(dir.multiplyScalar(dist + (name === 'front' ? 6 : 0)));
       if (name === 'iso' && S.mode === 'xsec' && stageNow() === 2) {
-        tgt = new THREE.Vector3(-9, 19.5, 0);
-        const d4 = Math.max(29.5 / Math.tan(hf / 2), 28.5 / Math.tan(vf / 2)) * 1.04;
+        tgt = new THREE.Vector3(-9, 20.5, 0);
+        const d4 = Math.max(30 / Math.tan(hf / 2), 31.5 / Math.tan(vf / 2)) * 1.04;   // headroom so the laser label clears the toolbar
         pos = tgt.clone().add(new THREE.Vector3(0.42, 0.2, 0.885).normalize().multiplyScalar(d4));
       }
       if (name === 'surface') {
@@ -2372,25 +2387,75 @@ button { font: inherit; color: inherit; }
     }
   }
 
+  // ---------- material labels: hover on desktop, tap on touch screens
+  let matHovT = 0, matHovKey = null;
+  function materialInfo(key, p) {
+    const m = built.m, st = built.stage;
+    if (key === 'si') {
+      // doped regions are drawn on the cut faces, so name them when the cursor sits inside one there
+      const L = built.ns * built.sliceLen, onFace = p.z > -2 || p.z < -L + 2;
+      if (onFace && built.decals) for (const d of built.decals) {
+        if ((d.kind !== 'boron' && d.kind !== 'pen') || !d.rx || d.a < 0.05) continue;
+        if (((p.x - d.cx) / d.rx) ** 2 + ((p.y - d.cy) / d.ry) ** 2 <= 1)
+          return d.kind === 'pen' ? ['Boron in the active area', 'implant that punched through the mask; it shifts the transistor threshold']
+            : ['Boron channel stop', 'p-type doping under the trench floor \u00b7 peak ' + sci(m.cPeak) + ' cm\u207b\u00b3 about ' + m.Rp.toFixed(0) + ' nm down'];
+      }
+      return ['Silicon', st >= 3 ? 'Si(100) substrate; the mesas between trenches are the active areas' : 'Si(100) substrate'];
+    }
+    if (key === 'ox') return ['Pad oxide', 'thermal SiO\u2082 \u00b7 ' + (st <= 1 && built.tox != null ? built.tox : m.tox).toFixed(1) + ' nm \u00b7 cushions the nitride stress'];
+    if (key === 'wedge') return ['Bird\u2019s beak', 'liner oxide creeping under the nitride \u00b7 ' + m.bb.toFixed(1) + ' nm per side'];
+    if (key === 'nit') { const t = st >= 5 && m.residue <= 0 ? Math.max(0, m.nitFinal) : st >= 3 ? m.nitRem : F.T_NIT; return ['Silicon nitride', 'Si\u2083N\u2084 hard mask and CMP stop \u00b7 ' + t.toFixed(0) + ' nm']; }
+    if (key === 'res') return ['Photoresist', st === 2 ? (S.done[2] || S.anim ? 'ArF chemically amplified resist \u00b7 lines ' + m.lineH.toFixed(0) + ' nm tall' : 'ArF chemically amplified resist \u00b7 250 nm coat, not yet exposed') : 'resist left after the etch \u00b7 ' + Math.max(0, m.resRem).toFixed(0) + ' nm on the lines'];
+    if (key === 'fill') return ['HDP oxide', st >= 5 && m.residue <= 0 ? 'high-density-plasma SiO\u2082 trench fill \u00b7 ' + m.dish.toFixed(0) + ' nm dishing in the wide trench' : 'high-density-plasma SiO\u2082 trench fill'];
+    return null;
+  }
+  function setMatHighlight(key) {
+    if (key === matHovKey) return; matHovKey = key;
+    for (const k in xMeshes) { const mat = xMeshes[k].material; if (mat.emissive) mat.emissive.setHex(k === key ? 0x2b2b2b : 0x000000); }
+  }
+  function materialHover(e, force) {
+    const now = performance.now(); if (!force && now - matHovT < 50) return; matHovT = now;
+    if (!built) return;
+    setMouse(e);
+    const objs = Object.values(xMeshes).filter(m => m.visible);
+    if (scanner.visible) for (const c of scanner.children) if (c.userData.label) objs.push(c);
+    const hits = ray.intersectObjects(objs, false);
+    let info = null, key = null;
+    if (hits.length) {
+      // the lens barrel and the quartz plate are see-through: name what sits inside or under them when the ray reaches it
+      let h = hits[0];
+      if (h.object.material === housingMat || h.object.material === quartzMat) { const behind = hits.find(x => x.object.userData.label && x.object.material !== housingMat && x.object.material !== quartzMat); if (behind) h = behind; }
+      if (h.object.userData.label) info = h.object.userData.label;
+      else { key = Object.keys(xMeshes).find(k => xMeshes[k] === h.object) || null; if (key) info = materialInfo(key, fromW(h.point)); }
+    }
+    setMatHighlight(key);
+    if (!info) { tip.hidden = true; return; }
+    tip.innerHTML = '<b></b><div class="mono"></div>';
+    tip.querySelector('b').textContent = info[0]; tip.querySelector('.mono').textContent = info[1];
+    tip.hidden = false; placeTip(e, 270, 64);
+  }
+
   // ---------- pointer wiring (orbit drag vs click)
   let downAt = null;
   renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
   renderer.domElement.addEventListener('pointermove', e => {
-    if (e.buttons) { tip.hidden = true; return; }
+    if (e.buttons) { tip.hidden = true; setMatHighlight(null); return; }
     if (MS.on && S.mode !== 'wafer') { measureHover(e); return; }
-    if (S.mode !== 'wafer' || !S.wafer) { tip.hidden = true; return; }
+    if (S.mode !== 'wafer') { if (e.pointerType === 'mouse') materialHover(e); return; }
+    if (!S.wafer) { tip.hidden = true; return; }
     const i = pickDie(e);
     if (i !== S.hover) { S.hover = i; if (!sortAnim) layoutDies(); highlightProfile(); }
     if (i == null) { tip.hidden = true; renderer.domElement.style.cursor = MS.on ? 'crosshair' : ''; return; }
     renderer.domElement.style.cursor = MS.on ? 'crosshair' : 'pointer';
     tip.innerHTML = dieInfoHTML(i); tip.hidden = false; placeTip(e, 290, 110);
   });
-  renderer.domElement.addEventListener('pointerleave', () => { tip.hidden = true; hovPts.visible = false; rubber.visible = false; if (S.hover != null) { S.hover = null; layoutDies(); highlightProfile(); } });
+  renderer.domElement.addEventListener('pointerleave', () => { tip.hidden = true; setMatHighlight(null); hovPts.visible = false; rubber.visible = false; if (S.hover != null) { S.hover = null; layoutDies(); highlightProfile(); } });
   renderer.domElement.addEventListener('pointerup', e => {
     if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
     if (e.button !== 0) return;
     if (MS.on) { measureClick(e); return; }
-    if (S.mode !== 'wafer' || !S.wafer) return;
+    if (S.mode !== 'wafer') { if (e.pointerType !== 'mouse') materialHover(e, true); return; }
+    if (!S.wafer) return;
     const i = pickDie(e); if (i == null) return;
     sortAnim = null; layoutDies();
     inspectDie(i);
@@ -2511,7 +2576,7 @@ button { font: inherit; color: inherit; }
   function updateHint() {
     const h = $('#hint3d');
     h.hidden = MS.on || furnaceVisible() || scanCardVisible();
-    h.textContent = isTouch ? 'One finger rotate · two fingers pan & zoom' : (S.mode === 'wafer' ? 'Drag rotate · scroll zoom · click a die to inspect' : 'Drag rotate · right-drag pan · scroll zoom');
+    h.textContent = isTouch ? (S.mode === 'wafer' ? 'One finger rotate \u00b7 two fingers pan & zoom' : 'Drag to rotate \u00b7 tap a layer to name it') : (S.mode === 'wafer' ? 'Drag rotate \u00b7 scroll zoom \u00b7 click a die to inspect' : 'Drag rotate \u00b7 right-drag pan \u00b7 scroll zoom \u00b7 hover a layer to name it');
   }
   const isTouch = window.matchMedia('(pointer: coarse)').matches;
 
@@ -2865,6 +2930,7 @@ button { font: inherit; color: inherit; }
   if (hot && hot.snapshot) hot.snapshot(() => ({ r: S.r, done: S.done, step: S.step, die: S.die, waferSeed: S.waferSeed }));
   if (hot && hot.ready) hot.ready(start); else start((hot && hot.data) || {});
   window.__S = S; window.__goto = gotoStep; window.__run = runStep; window.__inspect = inspectDie; window.__MS = MS; window.__setMeasure = setMeasure;
+  window.__screenOf = (x, y, z) => { const v = P(x, y, z).project(camera), rc = renderer.domElement.getBoundingClientRect(); return { x: rc.left + (v.x + 1) / 2 * rc.width, y: rc.top + (1 - v.y) / 2 * rc.height }; };
 })();
 
 </script>
