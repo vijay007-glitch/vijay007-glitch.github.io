@@ -1,0 +1,2604 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Run a 300 mm wafer through oxidation, lithography, etch, implant and CMP. Watch the 3D cross-section build, then score cost per good die.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="STI Wafer Run">
+<meta property="og:description" content="Run a 300 mm wafer through oxidation, lithography, etch, implant and CMP. Watch the 3D cross-section build, then score cost per good die.">
+<link rel="canonical" href="https://vijay007-glitch.github.io/simulations/sti-wafer-run/">
+<meta property="og:url" content="https://vijay007-glitch.github.io/simulations/sti-wafer-run/">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<style>html,body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>STI Wafer Run</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one-screen tool — 3D viewport left, process panel right; stacks on phones */
+:root {
+  --bg: #e8ecef;
+  --panel: #f5f7f8;
+  --raise: #ffffff;
+  --ink: #16202a;
+  --muted: #586673;
+  --faint: #8794a0;
+  --line: #d2d9df;
+  --accent: #e8a900;
+  --accent-ink: #7d5800;
+  --accent-soft: #fbefc8;
+  --good: #1a8a57;
+  --warn: #a96500;
+  --bad: #c33a2e;
+  --good-soft: #dcf1e6;
+  --warn-soft: #f8e9cf;
+  --bad-soft: #f8dfdc;
+  --vp: #dde3e8;
+  --vp2: #c9d2d9;
+  --chip: #e2e7eb;
+  --outline: #1d2833;
+  --f-display: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', sans-serif;
+  --f-body: 'Barlow', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1216; --panel: #131a20; --raise: #1a232b; --ink: #e3e9ed; --muted: #93a1ad; --faint: #6c7a86; --line: #25313b;
+    --accent: #f2b705; --accent-ink: #f6cb4a; --accent-soft: #3a2f0e;
+    --good: #43c98d; --warn: #f0a63c; --bad: #ff6f62; --good-soft: #12301f; --warn-soft: #36270c; --bad-soft: #3a1714;
+    --vp: #0f151a; --vp2: #1a232b; --chip: #1c262e; --outline: #0a0f13; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1216; --panel: #131a20; --raise: #1a232b; --ink: #e3e9ed; --muted: #93a1ad; --faint: #6c7a86; --line: #25313b;
+  --accent: #f2b705; --accent-ink: #f6cb4a; --accent-soft: #3a2f0e;
+  --good: #43c98d; --warn: #f0a63c; --bad: #ff6f62; --good-soft: #12301f; --warn-soft: #36270c; --bad-soft: #3a1714;
+  --vp: #0f151a; --vp2: #1a232b; --chip: #1c262e; --outline: #0a0f13; color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.45; }
+* { box-sizing: border-box; }
+button { font: inherit; color: inherit; }
+.app { height: 100%; display: grid; grid-template-rows: auto 1fr; }
+
+/* ---------- header */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 10px; padding-inline: 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+.brand { display: flex; align-items: baseline; gap: 12px; min-width: 0; flex-wrap: wrap; }
+.brand h1 { margin: 0; font-family: var(--f-display); font-weight: 700; font-size: 26px; letter-spacing: 0.01em; line-height: 1; text-transform: uppercase; }
+.brand h1 span { color: var(--accent-ink); }
+.brand .lot { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); letter-spacing: 0.02em; }
+.hud { display: flex; gap: 18px; align-items: center; font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.hud b { color: var(--ink); font-weight: 500; }
+
+/* ---------- main split */
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 410px; min-height: 0; }
+.vp { position: relative; min-width: 0; min-height: 0; background: radial-gradient(120% 90% at 30% 20%, var(--vp) 0%, var(--vp2) 100%); overflow: hidden; touch-action: none; }
+.vp canvas { display: block; width: 100%; height: 100%; outline: none; position: relative; z-index: 1; }
+.heat { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0; background: radial-gradient(90% 75% at 45% 35%, rgba(255, 150, 60, 0.55) 0%, rgba(240, 90, 30, 0.22) 55%, rgba(200, 60, 20, 0) 85%); }
+.panel { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+.panel-scroll { flex: 1; overflow-y: auto; padding-block: 14px 18px; padding-inline: 18px; display: flex; flex-direction: column; gap: 16px; }
+.panel-foot { border-top: 1px solid var(--line); padding-block: 10px 12px; padding-inline: 18px; display: flex; flex-direction: column; gap: 8px; background: var(--panel); }
+.foot-meta { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.foot-nav { display: flex; gap: 8px; }
+.foot-nav .primary { flex: 1; }
+.linkbtn { appearance: none; border: 0; background: none; padding: 0; font-size: 12.5px; font-weight: 600; color: var(--accent-ink); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.linkbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- stepper (real sequence → numbered) */
+.stepper { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border-bottom: 1px solid var(--line); background: var(--panel); }
+.stepper button { appearance: none; border: 0; background: none; padding-block: 9px 8px; padding-inline: 2px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; border-bottom: 3px solid transparent; min-width: 0; }
+.stepper .n { font-family: var(--f-mono); font-size: 11px; color: var(--faint); }
+.stepper .l { font-family: var(--f-display); font-weight: 600; font-size: 14px; letter-spacing: 0.02em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.stepper button[aria-current="step"] { border-bottom-color: var(--accent); }
+.stepper button[aria-current="step"] .n { color: var(--accent-ink); }
+.stepper button.done .n::after { content: ' \2713'; color: var(--good); }
+.stepper button:disabled { cursor: not-allowed; opacity: 0.42; }
+.stepper button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* ---------- step header */
+.eyebrow { font-family: var(--f-mono); font-size: 11px; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
+.step-title { margin: 2px 0 0; font-family: var(--f-display); font-weight: 700; font-size: 32px; line-height: 1; text-transform: uppercase; letter-spacing: 0.01em; text-wrap: balance; }
+.step-desc { margin: 8px 0 0; color: var(--muted); max-width: 62ch; }
+.auto { font-size: 12.5px; color: var(--muted); border: 1px dashed var(--line); border-radius: 6px; padding-block: 7px; padding-inline: 10px; display: flex; gap: 8px; align-items: baseline; }
+.auto b { font-family: var(--f-mono); font-weight: 500; font-size: 10.5px; color: var(--accent-ink); letter-spacing: 0.05em; text-transform: uppercase; flex: none; }
+
+/* ---------- knobs */
+.knobs { display: flex; flex-direction: column; gap: 14px; }
+.knob { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: baseline; }
+.knob label { font-weight: 600; font-size: 13.5px; }
+.knob .val { font-family: var(--f-mono); font-size: 13.5px; font-variant-numeric: tabular-nums; color: var(--ink); }
+.knob .val small { color: var(--muted); font-size: 11.5px; }
+.knob input[type=range] { grid-column: 1 / -1; width: 100%; margin: 2px 0 0; accent-color: var(--accent); height: 22px; }
+.knob .hint { grid-column: 1 / -1; font-size: 11.5px; color: var(--faint); display: flex; justify-content: space-between; font-family: var(--f-mono); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--chip); }
+.seg button { appearance: none; border: 0; background: none; padding-block: 6px; padding-inline: 12px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--raise); color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.row-between { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lbl { font-weight: 600; font-size: 13.5px; }
+
+/* ---------- readouts */
+.sec-h { font-family: var(--f-display); font-weight: 600; font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.reads { width: 100%; border-collapse: collapse; font-size: 13px; }
+.reads td { padding-block: 6px; padding-inline: 0 8px; border-bottom: 1px solid var(--line); vertical-align: baseline; }
+.reads td.v { font-family: var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.reads td.s { font-family: var(--f-mono); font-size: 11px; color: var(--faint); white-space: nowrap; text-align: right; }
+.reads td.p { width: 1%; padding-right: 0; text-align: right; }
+.pill { display: inline-block; font-family: var(--f-mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.04em; padding-block: 2px; padding-inline: 7px; border-radius: 99px; text-transform: uppercase; white-space: nowrap; }
+.pill.ok { background: var(--good-soft); color: var(--good); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.fail { background: var(--bad-soft); color: var(--bad); }
+.pill.info { background: var(--chip); color: var(--muted); }
+.watch { font-size: 12.5px; color: var(--muted); margin: 0; }
+.watch b { color: var(--ink); font-weight: 600; }
+
+/* ---------- process window */
+.pw { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: start; }
+.pw canvas { width: 100%; max-width: 100%; aspect-ratio: 16 / 10; border: 1px solid var(--line); border-radius: 6px; background: var(--raise); }
+.pw .ax { font-family: var(--f-mono); font-size: 10.5px; color: var(--faint); }
+.pw-wrap { display: flex; flex-direction: column; gap: 6px; }
+.pw-key { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); }
+.pw-key i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+/* ---------- buttons */
+.btn { appearance: none; border: 1px solid var(--line); background: var(--raise); padding-block: 9px; padding-inline: 14px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
+.btn:hover { border-color: var(--faint); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #1b1503; }
+.btn.primary:hover { filter: brightness(1.05); }
+.btn:disabled { opacity: 0.5; cursor: progress; }
+.btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.cost { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.cost b { color: var(--ink); font-weight: 500; }
+
+/* ---------- viewport overlays */
+.ov { position: absolute; z-index: 2; }
+.views { top: 12px; left: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+.vbtn { appearance: none; border: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 86%, transparent); padding-block: 5px; padding-inline: 10px; border-radius: 6px; font-family: var(--f-mono); font-size: 11.5px; cursor: pointer; color: var(--ink); backdrop-filter: blur(6px); }
+.vbtn:hover { border-color: var(--faint); }
+.vbtn:focus-visible { outline: 2px solid var(--accent); }
+.badge { top: 12px; right: 12px; font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; padding-block: 4px; padding-inline: 9px; border-radius: 5px; background: color-mix(in srgb, var(--panel) 86%, transparent); border: 1px solid var(--line); color: var(--muted); }
+.badge.done { color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, var(--line)); }
+.legend { left: 12px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 290px); }
+.lg { appearance: none; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 86%, transparent); border-radius: 5px; padding-block: 3px; padding-inline: 8px; font-size: 11.5px; cursor: pointer; color: var(--ink); backdrop-filter: blur(6px); }
+.lg i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.lg[aria-pressed="false"] { opacity: 0.45; text-decoration: line-through; }
+.hint3d { right: 12px; bottom: 12px; font-family: var(--f-mono); font-size: 11px; color: var(--muted); background: color-mix(in srgb, var(--panel) 80%, transparent); padding-block: 3px; padding-inline: 8px; border-radius: 5px; }
+.toast { left: 50%; top: 52px; transform: translateX(-50%); background: var(--ink); color: var(--panel); padding-block: 8px; padding-inline: 14px; border-radius: 8px; font-size: 13px; box-shadow: 0 6px 24px rgba(0,0,0,.18); transition: opacity .3s; max-width: calc(100% - 32px); text-align: center; }
+.inspect { top: 48px; left: 12px; right: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--line); border-radius: 8px; padding-block: 8px; padding-inline: 12px; font-size: 13px; backdrop-filter: blur(6px); }
+.inspect .mono { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.callouts { inset: 0; pointer-events: none; z-index: 1; }
+.co { position: absolute; left: 0; top: 0; will-change: transform; }
+.co .dot { position: absolute; width: 9px; height: 9px; left: -4.5px; top: -4.5px; border-radius: 50%; border: 2px solid var(--panel); background: var(--c); box-shadow: 0 0 0 1px var(--c); }
+.co .stem { position: absolute; left: 0; bottom: 0; width: 1px; background: var(--c); transform-origin: bottom left; }
+.co .tag { position: absolute; left: 8px; white-space: nowrap; font-size: 12px; font-weight: 600; padding-block: 3px; padding-inline: 8px; border-radius: 5px; background: var(--panel); color: var(--ink); border: 1px solid var(--c); border-left-width: 3px; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+.co.fail { --c: var(--bad); } .co.warn { --c: var(--warn); } .co.ok { --c: var(--good); } .co.info { --c: var(--accent-ink); }
+.ticklbl { position: absolute; font-family: var(--f-mono); font-size: 10px; color: var(--muted); transform: translate(-100%, -50%); padding-right: 6px; white-space: nowrap; }
+.tip { position: absolute; z-index: 3; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding-block: 7px; padding-inline: 10px; font-size: 12.5px; box-shadow: 0 6px 20px rgba(0,0,0,.16); max-width: 280px; }
+.tip .mono { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+
+/* ---------- yield panel */
+.score { display: grid; gap: 4px; padding-block: 14px; padding-inline: 16px; border-radius: 10px; background: var(--raise); border: 1px solid var(--line); }
+.score .big { font-family: var(--f-display); font-weight: 700; font-size: 54px; line-height: 0.95; font-variant-numeric: tabular-nums; }
+.score .big small { font-size: 20px; font-weight: 600; color: var(--muted); margin-left: 4px; }
+.score .sub { font-family: var(--f-mono); font-size: 12px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
+.score .sub b { color: var(--ink); font-weight: 500; }
+.verdict { font-size: 13px; }
+.pareto { display: flex; flex-direction: column; gap: 6px; }
+.par { display: grid; grid-template-columns: minmax(0, 1fr) 46px; gap: 3px 10px; align-items: center; font-size: 12.5px; }
+.par .bar { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--chip); overflow: hidden; }
+.par .bar i { display: block; height: 100%; border-radius: 3px; }
+.par .n { font-family: var(--f-mono); text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.par .nm { display: flex; gap: 7px; align-items: center; min-width: 0; }
+.par .nm i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.par .nm span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.costs { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.costs td { padding-block: 4px; border-bottom: 1px solid var(--line); }
+.costs td:last-child { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.costs tr:last-child td { border-bottom: 0; font-weight: 600; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.note { font-size: 12.5px; color: var(--muted); margin: 0; }
+
+@media (max-width: 860px) {
+  html, body { height: auto; }
+  .app { height: auto; display: block; }
+  .main { display: block; }
+  .vp { height: 58vh; min-height: 340px; }
+  .panel { border-left: 0; border-top: 1px solid var(--line); }
+  .panel-scroll { overflow: visible; }
+  .panel-foot { position: sticky; bottom: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .stepper .l { font-size: 12px; letter-spacing: 0.01em; }
+  .brand h1 { font-size: 22px; }
+  .hud { gap: 12px; font-size: 11px; }
+  .hint3d { display: none; }
+  .legend { max-width: calc(100% - 24px); }
+  .badge { top: 50px; }
+  .toast { top: 90px; }
+  .inspect { top: 84px; }
+  .views .vbtn { padding-inline: 8px; }
+}
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
+/* ---------- toolbar model switch + measure */
+.views { align-items: center; }
+.seg-sm { backdrop-filter: blur(6px); background: color-mix(in srgb, var(--panel) 86%, transparent); }
+.seg-sm button { padding-block: 5px; padding-inline: 10px; font-size: 12px; }
+.vbtn.tool[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #1b1503; font-weight: 600; }
+.mpanel { top: 46px; right: 12px; width: 268px; max-width: calc(100% - 24px); max-height: calc(100% - 100px); overflow-y: auto; background: color-mix(in srgb, var(--panel) 95%, transparent); border: 1px solid var(--line); border-radius: 9px; padding-block: 10px; padding-inline: 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 8px 28px rgba(0,0,0,.14); backdrop-filter: blur(8px); }
+.mp-h { display: flex; justify-content: space-between; align-items: center; }
+.mp-h b { font-family: var(--f-display); font-size: 17px; letter-spacing: 0.04em; text-transform: uppercase; }
+.mp-x { appearance: none; border: 0; background: none; font-size: 20px; line-height: 1; cursor: pointer; color: var(--muted); padding: 2px 4px; }
+.mp-help { margin: 0; font-size: 12px; color: var(--muted); }
+.mp-note { margin: 0; font-size: 11px; color: var(--faint); }
+.mp-row { display: flex; flex-direction: column; gap: 4px; }
+.mp-k { font-size: 11px; font-family: var(--f-mono); color: var(--faint); text-transform: uppercase; letter-spacing: 0.05em; }
+#mpLock button { padding-inline: 8px; }
+.mp-snap { font-size: 12.5px; display: flex; gap: 6px; align-items: center; }
+.mp-snap input { accent-color: var(--accent); }
+.mp-pre { display: flex; flex-wrap: wrap; gap: 5px; }
+.mp-pre:empty { display: none; }
+.chipbtn { appearance: none; border: 1px dashed var(--faint); background: none; border-radius: 99px; padding-block: 3px; padding-inline: 9px; font-size: 11.5px; cursor: pointer; color: var(--ink); }
+.chipbtn:hover { border-style: solid; border-color: var(--accent); }
+.chipbtn:focus-visible, .mp-del:focus-visible, .mp-x:focus-visible { outline: 2px solid var(--accent); }
+.mp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.mp-list li { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; font-size: 12px; border-top: 1px solid var(--line); padding-top: 5px; }
+.mp-list li span { min-width: 0; }
+.mp-list li b { font-family: var(--f-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+.mp-list li small { color: var(--muted); display: block; overflow-wrap: anywhere; }
+.mp-list .mp-empty { color: var(--faint); border-top: 0; }
+.mp-del { appearance: none; border: 1px solid var(--line); background: none; border-radius: 5px; width: 22px; height: 22px; line-height: 1; cursor: pointer; color: var(--muted); flex: none; }
+.mlabel { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; padding-block: 3px; padding-inline: 8px; border-radius: 6px; background: var(--ink); color: var(--panel); white-space: nowrap; box-shadow: 0 2px 10px rgba(0,0,0,.2); border-bottom: 2px solid var(--accent); }
+.mlabel b { font-family: var(--f-mono); font-weight: 500; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.mlabel span { font-size: 10.5px; opacity: 0.8; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- wafer metrology card */
+.metro { left: 12px; bottom: 12px; width: 300px; max-width: calc(100% - 24px); background: color-mix(in srgb, var(--panel) 94%, transparent); border: 1px solid var(--line); border-radius: 9px; padding-block: 10px; padding-inline: 12px; display: flex; flex-direction: column; gap: 7px; backdrop-filter: blur(8px); box-shadow: 0 8px 28px rgba(0,0,0,.12); }
+.mt-row { display: flex; gap: 8px; align-items: center; }
+.mt-row label { font-size: 11px; font-family: var(--f-mono); color: var(--faint); text-transform: uppercase; letter-spacing: 0.05em; }
+.mt-row select { flex: 1; min-width: 0; font: inherit; font-size: 13px; font-weight: 600; padding-block: 5px; padding-inline: 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--raise); color: var(--ink); }
+.mt-bar { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; font-family: var(--f-mono); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mt-bar i { height: 10px; border-radius: 3px; background: linear-gradient(90deg, #cde2fb, #9ec5f4, #6da7ec, #3987e5, #256abf, #184f95, #0d366b); }
+.mt-spec { font-size: 11px; color: var(--faint); margin-top: 3px; }
+.mt-stats { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.mt-stats b { color: var(--ink); font-family: var(--f-mono); font-weight: 500; font-size: 11.5px; }
+#mtProf { width: 100%; aspect-ratio: 560 / 250; display: block; border-top: 1px solid var(--line); cursor: crosshair; }
+.mt-cap { font-size: 11px; color: var(--faint); font-family: var(--f-mono); }
+@media (max-width: 860px) {
+  .mpanel { top: auto; bottom: 12px; right: 12px; left: 12px; width: auto; max-height: 42%; gap: 6px; padding-block: 8px; }
+  .mp-row .mp-k { display: none; }
+  .vp.measuring .legend, .mp-note { display: none; }
+  .metro { width: auto; right: 12px; padding-block: 8px; }
+  #mtProfWrap { display: none; }
+  .seg-sm button { padding-inline: 7px; }
+}
+
+/* ---------- furnace card (oxidation step) */
+.furnace { right: 12px; bottom: 12px; width: 300px; max-width: calc(100% - 24px); background: color-mix(in srgb, var(--panel) 94%, transparent); border: 1px solid var(--line); border-radius: 9px; padding-block: 10px; padding-inline: 12px; display: flex; flex-direction: column; gap: 4px; backdrop-filter: blur(8px); box-shadow: 0 8px 28px rgba(0,0,0,.12); transition: border-color .4s, box-shadow .4s; }
+.furnace.hot { border-color: #e9853a; box-shadow: 0 0 0 1px #e9853a, 0 8px 30px rgba(233, 120, 40, .3); }
+.fn-top { display: flex; justify-content: space-between; align-items: baseline; }
+.fn-k { font-family: var(--f-mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); }
+.fn-state { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); }
+.furnace.hot .fn-state { color: #d4661f; }
+.fn-head { font-family: var(--f-display); font-weight: 700; font-size: 20px; letter-spacing: 0.02em; text-transform: uppercase; line-height: 1.05; }
+.fn-chem { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); }
+.fn-read { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.fn-read b { font-family: var(--f-mono); font-weight: 500; font-size: 14px; color: var(--ink); font-variant-numeric: tabular-nums; }
+#fnChart { width: 100%; aspect-ratio: 560 / 230; display: block; margin-top: 2px; cursor: crosshair; }
+.fn-note { margin: 0; font-size: 11.5px; color: var(--muted); }
+.fn-bar, .fn-more { display: none; }
+.fn-bar { height: 5px; border-radius: 3px; background: var(--chip); overflow: hidden; margin-top: 3px; }
+.fn-bar i { display: block; height: 100%; width: 0; background: var(--accent-ink); border-radius: 3px; }
+@media (max-width: 860px) {
+  .furnace { left: 12px; right: 12px; width: auto; padding-block: 8px; }
+  .fn-note, .fn-chem, .fn-top { display: none; }
+  .fn-head { font-size: 16px; }
+  .fn-bar, .fn-more { display: block; }
+  .fn-more { align-self: flex-start; font-size: 12px; }
+  #fnChart { display: none; aspect-ratio: 560 / 170; }
+  .furnace.open #fnChart { display: block; }
+  .vp.step1 .legend { display: none; }
+}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><h1>STI <span>Wafer</span> Run</h1><span class="lot">LOT W-07 · 300 mm · shallow-trench isolation module</span></div>
+    <div class="hud" aria-live="polite"><span>wafer cost <b id="hudCost">—</b></span><span>cost / good die <b id="hudScore">—</b></span><span>best <b id="hudBest">—</b></span></div>
+  </header>
+  <div class="main">
+    <section class="vp" id="vp" aria-label="3D process model">
+      <div class="heat" id="heat" aria-hidden="true"></div>
+      <div class="ov views" role="toolbar" aria-label="Model, camera and tools">
+        <div class="seg seg-sm" role="group" aria-label="Model"><button type="button" id="mdlX" aria-pressed="true">Cross-section</button><button type="button" id="mdlW" aria-pressed="false">Wafer map</button></div>
+        <button class="vbtn" type="button" data-view="iso">3D</button>
+        <button class="vbtn" type="button" data-view="front">Front</button>
+        <button class="vbtn" type="button" data-view="top">Top</button>
+        <button class="vbtn" type="button" data-view="zoom">Zoom</button>
+        <button class="vbtn tool" type="button" id="btnMeasure" aria-pressed="false">Measure</button>
+      </div>
+      <div class="ov badge" id="badge">Preview</div>
+      <div class="ov inspect" id="inspect" hidden><span class="what"></span><button class="btn" id="btnBack" type="button">Back to wafer map</button></div>
+      <div class="ov callouts" id="callouts"></div>
+      <div class="ov callouts" id="mlabels"></div>
+      <div class="ov mpanel" id="mpanel" hidden role="region" aria-label="Measurement tool">
+        <div class="mp-h"><b>Measure</b><button type="button" class="mp-x" id="mpClose" aria-label="Close measurement tool">&times;</button></div>
+        <p class="mp-help" id="mpHelp">Click two points on the model.</p>
+        <div id="mpLockRow" class="mp-row"><span class="mp-k">Along</span><div class="seg seg-sm" id="mpLock" role="group" aria-label="Measure along"><button type="button" data-lock="free" aria-pressed="true">Free</button><button type="button" data-lock="x" aria-pressed="false">Width</button><button type="button" data-lock="y" aria-pressed="false">Height</button><button type="button" data-lock="z" aria-pressed="false">Length</button></div></div>
+        <label class="mp-snap" id="mpSnapRow"><input type="checkbox" id="mpSnap" checked> Snap to corners</label>
+        <div class="mp-pre" id="mpPresets" aria-label="Quick measurements"></div>
+        <ol class="mp-list" id="mpList"></ol>
+        <button type="button" class="vbtn" id="mpClear">Clear all</button>
+        <p class="mp-note">The model carries line-edge roughness, so a measured fin can differ from the averaged readout by a few nm.</p>
+      </div>
+      <div class="ov furnace" id="furnace" hidden role="region" aria-label="Furnace run">
+        <div class="fn-top"><span class="fn-k">Furnace</span><span class="fn-state" id="fnState"></span></div>
+        <div class="fn-head" id="fnHead"></div>
+        <div class="fn-chem" id="fnChem"></div>
+        <div class="fn-read"><span>t <b id="fnT"></b></span><span>oxide <b id="fnX"></b></span></div>
+        <div class="fn-bar" aria-hidden="true"><i id="fnBar"></i></div>
+        <canvas id="fnChart" width="560" height="230" aria-label="Oxide thickness against time in the furnace (Deal-Grove)"></canvas>
+        <button type="button" class="linkbtn fn-more" id="fnMore" aria-expanded="false">Show growth curve</button>
+        <p class="fn-note" id="fnNote"></p>
+      </div>
+      <div class="ov metro" id="metro" hidden role="region" aria-label="Wafer metrology">
+        <div class="mt-row"><label for="mtSel">Map</label><select id="mtSel"></select></div>
+        <div id="mtScale"><div class="mt-bar"><span id="mtMin"></span><i></i><span id="mtMax"></span></div><div class="mt-spec" id="mtSpec"></div></div>
+        <div class="mt-cats pw-key" id="mtCats" hidden></div>
+        <div class="mt-stats" id="mtStats"></div>
+        <div id="mtProfWrap"><canvas id="mtProf" width="560" height="250" aria-label="Radial profile: value against wafer radius, one dot per die"></canvas><div class="mt-cap" id="mtCap"></div></div>
+      </div>
+      <div class="ov legend" id="legend" role="group" aria-label="Show or hide layers"></div>
+      <div class="ov hint3d" id="hint3d"></div>
+      <div class="ov toast" id="toast" hidden role="status"></div>
+      <div class="tip" id="tip" hidden></div>
+    </section>
+    <aside class="panel" aria-label="Process steps">
+      <nav class="stepper" id="stepper" aria-label="Process flow"></nav>
+      <div class="panel-scroll" id="panelBody"></div>
+      <div class="panel-foot" id="panelFoot"></div>
+    </aside>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* ===== FAB process model: STI module (oxidation, litho, etch, implant, CMP) ===== */
+(function (G) {
+  'use strict';
+  // ---------- math helpers
+  function erf(x) {
+    const s = x < 0 ? -1 : 1; x = Math.abs(x);
+    const t = 1 / (1 + 0.3275911 * x);
+    const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+    return s * y;
+  }
+  const erfc = x => 1 - erf(x);
+  const Q = z => 0.5 * erfc(z / Math.SQRT2);           // normal upper tail
+  const Phi = z => 1 - Q(z);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  function rng(seed) { let s = seed >>> 0 || 1; return function () { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
+  function gauss(r) { let u = 0, v = 0; while (u === 0) u = r(); v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+
+  // ---------- geometry of the test structure (nm)
+  const WIN = 2600, PITCH = 180, SPACE = 90;
+  const CLEAR = [[260, 350], [440, 530], [620, 710], [800, 890], [980, 1070], [1160, 1250], [1340, 2340]];
+  const WIDE = 6;                                       // index of the wide trench
+  const T_NIT = 110, H0 = 250, FILL = 550;              // nitride, resist, HDP overfill
+
+  // ---------- litho constants
+  const NLEV = 16, DZ = H0 / NLEV;
+  const SIG0 = 32, KF = 170, FBEST = 0.04, NRES = 1.7, ALPHA = 0.0009;
+  const RMAX = 100, RMIN = 0.05, ETH = 11.2;
+  const TDEV = H0 / (RMIN + RMAX);
+  const SIG_EPS = 0.045;                                // local dose noise (shot noise + PEB blur), relative
+  const N_SITES = 2e6;                                  // independent edge sites per die (dense array)
+
+  // ---------- recipe defaults & ranges
+  const RANGES = {
+    oxT: [800, 1100, 5], oxTime: [1, 120, 1],
+    dose: [16, 46, 0.5], focus: [-0.4, 0.4, 0.01],
+    bias: [50, 500, 5], etchT: [20, 120, 1],
+    impE: [5, 80, 1], impDoseLog: [12, 13.7, 0.01], tilt: [0, 15, 0.5],
+    psi: [1.5, 7, 0.1], cmpT: [30, 300, 1]
+  };
+  const DEFAULTS = {
+    oxT: 950, oxTime: 25, wet: false,
+    dose: 26, focus: 0.0,
+    bias: 200, etchT: 60,
+    impE: 25, impDoseLog: Math.log10(8e12), tilt: 7,
+    psi: 3.5, cmpT: 158, ceria: false
+  };
+
+  // ================= OXIDATION (Deal-Grove, <100> Si) =================
+  function dealGrove(Tc, tmin, wet) {
+    const kT = 8.617e-5 * (Tc + 273.15);
+    let B, BA;
+    if (wet) { B = 386 * Math.exp(-0.78 / kT); BA = 9.7e7 * Math.exp(-2.05 / kT); }
+    else { B = 772 * Math.exp(-1.23 / kT); BA = 6.13e6 * Math.exp(-2.0 / kT); }
+    const A = B / BA, xi = 0.0015;                       // 1.5 nm native oxide
+    const tau = (xi * xi + A * xi) / B;
+    const t = tmin / 60;
+    const x = (-A + Math.sqrt(A * A + 4 * B * (t + tau))) / 2;
+    return x * 1000; // nm
+  }
+  function oxUniformity(r) {   // relative radial non-uniformity amplitude
+    return 0.006 + (r.wet ? 0.010 : 0) + 0.005 * Math.max(0, (r.oxT - 950) / 50) + 0.035 * Math.exp(-r.oxTime / 4);
+  }
+
+  // ================= LITHO =================
+  function sigmaAt(focus, k) {
+    const z = H0 - (k + 0.5) * DZ;                       // height in resist
+    const fz = (focus - FBEST) - (z - H0 / 2) / (1000 * NRES);
+    return Math.sqrt(SIG0 * SIG0 + (KF * fz) * (KF * fz));
+  }
+  const ATT = []; for (let k = 0; k < NLEV; k++) ATT.push(Math.exp(-ALPHA * (k + 0.5) * DZ));
+  // dense grating (trench centred at x=0), Fourier
+  const FC = []; for (let k = 1; k <= 9; k += 2) FC.push([k, (2 / (k * Math.PI)) * (((k - 1) / 2) % 2 ? -1 : 1)]);
+  function gratingImage(xs, sig) {
+    const out = new Float64Array(xs.length);
+    const harm = FC.map(([k, a]) => [k, a * Math.exp(-2 * Math.PI * Math.PI * k * k * sig * sig / (PITCH * PITCH))]);
+    for (let i = 0; i < xs.length; i++) {
+      let v = 0.5; const ph = 2 * Math.PI * xs[i] / PITCH;
+      for (const [k, a] of harm) v += a * Math.cos(k * ph);
+      out[i] = v;
+    }
+    return out;
+  }
+  function windowImage(xs, sig) {
+    const out = new Float64Array(xs.length), s2 = Math.SQRT2 * sig;
+    for (let i = 0; i < xs.length; i++) {
+      let v = 0; const x = xs[i];
+      for (const [a, b] of CLEAR) { if (x < a - 6 * sig || x > b + 6 * sig) continue; v += 0.5 * (erf((b - x) / s2) - erf((a - x) / s2)); }
+      out[i] = v;
+    }
+    return out;
+  }
+  // development of one column. E(k) supplied by callback-free arrays: imgs[k][i]*ATT[k]*dose
+  // returns remaining height; DEV_T holds total time needed to clear the column (continuous edge finder)
+  let DEV_T = 0;
+  function developColumn(imgs, i, dose, noise) {
+    let t = 0, h = -1;
+    const dm = dose * (noise || 1) / ETH;
+    for (let k = 0; k < NLEV; k++) {
+      const q = dm * imgs[k][i] * ATT[k];
+      const q2 = q * q, q4 = q2 * q2;
+      const R = RMIN + RMAX * q4 * q2 * q;
+      const tl = DZ / R;
+      if (h < 0 && t + tl >= TDEV) h = H0 - k * DZ - (TDEV - t) * R;
+      t += tl;
+      if (t > TDEV * 1e4) break;
+    }
+    DEV_T = t;
+    return h < 0 ? 0 : h;
+  }
+  // dense-period litho for a given dose & focus. half period samples x=0..90 (0 = trench centre)
+  const HX = []; for (let x = 0; x <= 90.0001; x += 1.5) HX.push(x);
+  function gratingImgs(focus) { const imgs = []; for (let k = 0; k < NLEV; k++) imgs.push(gratingImage(HX, sigmaAt(focus, k))); return imgs; }
+  function gratingProfile(imgs, dose) {
+    const h = new Float64Array(HX.length), tc = new Float64Array(HX.length);
+    for (let i = 0; i < HX.length; i++) { h[i] = developColumn(imgs, i, dose); tc[i] = Math.log(DEV_T / TDEV); }
+    h.tc = tc; return h;
+  }
+  function openingHalf(h) { // half-width of the cleared opening, from trench centre (continuous via clearing time)
+    const tc = h.tc;
+    if (tc[0] >= 0) return 0;
+    for (let i = 1; i < tc.length; i++) if (tc[i] >= 0) { const f = (0 - tc[i - 1]) / (tc[i] - tc[i - 1]); return HX[i - 1] + f * (HX[i] - HX[i - 1]); }
+    return 90;
+  }
+  function lithoDense(dose, focus, imgs) {
+    imgs = imgs || gratingImgs(focus);
+    const h = gratingProfile(imgs, dose);
+    const half = openingHalf(h);
+    const space = 2 * half, cd = PITCH - space;
+    const lineH = h[h.length - 1];
+    // stochastic margins: dose multiplier to bridge (opening < 20 nm) and to pinch (line centre < 100 nm or line < 30 nm)
+    const openAt = m => 2 * openingHalf(gratingProfile(imgs, dose * m));
+    const lineOk = m => { const hh = gratingProfile(imgs, dose * m); return Math.min(hh[hh.length - 1] - 100, (PITCH - 2 * openingHalf(hh)) - 30); };
+    let mb;
+    if (openAt(1) < 20) mb = 1 + 0.001; else {
+      let lo = 0.2, hi = 1; if (openAt(lo) >= 20) mb = lo; else { for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (openAt(m) < 20) lo = m; else hi = m; } mb = (lo + hi) / 2; }
+    }
+    let mp;
+    if (lineOk(1) < 0) mp = 1 - 0.001; else {
+      let lo = 1, hi = 3; if (lineOk(hi) >= 0) mp = hi; else { for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (lineOk(m) < 0) hi = m; else lo = m; } mp = (lo + hi) / 2; }
+    }
+    const dB = Math.log(1 / mb), dP = Math.log(mp);   // log-dose margins
+    // image log slope at the edge (mid level) -> LER
+    const mid = imgs[NLEV >> 1]; let ils = 0;
+    { const xe = clamp(half, 3, 87); const i = Math.min(HX.length - 2, Math.floor(xe / 1.5)); const I = mid[i], dI = (mid[i + 1] - mid[i]) / 1.5; ils = Math.abs(dI) / Math.max(1e-6, I); }
+    const ler = space < 20 ? NaN : 3 * SIG_EPS / Math.max(ils, 1e-4);      // 3-sigma LER, nm
+    return { h, cd, space, lineH, mbSig: dB / SIG_EPS, mpSig: dP / SIG_EPS, ler, ils };
+  }
+  function stochFail(sig) { if (sig <= 0) return 1; return 1 - Math.exp(-N_SITES * Q(sig)); }
+
+  // ================= ETCH (two-step: hard-mask open, then Si trench etch) =================
+  const HMO = { res: 0.5, nit: 3.5, ox: 3.0, over: 1.15 };   // fixed HM-open recipe
+  function etchRates(bias) {
+    return {
+      si: 4.2 + bias / 160, res: 0.4 + bias / 180, nit: 0.25 + bias / 900, ox: 0.2 + bias / 1100,
+      iso: 0.25 * Math.exp(-bias / 85),
+      taper: (1.5 + 2.5 * Math.exp(-bias / 200)) * Math.PI / 180
+    };
+  }
+  const arde = w => w / (w + 14);
+  function hmOpenTime(tox) { return (T_NIT / HMO.nit + tox / HMO.ox) * HMO.over; }
+  function openThreshold(tox) { return Math.max(0.3, HMO.res * (hmOpenTime(tox) - (T_NIT / HMO.nit + tox / HMO.ox))); }
+  // column stack after both etch steps. h = resist height, T = Si etch time
+  function etchColumn(h, tox, T, R, k, tau) {
+    k = k || 1;
+    let res = h, nit = T_NIT, ox = tox, siT = 0;
+    const t1 = hmOpenTime(tox);
+    if (tau != null) T = Math.max(0, Math.min(T, tau - t1));
+    // phase 1: HM open
+    let t = tau != null ? Math.min(t1, tau) : t1;
+    const tr1 = res / HMO.res;
+    if (t <= tr1) { res -= HMO.res * t; t = 0; }
+    else {
+      t -= tr1; res = 0;
+      const tn = nit / HMO.nit;
+      if (t <= tn) { nit -= HMO.nit * t; t = 0; }
+      else { t -= tn; nit = 0; const to = ox / HMO.ox; if (t <= to) { ox -= HMO.ox * t; t = 0; } else { t -= to; ox = 0; siT += t * 0.6; t = 0; } }
+    }
+    // phase 2: Si etch chemistry
+    t = T;
+    if (ox > 0 || nit > 0 || res > 0) {
+      const tr = res / (R.res * k);
+      if (t <= tr) { res -= R.res * k * t; t = 0; }
+      else {
+        t -= tr; res = 0;
+        const tn = nit / (R.nit * k);
+        if (t <= tn) { nit -= R.nit * k * t; t = 0; }
+        else { t -= tn; nit = 0; const to = ox / (R.ox * k); if (t <= to) { ox -= R.ox * k * t; t = 0; } else { t -= to; ox = 0; } }
+      }
+    }
+    siT += t;
+    return { res, nit, ox, siT };
+  }
+
+  // ================= IMPLANT (boron channel-stop) =================
+  function implantRange(E) { const Rp = 3.3 * Math.pow(E, 0.97); const dRp = 2.2 * Math.pow(Rp, 0.62); return { Rp, dRp }; }
+
+  // ================= COST =================
+  function cost(r) {
+    const c = {};
+    c.base = 2950;
+    c.ox = 4 + 0.06 * (r.oxTime + 40) + (r.wet ? 1.5 : 0) + 0.006 * (r.oxT - 800);
+    c.litho = 38 + 0.45 * r.dose;
+    c.etch = 14 + 0.16 * r.etchT + 0.00012 * r.bias * r.etchT;
+    const dose = Math.pow(10, r.impDoseLog);
+    c.imp = 9 + 4 * dose / 1e13 + (r.impE < 10 ? 6 * (10 - r.impE) / 5 : 0);
+    c.cmp = 6 + 0.07 * r.cmpT + (r.ceria ? 19 : 6) + 0.004 * r.psi * r.cmpT;
+    c.total = c.base + c.ox + c.litho + c.etch + c.imp + c.cmp;
+    return c;
+  }
+
+  // ================= PER-DIE EVALUATION =================
+  // loc: {ox, dose, focus, etch, imp, cmp, chan, rand}
+  const NOMLOC = { r: 0, ox: 1, dose: 1, focus: 0, etch: 1, imp: 1, cmp: 1, chan: 0 };
+  const SPEC = {
+    tox: [8, 22], cd: [76, 104], act: [72, 106], depth: [260, 400], vtf: 3.2, qAct: 1.5e11, cPeak: 3e18,
+    qSide: 1.6e12, voidSev: 0.25, nitMin: 25, residue: 4, step: [-5, 80], sig: 5.5
+  };
+  function evaluate(r, loc, opts) {
+    loc = loc || NOMLOC; opts = opts || {};
+    const m = { fails: [], warn: [] };
+    const F = (code, step, msg) => m.fails.push({ code, step, msg });
+    // --- oxidation
+    const tox0 = dealGrove(r.oxT, r.oxTime, r.wet);
+    const tox = tox0 * loc.ox;
+    m.tox0 = tox0; m.tox = tox; m.oxU = oxUniformity(r);
+    m.bb = 0.6 * Math.max(0, tox - 14);                  // bird's beak encroachment per side
+    m.dDisl = 0.9 * Math.pow(Math.max(0, (9 - tox) / 9), 1.5);
+    // --- litho (dense array)
+    const dose = r.dose * loc.dose, focus = r.focus + loc.focus;
+    const L = lithoDense(dose, focus, opts.imgs);
+    m.cd = L.cd; m.lineH = L.lineH; m.ler = L.ler; m.mbSig = L.mbSig; m.mpSig = L.mpSig; m.space = L.space;
+    m.pBridge = stochFail(L.mbSig); m.pPinch = stochFail(L.mpSig);
+    // --- etch (dense period columns)
+    const R = etchRates(r.bias);
+    const T = r.etchT, ke = loc.etch;
+    const cols = []; for (let i = 0; i < HX.length; i++) cols.push(etchColumn(L.h[i], tox, T, R, ke));
+    let oh = cols[0].siT > 0 ? openingHalf(L.h) : 0;
+    const w = 2 * oh;
+    const lineCol = cols[cols.length - 1];
+    m.w = w;
+    m.depth = w > 0 ? R.si * ke * arde(w) * cols[0].siT : 0;
+    m.under = R.iso * m.depth;
+    m.taper = R.taper;
+    m.wBot = Math.max(0, w - 2 * Math.tan(R.taper) * m.depth);
+    m.resRem = lineCol.res; m.nitRem = lineCol.nit; m.lineSiEtched = lineCol.siT > 0;
+    m.act = (PITCH - w) - 2 * m.under - 2 * m.bb;
+    const wideCol = etchColumn(0, tox, T, R, ke);
+    m.depthW = R.si * ke * arde(1000) * wideCol.siT;
+    const padCol = etchColumn(H0 * 0.99, tox, T, R, ke);
+    m.nitPad = padCol.nit;
+    const stack = tox + m.nitRem;
+    m.ar = w > 0 ? (m.depth + stack) / w : 0;
+    m.voidSev = clamp((m.ar - 5.2) / 0.8, 0, 1);
+    // --- implant
+    const dImp = Math.pow(10, r.impDoseLog) * loc.imp;
+    const { Rp, dRp } = implantRange(r.impE);
+    m.Rp = Rp; m.dRp = dRp;
+    const teq = m.resRem / 1.8 + m.nitRem / 0.75 + tox / 1.05 + (lineCol.siT > 0 ? -1e3 : 0);
+    m.teq = teq;
+    m.pen = 0.5 * erfc((teq - Rp) / (Math.SQRT2 * dRp * 1.15));
+    m.qAct = dImp * m.pen;
+    const tilt = r.tilt * Math.PI / 180;
+    const chanLoss = 0.3 * Math.pow(Math.max(0, 1 - r.tilt / 3), 2);
+    m.chanLoss = chanLoss;
+    const retained = clamp(1 - Phi((6 - Rp) / dRp) - 0.12 * Math.exp(-Rp / 25), 0, 1);
+    const depthF = Rp <= 110 ? 1 : Math.exp(-(Rp - 110) / 70);
+    m.cov = m.wBot > 0 ? clamp(1 - 0.5 * m.depth * Math.tan(tilt) / Math.max(m.wBot, 5), 0.15, 1) : 0;
+    m.dEff = dImp * retained * depthF * m.cov * (1 - chanLoss * (1 + (loc.chan || 0)));
+    m.vtf = 2.4 * Math.pow(Math.max(0, m.depth) / 320, 2) + 2.2 * (m.dEff / 1e13);
+    m.cPeak = dImp * retained / (2.5066 * dRp * 1e-7);
+    m.qSide = dImp * Math.sin(tilt);
+    m.retained = retained;
+    // --- CMP
+    const Rc = (r.ceria ? 1.25 : 1.15) * r.psi * loc.cmp;
+    const S = r.ceria ? 35 : 4;
+    const Lp = (r.ceria ? 110 : 280) * (1 + 0.08 * (r.psi - 3.5));
+    const kd = r.ceria ? 0.09 : 0.38;
+    const stepH = m.depthW + tox + m.nitPad;
+    m.rr = Rc; m.tClear = FILL / Rc; m.sel = S;
+    const Tc = r.cmpT;
+    m.residue = Math.max(0, FILL - Rc * Tc);
+    const top = Math.max(0, Tc - m.tClear);
+    m.tOver = top;
+    m.sClear = stepH * Math.exp(-FILL / Lp);
+    m.nitLossDense = (Rc / S) * top * 1.25;
+    m.nitLossPad = (Rc / S) * top * 0.9;
+    m.dish = m.residue > 0 ? stepH * Math.exp(-Math.min(FILL, Rc * Tc) / Lp) : m.sClear + Math.max(0, Rc * kd - Rc / S) * top;
+    m.nitFinal = m.nitRem - m.nitLossDense;
+    m.yField = tox + m.nitPad - m.nitLossPad - m.dish;
+    m.step = m.yField - 30;
+    // --- defects
+    m.dScratch = 0.006 * Math.pow(Math.max(0, r.psi - 3), 2) + 0.0002 * Math.max(0, Tc - 150);
+    m.d0 = 0.05 + m.dDisl + m.dScratch;
+    m.pRand = 1 - Math.exp(-1.0 * m.d0);   // 1.0 cm2 die
+
+    // ---------- verdicts (deterministic)
+    if (m.space < 20 || w <= 0) F('bridge', 1, 'Bridged lines: resist never cleared between actives');
+    else if (L.lineH < 100 || L.cd < 30) F('pinch', 1, 'Pinched lines: resist lines too thin to mask');
+    if (m.lineSiEtched) F('erode', 2, 'Mask erosion: active Si attacked through the hard mask');
+    if (w > 0 && m.act <= 8) F('liftoff', 2, 'Lift-off: undercut consumed the active line');
+    else if (w > 0 && (m.act < SPEC.act[0] || m.act > SPEC.act[1])) F('act', 2, 'Active width out of spec (' + m.act.toFixed(0) + ' nm)');
+    if (w > 0 && m.voidSev > SPEC.voidSev) F('void', 2, 'Voids in trench fill: aspect ratio ' + m.ar.toFixed(2));
+    if (m.qAct > SPEC.qAct) F('pen', 3, 'Implant punched through mask: Vt shift in actives');
+    if (m.cPeak > SPEC.cPeak) F('bv', 3, 'Junction breakdown: channel-stop peak too high');
+    if (m.qSide > SPEC.qSide) F('side', 3, 'Sidewall doping: narrow-width Vt shift (tilt too high)');
+    if (w > 0 && m.vtf < SPEC.vtf) F('iso', 3, 'Isolation leakage: field Vt ' + m.vtf.toFixed(2) + ' V');
+    if (m.residue > SPEC.residue) F('residue', 4, 'Oxide residue on nitride: under-polished');
+    else {
+      if (m.nitFinal < SPEC.nitMin) F('erosion', 4, 'Nitride eroded through: actives exposed');
+      if (m.step < SPEC.step[0]) F('dish', 4, 'Dishing: field oxide recessed below Si');
+      else if (m.step > SPEC.step[1]) F('high', 4, 'Field oxide too high: poly stringers');
+    }
+    return m;
+  }
+
+  // ================= WAFER =================
+  const WAFER_R = 150, EDGE_EX = 3, DIE = 10;
+  function dieList() {
+    const out = [];
+    const n = Math.ceil(WAFER_R / DIE) + 1;
+    for (let iy = -n; iy < n; iy++) for (let ix = -n; ix < n; ix++) {
+      const x0 = ix * DIE, y0 = iy * DIE, x1 = x0 + DIE, y1 = y0 + DIE;
+      const rmax = Math.max(Math.hypot(x0, y0), Math.hypot(x1, y0), Math.hypot(x0, y1), Math.hypot(x1, y1));
+      if (rmax <= WAFER_R - EDGE_EX) out.push({ ix, iy, cx: x0 + DIE / 2, cy: y0 + DIE / 2 });
+    }
+    return out;
+  }
+  function nominalLoc(r, rr) {
+    const u = rr / WAFER_R, U = oxUniformity(r);
+    return { r: rr, ox: 1 + U * 1.5 * (2 * u * u - 1), dose: 1 + 0.012 * u * u,
+      focus: 0.05 * Math.pow(u, 4) + (rr > 128 ? 0.16 * Math.pow((rr - 128) / 19, 2) : 0),
+      etch: 1 + 0.04 * u * u - 0.015, imp: 1, chan: 0, cmp: 1 + (0.07 + 0.012 * (r.psi - 3.5)) * u * u - 0.03 };
+  }
+  function localFor(r, die, waferSeed) {
+    const rr = Math.hypot(die.cx, die.cy), u = rr / WAFER_R;
+    const g = rng((die.ix * 73856093) ^ (die.iy * 19349663) ^ (waferSeed * 83492791));
+    const ang = Math.atan2(die.cy, die.cx);
+    const U = oxUniformity(r);
+    const loc = {
+      r: rr,
+      ox: 1 + U * 1.5 * (2 * u * u - 1) + 0.004 * gauss(g),
+      dose: 1 + 0.012 * u * u + 0.005 * gauss(g),
+      focus: 0.05 * Math.pow(u, 4) + (rr > 128 ? 0.16 * Math.pow((rr - 128) / 19, 2) : 0) + 0.008 * die.cx / WAFER_R + 0.018 * gauss(g),
+      etch: 1 + 0.04 * u * u - 0.015 + 0.01 * gauss(g),
+      imp: 1 + 0.01 * gauss(g),
+      chan: 0.6 * Math.sin(2 * ang + 0.7) + 0.3 * gauss(g),
+      cmp: 1 + (0.07 + 0.012 * (r.psi - 3.5)) * u * u - 0.03 + 0.006 * Math.cos(3 * ang) + 0.012 * gauss(g),
+      rand: g
+    };
+    return loc;
+  }
+  const IMG_CACHE = new Map();
+  function imgsFor(focus) { const key = Math.round(focus * 400); if (IMG_CACHE.has(key)) return IMG_CACHE.get(key); const v = gratingImgs(key / 400); if (IMG_CACHE.size > 600) IMG_CACHE.clear(); IMG_CACHE.set(key, v); return v; }
+  function runWafer(r, waferSeed) {
+    const dies = dieList();
+    const res = [];
+    const counts = {};
+    let good = 0;
+    for (const d of dies) {
+      const loc = localFor(r, d, waferSeed);
+      const m = evaluate(r, loc, { imgs: imgsFor(r.focus + loc.focus) });
+      let fail = m.fails.length ? m.fails[0] : null;
+      if (!fail) {
+        const g = loc.rand;
+        if (g() < m.pBridge) fail = { code: 'sbridge', step: 1, msg: 'Stochastic bridge somewhere in the array (' + m.mbSig.toFixed(1) + 'σ margin)' };
+        else if (g() < m.pPinch) fail = { code: 'spinch', step: 1, msg: 'Stochastic line break (' + m.mpSig.toFixed(1) + 'σ margin)' };
+        else if (m.voidSev > 0 && g() < m.voidSev * 2) fail = { code: 'void', step: 2, msg: 'Fill void in a dense trench' };
+        else if (g() < m.pRand) {
+          const parts = [['particle', 0.05, 'Random particle defect'], ['disl', m.dDisl, 'Dislocation from nitride stress (thin pad oxide)'], ['scratch', m.dScratch, 'CMP scratch']];
+          let x = g() * m.d0, pick = parts[0];
+          for (const p of parts) { if (x < p[1]) { pick = p; break; } x -= p[1]; }
+          fail = { code: pick[0], step: 5, msg: pick[2] };
+        }
+      }
+      if (fail) counts[fail.code] = (counts[fail.code] || 0) + 1; else good++;
+      res.push({ die: d, loc, m, fail });
+    }
+    const c = cost(r);
+    return { dies: res, good, gross: dies.length, counts, cost: c, cpg: good ? c.total / good : Infinity };
+  }
+
+  G.FAB = {
+    erf, erfc, Q, Phi, clamp, rng, gauss,
+    get DEV_T() { return DEV_T; }, WIN, PITCH, CLEAR, WIDE, T_NIT, H0, FILL, NLEV, DZ, ATT, ETH, RMAX, RMIN, TDEV, SIG_EPS,
+    RANGES, DEFAULTS, SPEC, NOMLOC,
+    dealGrove, oxUniformity, sigmaAt, gratingImage, windowImage, developColumn, gratingImgs, lithoDense, stochFail,
+    etchRates, arde, etchColumn, hmOpenTime, openThreshold, openingHalf, HMO, implantRange, cost, evaluate, dieList, localFor, nominalLoc, runWafer, WAFER_R, DIE, imgsFor, HX
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ===== Cross-section geometry: per-slice polygons along the line length ===== */
+(function (G) {
+  'use strict';
+  const F = G.FAB;
+  const { clamp, rng, gauss, WIN, CLEAR, T_NIT, H0, FILL, NLEV, DZ } = F;
+  const DX = 4, NX = Math.round(WIN / DX) + 1, NS = 24, SLICE = 50, YB = -760;
+  const XS = new Float64Array(NX); for (let i = 0; i < NX; i++) XS[i] = i * DX;
+  const DENSE = [CLEAR[0][0], CLEAR[5][1]];
+
+  // ---------- smooth noise field eps[s][i] ~ N(0,1), correlated ~20 nm in x, ~1.5 slices in z
+  function noiseField(seed) {
+    const g = rng(seed), knot = 20, nk = Math.ceil(WIN / knot) + 2;
+    let raw = [];
+    for (let s = 0; s < NS; s++) {
+      const k = new Float64Array(nk); for (let j = 0; j < nk; j++) k[j] = gauss(g);
+      const row = new Float64Array(NX);
+      for (let i = 0; i < NX; i++) { const u = XS[i] / knot, j = Math.floor(u), f = u - j, w = (1 - Math.cos(f * Math.PI)) / 2; row[i] = k[j] * (1 - w) + k[j + 1] * w; }
+      raw.push(row);
+    }
+    for (let pass = 0; pass < 2; pass++) {
+      const nr = []; for (let s = 0; s < NS; s++) { const a = raw[Math.max(0, s - 1)], b = raw[s], c = raw[Math.min(NS - 1, s + 1)]; const row = new Float64Array(NX); for (let i = 0; i < NX; i++) row[i] = 0.25 * a[i] + 0.5 * b[i] + 0.25 * c[i]; nr.push(row); }
+      raw = nr;
+    }
+    let ss = 0, n = 0; for (const r of raw) for (let i = 0; i < NX; i++) { ss += r[i] * r[i]; n++; }
+    const sd = Math.sqrt(ss / n); for (const r of raw) for (let i = 0; i < NX; i++) r[i] /= sd;
+    return raw;
+  }
+  const NOISE_CACHE = new Map();
+  function noiseFor(seed) { if (!NOISE_CACHE.has(seed)) { if (NOISE_CACHE.size > 6) NOISE_CACHE.clear(); NOISE_CACHE.set(seed, noiseField(seed)); } return NOISE_CACHE.get(seed); }
+
+  const IMG = new Map();
+  function windowImgs(focus) {
+    const key = Math.round(focus * 500);
+    if (IMG.has(key)) return IMG.get(key);
+    const imgs = []; for (let k = 0; k < NLEV; k++) imgs.push(F.windowImage(XS, F.sigmaAt(key / 500, k)));
+    if (IMG.size > 40) IMG.clear(); IMG.set(key, imgs); return imgs;
+  }
+
+  // ---------- litho in the window, per slice
+  function lithoSlices(r, loc, eps) {
+    const imgs = windowImgs(r.focus + loc.focus);
+    const dose = r.dose * loc.dose, sig = F.SIG_EPS;
+    const out = [];
+    for (let s = 0; s < NS; s++) {
+      const h = new Float64Array(NX), tc = new Float64Array(NX), e = eps[s];
+      for (let i = 0; i < NX; i++) { h[i] = F.developColumn(imgs, i, dose, Math.exp(sig * e[i])); tc[i] = Math.log(F.DEV_T / F.TDEV); }
+      out.push({ h, tc });
+    }
+    return { slices: out, imgs };
+  }
+
+  // ---------- helpers for polygons
+  function poly(pts, holes) { return { o: pts, h: holes || [] }; }
+  // run-length over columns where pred(i) true -> [[i0,i1],...]
+  function runs(n, pred) { const out = []; let st = -1; for (let i = 0; i < n; i++) { const p = pred(i); if (p && st < 0) st = i; if (!p && st >= 0) { out.push([st, i - 1]); st = -1; } } if (st >= 0) out.push([st, n - 1]); return out; }
+
+  // ---------- main builder
+  // stage: 0 bare, 1 ox, 2 litho, 3 etch, 4 implant, 5 fill/CMP. anim: 0..1 progress of that stage (1 = done)
+  function build(r, loc, stage, anim, opts) {
+    opts = opts || {};
+    loc = loc || F.NOMLOC;
+    const m = F.evaluate(r, loc);
+    // during the furnace run the thickness follows Deal-Grove in process time, not a linear ramp
+    const tox = stage >= 1 ? (stage === 1 && anim < 1 ? F.dealGrove(r.oxT, anim * r.oxTime, r.wet) * loc.ox : m.tox) : 0;
+    const out = { slices: [], decals: [], lines: [], callouts: [], aerial: null, m, stage, sliceLen: SLICE, ns: NS, yb: YB, win: WIN };
+    const eps = noiseFor(opts.seed || 11);
+
+    if (stage <= 1) {
+      const sl = { si: [poly([0, YB, WIN, YB, WIN, 0, 0, 0])], ox: [], nit: [], res: [], fill: [], wedge: [] };
+      if (tox > 0.05) sl.ox.push(poly([0, 0, WIN, 0, WIN, tox, 0, tox]));
+      out.slices.push(sl); out.uniform = true; out.tox = tox;
+      if (stage === 0) out.callouts.push({ x: 300, y: 0, z: 0, kind: 'info', text: 'Bare Si(100) substrate, RCA + HF cleaned' });
+      if (stage === 1) {
+        // the Si surface (y = 0 here) has receded; the original surface sits 44 % of the way up the oxide
+        out.lines.push({ kind: 'orig', pts: [0, 0.44 * tox, WIN, 0.44 * tox] });
+        out.callouts.push({ x: 215, y: 0.44 * tox, z: 0, kind: 'info', text: 'Original Si surface \u00b7 ' + (0.44 * tox).toFixed(1) + ' nm of Si consumed' });
+      }
+      if (stage === 1 && anim >= 1) {
+        if (m.tox < F.SPEC.tox[0]) out.callouts.push({ x: 60, y: tox, z: 0, kind: 'fail', text: 'Pad oxide ' + m.tox.toFixed(1) + ' nm: too thin, nitride stress will slip the Si' });
+        else if (m.tox > F.SPEC.tox[1]) out.callouts.push({ x: 60, y: tox, z: 0, kind: 'fail', text: 'Pad oxide ' + m.tox.toFixed(1) + ' nm: thick, expect bird’s beak' });
+        else out.callouts.push({ x: 60, y: tox, z: 0, kind: 'ok', text: 'Pad oxide ' + m.tox.toFixed(1) + ' nm' });
+      }
+      return out;
+    }
+
+    const L = lithoSlices(r, loc, eps);
+    const yN = tox + T_NIT;
+    const R = F.etchRates(r.bias), ke = loc.etch;
+    const t1 = F.hmOpenTime(tox);
+    const tau = stage === 3 ? anim * (t1 + r.etchT) : (stage > 3 ? t1 + r.etchT : 0);
+    const litAnim = stage === 2 ? anim : 1;
+    let bridges = [], pinches = [], lifts = [], voids = [];
+
+    for (let s = 0; s < NS; s++) {
+      const { h, tc } = L.slices[s];
+      const sl = { si: [], ox: [], nit: [], res: [], fill: [], wedge: [] };
+      out.slices.push(sl);
+      // litho bookkeeping (on the developed profile)
+      if (stage >= 2) {
+        for (let c = 0; c < CLEAR.length; c++) { const xc = (CLEAR[c][0] + CLEAR[c][1]) / 2, i = Math.round(xc / DX); if (tc[i] >= 0) bridges.push({ s, x: xc, c }); }
+        for (let c = 0; c < CLEAR.length - 1; c++) { const xc = (CLEAR[c][1] + CLEAR[c + 1][0]) / 2, i = Math.round(xc / DX); if (h[i] < 100 || tc[i] < 0) pinches.push({ s, x: xc, h: h[i] }); }
+      }
+      if (stage === 2) {
+        // nitride + oxide blankets, resist pattern (animated from blanket to developed)
+        sl.ox.push(poly([0, 0, WIN, 0, WIN, tox, 0, tox]));
+        sl.nit.push(poly([0, tox, WIN, tox, WIN, yN, 0, yN]));
+        const ha = new Float64Array(NX); for (let i = 0; i < NX; i++) ha[i] = H0 + (h[i] - H0) * litAnim;
+        for (const [i0, i1] of runs(NX, i => ha[i] > 0.5)) {
+          const xa = i0 === 0 ? 0 : edgeX(tc, i0 - 1, i0), xb = i1 === NX - 1 ? WIN : edgeX(tc, i1, i1 + 1);
+          const pts = [xa, yN, xb, yN];
+          pts.push(xb, yN + ha[i1]);
+          for (let i = i1; i >= i0; i--) pts.push(XS[i], yN + ha[i]);
+          pts.push(xa, yN + ha[i0]);
+          sl.res.push(poly(dedupe(pts)));
+        }
+        sl.si.push(poly([0, YB, WIN, YB, WIN, 0, 0, 0]));
+        continue;
+      }
+      // ---- etch columns
+      const cols = new Array(NX);
+      for (let i = 0; i < NX; i++) cols[i] = F.etchColumn(h[i], tox, r.etchT, R, ke, tau);
+      const open = runs(NX, i => cols[i].siT > 0);
+      const tr = [];
+      for (const [i0, i1] of open) {
+        const ta = i0 === 0 ? 0 : edgeX(tc, i0 - 1, i0), tb = i1 === NX - 1 ? WIN : edgeX(tc, i1, i1 + 1);
+        let siT = 0; for (let i = i0; i <= i1; i++) siT = Math.max(siT, cols[i].siT);
+        const w = Math.max(1, tb - ta);
+        const d = Math.max(0.5, R.si * ke * F.arde(w) * siT);
+        tr.push({ ta, tb, w, d, u: R.iso * d, th: Math.tan(R.taper), i0, i1 });
+      }
+      for (const t of tr) {
+        t.xL = y => t.ta - t.u * Math.sqrt(Math.max(0, 1 - (y / t.d) ** 2)) + t.th * y;
+        t.xR = y => t.tb + t.u * Math.sqrt(Math.max(0, 1 - (y / t.d) ** 2)) - t.th * y;
+        // V bottom?
+        t.yv = t.d;
+        if (t.xR(t.d) - t.xL(t.d) < 0) { let lo = 0, hi = t.d; for (let k = 0; k < 30; k++) { const md = (lo + hi) / 2; if (t.xR(md) - t.xL(md) < 0) hi = md; else lo = md; } t.yv = lo; }
+        // where vertical from HM edge meets the wall
+        if (t.u > 0.05) { let lo = 0, hi = t.yv; for (let k = 0; k < 30; k++) { const md = (lo + hi) / 2; if (t.xL(md) < t.ta) lo = md; else hi = md; } t.ym = lo; } else t.ym = 0;
+        t.ym = Math.min(t.ym, t.yv);
+        t.ys = wallSamples(t.yv);
+      }
+      // mesa crossings
+      const cut = [];
+      for (let k = 0; k < tr.length - 1; k++) {
+        const a = tr[k], b = tr[k + 1], md = Math.min(a.yv, b.yv);
+        const g = y => b.xL(y) - a.xR(y);
+        if (g(0) >= 0) { cut.push(0); continue; }
+        if (g(md) < 0) { cut.push(md); continue; }
+        let lo = 0, hi = md; for (let it = 0; it < 30; it++) { const mm = (lo + hi) / 2; if (g(mm) < 0) lo = mm; else hi = mm; }
+        cut.push(hi); lifts.push({ s, x: a.xR(hi), y: -hi });
+      }
+      // bird's beak (after liner oxidation, stage 5)
+      const bb = stage >= 5 ? m.bb : 0;
+      // ---- Si polygon
+      const P = [0, YB, 0, 0];
+      for (let k = 0; k < tr.length; k++) {
+        const t = tr[k], cL = k > 0 ? cut[k - 1] : 0, cR = k < tr.length - 1 ? cut[k] : 0;
+        // left wall
+        if (cL === 0 && bb > 0.3 && t.ta > 1) {
+          const yb = Math.min(0.7 * bb, t.yv * 0.5);
+          P.push(t.xL(0) - bb, 0, t.xL(yb), -yb);
+          sl.wedge.push(poly([t.xL(0) - bb, 0, t.xL(0), 0, t.xL(yb), -yb].map((v, j) => v)));
+          for (const y of t.ys) if (y > yb) P.push(t.xL(y), -y);
+        } else {
+          P.push(t.xL(cL), -cL);
+          for (const y of t.ys) if (y > cL) P.push(t.xL(y), -y);
+        }
+        // bottom / right wall
+        if (t.yv >= t.d - 1e-6) P.push(t.xR(t.d), -t.d);
+        const yr = t.ys.slice().reverse();
+        if (cR === 0 && bb > 0.3 && t.tb < WIN - 1) {
+          const yb = Math.min(0.7 * bb, t.yv * 0.5);
+          for (const y of yr) if (y > yb && y < t.yv) P.push(t.xR(y), -y);
+          P.push(t.xR(yb), -yb, t.xR(0) + bb, 0);
+          sl.wedge.push(poly([t.xR(yb), -yb, t.xR(0), 0, t.xR(0) + bb, 0]));
+        } else {
+          for (const y of yr) if (y > cR && y < t.yv) P.push(t.xR(y), -y);
+          P.push(t.xR(cR), -cR);
+        }
+      }
+      P.push(WIN, 0, WIN, YB);
+      sl.si.push(poly(dedupe(P)));
+
+      // ---- hard mask + resist heightfields (between trenches)
+      const isOpen = new Uint8Array(NX); for (const [i0, i1] of open) for (let i = i0; i <= i1; i++) isOpen[i] = 1;
+      const edgeL = new Map(), edgeR = new Map();      // exact x for run boundaries
+      for (const t of tr) { edgeL.set(t.i0, t.ta); edgeR.set(t.i1, t.tb); }
+      // CMP plane (stage 5) for nitride clipping
+      let plane = null;
+      const cmpAnim = stage >= 5 ? (stage === 5 ? anim : 1) : 0;
+      const cmpT = cmpAnim * r.cmpT;
+      const cleared = stage >= 5 && m.rr * cmpT >= FILL;
+      if (stage >= 5) {
+        const tOver = Math.max(0, cmpT - m.tClear);
+        const lossD = (m.rr / m.sel) * tOver * 1.25, lossP = (m.rr / m.sel) * tOver * 0.9;
+        plane = x => tox + T_NIT - ((x >= DENSE[0] - 40 && x <= DENSE[1] + 40) ? lossD : lossP);
+      }
+      const hmTop = new Float64Array(NX);
+      for (let i = 0; i < NX; i++) {
+        const c = cols[i]; let nt = c.nit;
+        if (plane && cleared) nt = Math.max(0, Math.min(nt, plane(XS[i]) - tox));
+        hmTop[i] = c.ox > 0.05 ? (nt > 0.05 ? tox + nt : c.ox) : 0;
+        c.nitC = nt;
+      }
+      const segX = (i0, i1) => [edgeR.has(i0 - 1) ? edgeR.get(i0 - 1) : (i0 === 0 ? 0 : (XS[i0] + XS[i0 - 1]) / 2), edgeL.has(i1 + 1) ? edgeL.get(i1 + 1) : (i1 === NX - 1 ? WIN : (XS[i1] + XS[i1 + 1]) / 2)];
+      for (const [i0, i1] of runs(NX, i => !isOpen[i] && cols[i].ox > 0.05)) {
+        const [xa, xb] = segX(i0, i1);
+        const pts = [xa, 0, xb, 0, xb, cols[i1].ox];
+        for (let i = i1; i >= i0; i--) pts.push(XS[i], cols[i].ox);
+        pts.push(xa, cols[i0].ox);
+        sl.ox.push(poly(dedupe(clipX(pts, xa, xb))));
+      }
+      for (const [i0, i1] of runs(NX, i => !isOpen[i] && cols[i].nitC > 0.05)) {
+        const [xa, xb] = segX(i0, i1);
+        const pts = [xa, tox, xb, tox, xb, tox + cols[i1].nitC];
+        for (let i = i1; i >= i0; i--) pts.push(XS[i], tox + cols[i].nitC);
+        pts.push(xa, tox + cols[i0].nitC);
+        sl.nit.push(poly(dedupe(clipX(pts, xa, xb))));
+      }
+      if (stage <= 4) for (const [i0, i1] of runs(NX, i => !isOpen[i] && cols[i].res > 0.5)) {
+        const [xa, xb] = segX(i0, i1);
+        const base = i => tox + cols[i].nit;
+        const pts = [xa, base(i0), xb, base(i1), xb, base(i1) + cols[i1].res];
+        for (let i = i1; i >= i0; i--) pts.push(XS[i], base(i) + cols[i].res);
+        pts.push(xa, base(i0) + cols[i0].res);
+        sl.res.push(poly(dedupe(clipX(pts, xa, xb))));
+      }
+
+      // ---- fill oxide (stage 5)
+      if (stage >= 5 && tr.length) {
+        const wideT0 = tr.reduce((a, b) => (b.w > a.w ? b : a), tr[0]);
+        if (!out._wide) out._wide = { ta: wideT0.ta, tb: wideT0.tb };
+        const wideT = { ta: out._wide.ta, tb: out._wide.tb, ref: wideT0 };
+        const stepH = m.depthW + tox + m.nitPad;
+        const hmAt = x => { const i = clamp(Math.round(x / DX), 0, NX - 1); return hmTop[i]; };
+        let S;
+        if (!cleared) {
+          const rem = m.rr * cmpT;
+          const yA = tox + T_NIT + FILL - rem;
+          const sH = stepH * Math.exp(-rem / ((r.ceria ? 110 : 280) * (1 + 0.08 * (r.psi - 3.5))));
+          S = x => {
+            if (x <= wideT.ta || x >= wideT.tb) return yA;
+            const g = clamp(Math.min(x - wideT.ta, wideT.tb - x) / Math.max(sH, 1), 0, 1);
+            return yA - sH * g;
+          };
+        } else {
+          const tOver = Math.max(0, cmpT - m.tClear);
+          const dishW = m.sClear + Math.max(0, m.rr * (r.ceria ? 0.09 : 0.38) - m.rr / m.sel) * tOver;
+          const dishN = Math.min(10, 0.08 * dishW);
+          S = x => {
+            const pl = plane(x);
+            if (x > wideT.ta && x < wideT.tb) {
+              const hw = (wideT.tb - wideT.ta) / 2, xc = (wideT.ta + wideT.tb) / 2, q = clamp(1 - ((x - xc) / hw) ** 2, 0, 1);
+              return pl - dishW * Math.pow(q, 0.7);
+            }
+            for (const t of tr) if (x > t.ta && x < t.tb) {
+              const hw = (t.tb - t.ta) / 2, xc = (t.ta + t.tb) / 2, q = clamp(1 - ((x - xc) / hw) ** 2, 0, 1);
+              return pl - dishN * Math.pow(q, 0.7);
+            }
+            return pl;
+          };
+          out.dishW = dishW;
+        }
+        // groups of trenches joined by covered mesas
+        const covered = [];
+        for (let k = 0; k <= tr.length; k++) {
+          const xa = k === 0 ? 0 : tr[k - 1].tb, xb = k === tr.length ? WIN : tr[k].ta;
+          let nIn = 0, nAll = 0; for (let x = xa + 2; x < xb - 1; x += 6) { nAll++; if (S(x) > hmAt(x) + 0.8) nIn++; }
+          const xm = (xa + xb) / 2;
+          covered.push(nAll > 0 && nIn / nAll > 0.6 && S(xm) > hmAt(xm) + 0.8);
+        }
+        let k = 0;
+        while (k < tr.length) {
+          let k1 = k; while (k1 < tr.length - 1 && covered[k1 + 1]) k1++;
+          const leftCov = covered[k] && k === 0, rightCov = covered[k1 + 1] && k1 === tr.length - 1;
+          const Pf = [];
+          const xStart = leftCov ? 0 : tr[k].ta, xEnd = rightCov ? WIN : tr[k1].tb;
+          if (leftCov) { for (let x = 0; x < tr[k].ta; x += DX) Pf.push(x, hmAt(x)); }
+          for (let q = k; q <= k1; q++) {
+            const t = tr[q];
+            const topL = Math.min(hmAt(t.ta - 1), (leftCov || q > k) ? 1e9 : S(t.ta + 0.01));
+            Pf.push(t.ta, Math.max(topL, 0));
+            Pf.push(t.ta, 0);
+            if (t.ym > 0.2) Pf.push(t.ta, -t.ym);
+            for (const y of t.ys) if (y > t.ym && y <= t.yv) Pf.push(t.xL(y), -y);
+            if (t.yv >= t.d - 1e-6) Pf.push(t.xR(t.d), -t.d);
+            for (const y of t.ys.slice().reverse()) if (y > t.ym && y < t.yv) Pf.push(t.xR(y), -y);
+            if (t.ym > 0.2) Pf.push(t.tb, -t.ym);
+            Pf.push(t.tb, 0);
+            const topR = Math.min(hmAt(t.tb + 1), (rightCov || q < k1) ? 1e9 : S(t.tb - 0.01));
+            Pf.push(t.tb, Math.max(topR, 0));
+            if (q < k1) { const nx = tr[q + 1].ta; for (let x = Math.ceil((t.tb + 1) / DX) * DX; x < nx; x += DX) Pf.push(x, hmAt(x)); }
+          }
+          if (rightCov) { for (let x = Math.ceil(tr[k1].tb / DX) * DX; x <= WIN; x += DX) Pf.push(x, hmAt(x)); Pf.push(WIN, hmAt(WIN)); }
+          // top path back (right -> left)
+          const top = [];
+          top.push(xEnd, S(xEnd - (rightCov ? 0 : 0.01)));
+          for (let x = Math.floor((xEnd - 0.01) / DX) * DX; x > xStart; x -= DX) top.push(x, S(x));
+          top.push(xStart, S(xStart + (leftCov ? 0 : 0.01)));
+          for (let j = 0; j < top.length; j += 2) Pf.push(top[j], top[j + 1]);
+          // voids in narrow trenches
+          const holes = [];
+          for (let q = k; q <= k1; q++) {
+            const t = tr[q]; if (t === wideT.ref) continue;
+            const ar = (t.d + tox + T_NIT) / Math.max(t.w, 1);
+            const ic = clamp(Math.round((t.ta + t.tb) / 2 / DX), 0, NX - 1);
+            const sev = clamp((ar - 5.2) / 0.8 + 0.18 * eps[s][ic], 0, 1);
+            if (sev > 0.05) {
+              const cy = -0.5 * t.yv, ry = 0.24 * t.yv * Math.sqrt(sev), half = (t.xR(-cy) - t.xL(-cy)) / 2, rx = Math.max(1.5, 0.42 * half * Math.sqrt(sev)), cx = (t.xR(-cy) + t.xL(-cy)) / 2;
+              if (half > 3 && ry > 2 && cy + ry < S(cx) - 4) {
+                const hp = []; for (let a = 0; a < 18; a++) { const th = -a / 18 * 2 * Math.PI; hp.push(cx + rx * Math.cos(th) * (1 - 0.25 * Math.max(0, Math.sin(th))), cy + ry * Math.sin(th)); }
+                holes.push(hp); voids.push({ s, x: cx, y: cy, sev });
+              }
+            }
+          }
+          sl.fill.push(poly(dedupe(Pf), holes));
+          k = k1 + 1;
+        }
+        if (!cleared && covered[0] === false && tr.length === 0) { /* nothing */ }
+      }
+      if (s === 0) { out.front = { tr, cols, hmTop, cut, open }; }
+    }
+
+    // ---------- decals (front face only): implant, dislocations
+    const fr = out.front;
+    if (stage >= 4 && fr) {
+      const anI = stage === 4 ? anim : 1;
+      const { Rp, dRp } = F.implantRange(r.impE);
+      const tilt = r.tilt * Math.PI / 180;
+      for (const t of fr.tr) {
+        const y0 = -t.yv, xl = t.xL(t.yv), xr = t.yv >= t.d - 1e-6 ? t.xR(t.d) : xl;
+        const wb = Math.max(2, xr - xl), sh = Math.min(wb, t.yv * Math.tan(tilt));
+        const a = xl + sh * 0.5, b = xr, cx = (a + b) / 2, hw = Math.max(4, (b - a) / 2) + 0.7 * dRp;
+        const cy = y0 - Rp * Math.cos(tilt) + 2;
+        out.decals.push({ kind: 'boron', cx, cy, rx: hw, ry: dRp * 1.15, a: anI });
+        if (m.chanLoss > 0.01) out.decals.push({ kind: 'boron', cx, cy: cy - Rp * 0.9, rx: hw * 0.7, ry: dRp * 2.2, a: anI * Math.min(1, m.chanLoss * 3) * 0.6 });
+        if (r.tilt > 1.5 && t.yv > 20) out.decals.push({ kind: 'side', pts: sideBand(t, 3 + 26 * Math.sin(tilt)), a: anI * Math.min(1, r.tilt / 9) });
+      }
+      if (m.pen > 2e-4) {
+        // dose punched into actives (under mesas)
+        for (let k = 0; k <= fr.tr.length; k++) {
+          const xa = k === 0 ? 40 : fr.tr[k - 1].xR(0), xb = k === fr.tr.length ? WIN - 40 : fr.tr[k].xL(0);
+          if (xb - xa < 10) continue;
+          const depth = Math.max(5, Rp - m.teq);
+          out.decals.push({ kind: 'pen', cx: (xa + xb) / 2, cy: -depth, rx: (xb - xa) / 2 - 2, ry: dRp * 0.9, a: anI * clamp(0.35 + 0.15 * Math.log10(m.pen / 1e-3), 0.25, 0.95) });
+        }
+      }
+    }
+    if (stage >= 3 && fr && m.dDisl > 0.005) {
+      const n = Math.min(10, Math.round(m.dDisl * 40) + 1); const g = rng(5);
+      for (let j = 0; j < n; j++) {
+        const t = fr.tr[Math.floor(g() * Math.max(1, fr.tr.length - 1))]; if (!t) break;
+        const side = g() < 0.5, x0 = side ? t.xL(0) - 1 : t.xR(0) + 1, len = 40 + 90 * g(), ang = 54.7 * Math.PI / 180;
+        const dx = (side ? -1 : 1) * Math.cos(ang) * len, dy = -Math.sin(ang) * len;
+        out.lines.push({ kind: 'disl', pts: [x0, -2, x0 + dx, -2 + dy] });
+      }
+    }
+    // ---------- aerial image overlay in litho
+    if (stage === 2) {
+      const mid = L.imgs[NLEV >> 1]; const pts = [];
+      for (let i = 0; i < NX; i += 2) pts.push(XS[i], mid[i]);
+      out.aerial = { pts, thr: F.ETH / (r.dose * loc.dose * F.ATT[NLEV >> 1]), base: yN + H0 + 70, scale: 180 };
+    }
+    // ---------- callouts
+    const zOf = s => -(s + 0.5) * SLICE;
+    const pickWorst = arr => arr.length ? arr[Math.floor(arr.length / 2)] : null;
+    if (stage >= 2 && stage <= 3) {
+      const b = pickWorst(bridges);
+      if (b && (stage === 2 ? anim >= 1 : true)) out.callouts.push({ x: b.x, y: yN + 20, z: zOf(b.s), kind: 'fail', text: bridges.length > NS * 0.5 ? 'Bridged lines: space never cleared' : 'Local bridge (resist scum)' });
+      const p = pinches.length ? pinches.reduce((a, c) => c.h < a.h ? c : a) : null;
+      if (p && (stage === 2 ? anim >= 1 : true)) out.callouts.push({ x: p.x, y: yN + Math.max(10, p.h), z: zOf(p.s), kind: 'fail', text: p.h < 5 ? 'Line pinched off' : 'Resist line thinned to ' + p.h.toFixed(0) + ' nm' });
+    }
+    if (stage >= 3 && fr) {
+      const t0 = fr.tr.find(t => t.w < 400) || fr.tr[0];
+      if (lifts.length) { const l = pickWorst(lifts); out.callouts.push({ x: l.x, y: l.y, z: zOf(l.s), kind: 'fail', text: 'Lift-off: undercut ate the active line' }); }
+      else if (t0 && t0.u > 6) out.callouts.push({ x: t0.ta - t0.u, y: -6, z: 0, kind: m.act < F.SPEC.act[0] ? 'fail' : 'warn', text: 'Undercut ' + t0.u.toFixed(0) + ' nm per side' });
+      if (m.lineSiEtched) out.callouts.push({ x: 445, y: tox + 10, z: 0, kind: 'fail', text: 'Mask eroded through: active Si etched' });
+      else if (m.nitRem < T_NIT - 2) out.callouts.push({ x: 485, y: tox + m.nitRem, z: 0, kind: 'warn', text: 'Nitride eroded to ' + m.nitRem.toFixed(0) + ' nm' });
+      if (stage === 3 && t0 && anim >= 1 && (m.depth < F.SPEC.depth[0])) out.callouts.push({ x: (t0.ta + t0.tb) / 2, y: -t0.yv, z: 0, kind: 'warn', text: 'Shallow trench: ' + m.depth.toFixed(0) + ' nm' });
+    }
+    if (stage >= 4 && fr) {
+      if (m.qAct > F.SPEC.qAct * 0.3) out.callouts.push({ x: 395, y: -Math.max(5, m.Rp - m.teq), z: 0, kind: m.qAct > F.SPEC.qAct ? 'fail' : 'warn', text: 'Boron through the mask: ' + sci(m.qAct) + ' cm⁻² in actives' });
+      if (m.vtf < F.SPEC.vtf) out.callouts.push({ x: 575, y: -m.depth - m.Rp, z: 0, kind: 'fail', text: 'Weak channel stop: field Vt ' + m.vtf.toFixed(2) + ' V' });
+      if (m.qSide > F.SPEC.qSide * 0.8) out.callouts.push({ x: 710, y: -m.depth * 0.5, z: 0, kind: m.qSide > F.SPEC.qSide ? 'fail' : 'warn', text: 'Sidewall doping from ' + r.tilt.toFixed(1) + '° tilt' });
+      if (m.chanLoss > 0.03) out.callouts.push({ x: 1840, y: -m.depthW - m.Rp * 2, z: 0, kind: 'warn', text: 'Channeling tail (tilt near 0°)' });
+    }
+    if (stage >= 5 && fr) {
+      const cmpDone = stage > 5 || anim >= 1;
+      const v = pickWorst(voids);
+      if (v) out.callouts.push({ x: v.x, y: v.y, z: zOf(v.s), kind: m.voidSev > F.SPEC.voidSev ? 'fail' : 'warn', text: 'Fill void (AR ' + m.ar.toFixed(1) + ')' });
+      if (cmpDone) {
+        if (m.residue > F.SPEC.residue) out.callouts.push({ x: 575, y: tox + T_NIT + m.residue, z: 0, kind: 'fail', text: 'Oxide residue ' + m.residue.toFixed(0) + ' nm on nitride' });
+        else {
+          out.callouts.push({ x: 1840, y: m.yField, z: 0, kind: m.step < F.SPEC.step[0] ? 'fail' : (m.step > F.SPEC.step[1] ? 'fail' : (m.dish > 60 ? 'warn' : 'ok')), text: m.step < F.SPEC.step[0] ? 'Dishing ' + m.dish.toFixed(0) + ' nm: field below Si' : (m.step > F.SPEC.step[1] ? 'Field oxide ' + m.step.toFixed(0) + ' nm too high' : 'Dishing ' + m.dish.toFixed(0) + ' nm') });
+          if (m.nitFinal < F.SPEC.nitMin + 15) out.callouts.push({ x: 755, y: tox + Math.max(0, m.nitFinal), z: 0, kind: m.nitFinal < F.SPEC.nitMin ? 'fail' : 'warn', text: 'Nitride erosion: ' + Math.max(0, m.nitFinal).toFixed(0) + ' nm left' });
+        }
+      }
+      if (m.bb > 2) out.callouts.push({ x: 350 - m.bb, y: -2, z: 0, kind: m.act < F.SPEC.act[0] ? 'fail' : 'warn', text: 'Bird’s beak ' + m.bb.toFixed(0) + ' nm' });
+    }
+    if (m.dDisl > 0.02 && stage >= 3) out.callouts.push({ x: 1160 + 30, y: -60, z: 0, kind: 'warn', text: 'Slip dislocations (thin pad oxide)' });
+    return out;
+  }
+  function sci(v) { if (!isFinite(v) || v <= 0) return '0'; const e = Math.floor(Math.log10(v)); return (v / Math.pow(10, e)).toFixed(1) + 'e' + e; }
+  function sideBand(t, th) {
+    const pts = [], ys = t.ys.filter(y => y <= t.yv * 0.97);
+    for (const y of ys) pts.push(t.xR(y), -y);
+    for (let j = ys.length - 1; j >= 0; j--) pts.push(t.xR(ys[j]) + th * (1 - 0.6 * ys[j] / t.yv), -ys[j]);
+    return pts;
+  }
+  function wallSamples(d) { return [0, .015, .04, .08, .14, .22, .32, .44, .56, .68, .78, .86, .92, .96, .985, 1].map(f => f * d); }
+  function edgeX(tc, i, j) {
+    const a = tc[i], b = tc[j];
+    if ((a >= 0) !== (b >= 0)) { const f = a / (a - b); return XS[i] + clamp(f, 0, 1) * (XS[j] - XS[i]); }
+    return (XS[i] + XS[j]) / 2;
+  }
+  function clipX(pts, xa, xb) { for (let i = 0; i < pts.length; i += 2) pts[i] = clamp(pts[i], xa, xb); return pts; }
+  function dedupe(p) { return simplify(dedupe0(p)); }
+  function simplify(o) {
+    if (o.length < 8) return o;
+    let changed = true, a = o;
+    while (changed && a.length >= 8) {
+      changed = false; const n = a.length / 2, keep = [];
+      for (let j = 0; j < n; j++) {
+        const i0 = ((j - 1 + n) % n) * 2, i1 = j * 2, i2 = ((j + 1) % n) * 2;
+        const ax = a[i0], ay = a[i0 + 1], bx = a[i1], by = a[i1 + 1], cx = a[i2], cy = a[i2 + 1];
+        const len = Math.hypot(cx - ax, cy - ay);
+        const dist = len > 1e-9 ? Math.abs((bx - ax) * (cy - ay) - (by - ay) * (cx - ax)) / len : 0;
+        const between = (bx - ax) * (cx - ax) + (by - ay) * (cy - ay) >= 0 && (bx - cx) * (ax - cx) + (by - cy) * (ay - cy) >= 0;
+        if (dist < 0.12 && between && !(keep.length && keep[keep.length - 1] === 'skip')) { keep.push('skip'); changed = true; }
+        else keep.push(j);
+      }
+      const b = []; for (const k of keep) if (k !== 'skip') b.push(a[k * 2], a[k * 2 + 1]);
+      a = b;
+    }
+    return a;
+  }
+  function dedupe0(p) {
+    const o = [];
+    for (let i = 0; i < p.length; i += 2) {
+      const x = p[i], y = p[i + 1];
+      if (!isFinite(x) || !isFinite(y)) continue;
+      const n = o.length;
+      if (n >= 2 && Math.abs(o[n - 2] - x) < 0.05 && Math.abs(o[n - 1] - y) < 0.05) continue;
+      o.push(x, y);
+    }
+    if (o.length >= 4 && Math.abs(o[0] - o[o.length - 2]) < 0.05 && Math.abs(o[1] - o[o.length - 1]) < 0.05) o.length -= 2;
+    return o;
+  }
+
+  G.GEOM = { build, NS, SLICE, YB, DX, NX, XS, noiseFor, sci };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+(function () {
+  'use strict';
+  const F = window.FAB, G = window.GEOM;
+  const $ = s => document.querySelector(s);
+  const fmt = (v, d) => (v == null || !isFinite(v)) ? '—' : v.toFixed(d);
+  const sup = n => String(n).replace(/-/g, '⁻').replace(/\d/g, c => '⁰¹²³⁴⁵⁶⁷⁸⁹'[+c]);
+  const sci = (v, d = 1) => { if (!isFinite(v) || v <= 0) return '0'; const e = Math.floor(Math.log10(v)); return (v / Math.pow(10, e)).toFixed(d) + '×10' + sup(e); };
+  const money = v => '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const storage = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) { } } };
+
+  // ======================= STATE =======================
+  const S = {
+    r: { ...F.DEFAULTS }, step: 1, done: [false, false, false, false, false, false],
+    anim: null, die: 'center', mode: 'xsec', wafer: null, waferSeed: 1, inspect: null,
+    vis: { si: true, ox: true, nit: true, res: true, fill: true, dop: true },
+    dirty: true, best: parseFloat(storage.get('stiwr-best')) || null,
+    metroKey: 'tox', waferStale: true, sorted: null, hover: null
+  };
+
+  // ======================= STEP DEFINITIONS =======================
+  const STEPS = [
+    { n: 1, key: 'ox', name: 'Oxide', title: 'Oxidation', tool: 'Vertical furnace · pad oxide',
+      desc: 'Grow the thermal pad oxide that cushions the nitride hard mask. Too thin and nitride stress slips the silicon; too thick and the liner oxidation bites a bird’s beak into the active edge.',
+      knobs: [
+        { k: 'oxT', label: 'Temperature', unit: '°C', d: 0 },
+        { k: 'oxTime', label: 'Time', unit: 'min', d: 0 },
+        { k: 'wet', label: 'Ambient', seg: [['Dry O₂', false], ['Wet H₂O', true]] }
+      ] },
+    { n: 2, key: 'litho', name: 'Litho', title: 'Lithography', tool: 'ArF scanner, NA 0.85 · 90 nm lines / 180 nm pitch',
+      auto: 'LPCVD Si₃N₄ 110 nm, then 250 nm resist coat',
+      desc: 'Expose the active-area pattern. Dose sets the line width; focus sets how much contrast survives. Low dose or positive defocus leaves scum that bridges lines; high dose or negative defocus thins and pinches them.',
+      knobs: [
+        { k: 'dose', label: 'Dose', unit: 'mJ/cm²', d: 1 },
+        { k: 'focus', label: 'Focus offset', unit: 'µm', d: 2, signed: true }
+      ] },
+    { n: 3, key: 'etch', name: 'Etch', tool: 'ICP plasma · HM open + Si trench',
+      auto: 'Hard-mask open runs first with auto endpoint +15%',
+      desc: 'Cut the isolation trenches. Bias power buys anisotropy: too little and the plasma undercuts under the mask. Time sets depth: too shallow leaks, too deep leaves a trench the oxide fill cannot close.',
+      knobs: [
+        { k: 'bias', label: 'Bias power', unit: 'W', d: 0 },
+        { k: 'etchT', label: 'Si etch time', unit: 's', d: 0 }
+      ] },
+    { n: 4, key: 'imp', name: 'Implant', tool: 'Medium-current implanter · B⁺ channel stop',
+      desc: 'Dope the trench floors to raise the field threshold. The resist and nitride left on the actives are the mask, so energy has to stop inside them. Tilt avoids channeling, but too much tilt shadows the floor and dopes the sidewalls.',
+      knobs: [
+        { k: 'impE', label: 'Energy', unit: 'keV', d: 0 },
+        { k: 'impDoseLog', label: 'Dose', unit: 'cm⁻²', d: 2, log: true },
+        { k: 'tilt', label: 'Tilt', unit: '°', d: 1 }
+      ] },
+    { n: 5, key: 'cmp', name: 'CMP', tool: 'Rotary polisher · oxide on nitride stop',
+      auto: 'Resist strip, 10 nm liner oxidation, 550 nm HDP oxide fill',
+      desc: 'Polish the fill back to the nitride. Stop early and oxide residue blocks the nitride strip. Polish on and the wide trench dishes while the dense array erodes. Ceria slurry stops on nitride but costs more and planarizes slowly.',
+      knobs: [
+        { k: 'psi', label: 'Down-force', unit: 'psi', d: 1 },
+        { k: 'cmpT', label: 'Polish time', unit: 's', d: 0 },
+        { k: 'ceria', label: 'Slurry', seg: [['Silica', false], ['Ceria', true]] }
+      ] },
+    { n: 6, key: 'yield', name: 'Sort', title: 'Wafer sort', tool: 'Probe · 616 dies, 10 × 10 mm',
+      auto: 'Nitride strip, wells, gates and interconnect: the rest of the flow',
+      desc: 'Every die is probed. Each one saw its own focus, etch rate and polish rate, so the wafer edge and centre fail differently. Click a die to inspect its cross-section.' }
+  ];
+
+  const CAT = {
+    litho: { name: 'Litho', color: '#e0553d', codes: { bridge: 'Bridged lines', pinch: 'Pinched lines', sbridge: 'Stochastic bridge', spinch: 'Stochastic line break' } },
+    etch: { name: 'Etch / fill', color: '#e6a019', codes: { act: 'Active width out of spec', liftoff: 'Lift-off (undercut)', erode: 'Mask erosion', void: 'Fill voids' } },
+    imp: { name: 'Implant', color: '#a35bd0', codes: { pen: 'Mask punch-through', bv: 'Junction breakdown', side: 'Sidewall doping', iso: 'Isolation leakage' } },
+    cmp: { name: 'CMP', color: '#3d8ee0', codes: { residue: 'Oxide residue', dish: 'Dishing / STI recess', erosion: 'Nitride erosion', high: 'Field oxide too high' } },
+    rand: { name: 'Random', color: '#7d8894', codes: { particle: 'Particle', disl: 'Slip dislocation', scratch: 'CMP scratch' } }
+  };
+  const CODE = {}; for (const c in CAT) for (const k in CAT[c].codes) CODE[k] = { cat: c, name: CAT[c].codes[k], color: CAT[c].color };
+  const PASS_COLOR = '#25b06b';
+
+  // ======================= READOUTS =======================
+  function status(v, lo, hi, tol) {
+    if (!isFinite(v)) return 'fail';
+    if ((lo != null && v < lo) || (hi != null && v > hi)) return 'fail';
+    const span = (lo != null && hi != null) ? (hi - lo) : Math.abs(lo != null ? lo : hi) || 1;
+    const t = (tol == null ? 0.08 : tol) * span;
+    if ((lo != null && v < lo + t) || (hi != null && v > hi - t)) return 'warn';
+    return 'ok';
+  }
+  const SP = F.SPEC;
+  function readouts(stepKey, m, r) {
+    const rows = [];
+    const add = (label, value, spec, st) => rows.push({ label, value, spec, st });
+    if (stepKey === 'ox') {
+      add('Pad oxide', fmt(m.tox, 1) + ' nm', SP.tox[0] + '–' + SP.tox[1], status(m.tox, SP.tox[0], SP.tox[1]));
+      add('Si consumed', fmt(0.44 * m.tox, 1) + ' nm', '0.44 × t', 'info');
+      add('Across-wafer range', '±' + fmt(m.oxU * 150, 1) + ' %', '≤ ±2.5', status(m.oxU * 150, null, 2.5, 0.2));
+      const kT = 8.617e-5 * (r.oxT + 273.15), B = r.wet ? 386 * Math.exp(-0.78 / kT) : 772 * Math.exp(-1.23 / kT), BA = r.wet ? 9.7e7 * Math.exp(-2.05 / kT) : 6.13e6 * Math.exp(-2.0 / kT), A = B / BA * 1000;
+      add('Growth regime', m.tox < A / 2 ? 'linear' : 'parabolic', 'A = ' + fmt(A, 0) + ' nm', 'info');
+      add('Nitride stress risk', m.dDisl > 0.01 ? fmt(m.dDisl, 2) + ' /cm²' : 'none', 't ≥ 9 nm', m.dDisl > 0.05 ? 'fail' : (m.dDisl > 0.005 ? 'warn' : 'ok'));
+    } else if (stepKey === 'litho') {
+      add('Line CD (resist foot)', fmt(m.cd, 1) + ' nm', '81–99', status(m.cd, 81, 99));
+      add('Resist line height', fmt(m.lineH, 0) + ' nm', '≥ 150', status(m.lineH, 150, null, 0.1));
+      add('LER (3σ)', fmt(m.ler, 1) + ' nm', '≤ 8', status(m.ler, null, 8, 0.15));
+      add('Bridge margin', fmt(Math.max(0, m.mbSig), 1) + ' σ', '≥ ' + SP.sig, status(m.mbSig, SP.sig, null, 0.15));
+      add('Pinch margin', fmt(Math.max(0, m.mpSig), 1) + ' σ', '≥ ' + SP.sig, status(m.mpSig, SP.sig, null, 0.15));
+    } else if (stepKey === 'etch') {
+      add('Trench depth, dense', fmt(m.depth, 0) + ' nm', SP.depth[0] + '–' + SP.depth[1], status(m.depth, SP.depth[0], SP.depth[1]));
+      add('Trench depth, wide', fmt(m.depthW, 0) + ' nm', 'RIE lag', 'info');
+      add('Undercut per side', fmt(m.under, 1) + ' nm', '≤ 8', status(m.under, null, 8, 0.2));
+      add('Active width', fmt(m.act, 1) + ' nm', SP.act[0] + '–' + SP.act[1], m.act <= 8 ? 'fail' : status(m.act, SP.act[0], SP.act[1]));
+      add('Sidewall angle', fmt(90 - m.taper * 180 / Math.PI, 1) + '°', '', 'info');
+      add('Fill aspect ratio', fmt(m.ar, 2), '≤ 5.4', m.voidSev > SP.voidSev ? 'fail' : (m.voidSev > 0 ? 'warn' : status(m.ar, null, 5.4, 0.05)));
+      add('Resist left on lines', fmt(m.resRem, 0) + ' nm', '> 0', m.resRem > 20 ? 'ok' : (m.resRem > 0 ? 'warn' : (m.nitRem < 109 ? 'fail' : 'warn')));
+      add('Nitride left on lines', fmt(m.nitRem, 0) + ' nm', '110 nominal', m.lineSiEtched ? 'fail' : (m.nitRem < 100 ? 'warn' : 'ok'));
+    } else if (stepKey === 'imp') {
+      add('Range Rₚ ± ΔRₚ', fmt(m.Rp, 0) + ' ± ' + fmt(m.dRp, 0) + ' nm', '', 'info');
+      add('Peak [B]', sci(m.cPeak) + ' cm⁻³', '≤ 3×10¹⁸', status(m.cPeak, null, SP.cPeak, 0.15));
+      add('Dose through mask', sci(m.qAct) + ' cm⁻²', '≤ 1.5×10¹¹', status(m.qAct, null, SP.qAct, 0.5));
+      add('Floor coverage', fmt(m.cov * 100, 0) + ' %', 'shadowing', m.cov < 0.5 ? 'warn' : 'info');
+      add('Channeling loss', fmt(m.chanLoss * 100, 0) + ' %', 'tilt ≥ 3°', m.chanLoss > 0.05 ? 'warn' : 'ok');
+      add('Sidewall dose', sci(m.qSide) + ' cm⁻²', '≤ 1.6×10¹²', status(m.qSide, null, SP.qSide, 0.12));
+      add('Field Vt', fmt(m.vtf, 2) + ' V', '≥ ' + SP.vtf, status(m.vtf, SP.vtf, null, 0.1));
+    } else if (stepKey === 'cmp') {
+      add('Removal rate', fmt(m.rr * 60, 0) + ' nm/min', 'Preston', 'info');
+      add('Time to clear', fmt(m.tClear, 0) + ' s', '', 'info');
+      add('Over-polish', m.residue > 0 ? '—' : fmt(m.tOver, 0) + ' s (' + fmt(m.tOver / m.tClear * 100, 0) + ' %)', '', 'info');
+      add('Oxide residue', fmt(m.residue, 0) + ' nm', '≤ ' + SP.residue, status(m.residue, null, SP.residue, 0.2));
+      add('Dishing, wide trench', m.residue > 0 ? '—' : fmt(m.dish, 0) + ' nm', '', 'info');
+      add('Nitride left, array', m.residue > 0 ? '—' : fmt(m.nitFinal, 0) + ' nm', '≥ ' + SP.nitMin, m.residue > 0 ? 'info' : status(m.nitFinal, SP.nitMin, null, 0.3));
+      add('Final field step', m.residue > 0 ? '—' : fmt(m.step, 0) + ' nm', SP.step[0] + ' to +' + SP.step[1], m.residue > 0 ? 'info' : status(m.step, SP.step[0], SP.step[1]));
+    }
+    return rows;
+  }
+
+  // ======================= THREE SETUP =======================
+  const vp = $('#vp');
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  vp.prepend(renderer.domElement);
+  renderer.domElement.setAttribute('aria-label', '3D model: drag to rotate, scroll to zoom, right-drag to pan');
+  renderer.domElement.tabIndex = 0;
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 2000);
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; controls.dampingFactor = 0.09; controls.screenSpacePanning = true;
+  controls.minDistance = 2; controls.maxDistance = 140;
+  controls.listenToKeyEvents && controls.listenToKeyEvents(renderer.domElement);
+
+  scene.add(new THREE.HemisphereLight(0xf4f7fb, 0x5b6470, 0.75));
+  const key = new THREE.DirectionalLight(0xffffff, 0.85); key.position.set(-14, 22, 26); scene.add(key);
+  const rim = new THREE.DirectionalLight(0xdfe8ff, 0.35); rim.position.set(20, 8, -18); scene.add(rim);
+
+  // scene units: 1 = 100 nm. block x in [-13, 13], front face at z = +6
+  const SC = 0.01, OX = -13, OY = 1.0, OZ = 6;
+  const P = (x, y, z) => new THREE.Vector3(x * SC + OX, y * SC + OY, z * SC + OZ);
+  const xsec = new THREE.Group(); scene.add(xsec);
+  const waferG = new THREE.Group(); waferG.visible = false; scene.add(waferG);
+  const MATCOL = { si: '#8e9aa7', ox: '#6fbccb', wedge: '#6fbccb', nit: '#6fae73', res: '#de6a2c', fill: '#a9d9e6' };
+  const MAT = {};
+  for (const k in MATCOL) MAT[k] = new THREE.MeshStandardMaterial({ color: MATCOL[k], roughness: k === 'si' ? 0.5 : 0.62, metalness: k === 'si' ? 0.22 : 0.04, flatShading: true, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+  MAT.fill.transparent = false;
+  const VIS_OF = { si: 'si', ox: 'ox', wedge: 'ox', nit: 'nit', res: 'res', fill: 'fill' };
+  const xMeshes = {};
+  const outlineMat = new THREE.LineBasicMaterial({ color: 0x0b1218, transparent: true, opacity: 0.45 });
+  let outline = null, decalGroup = new THREE.Group(), aerialGroup = new THREE.Group(), rulerGroup = new THREE.Group();
+  xsec.add(decalGroup, aerialGroup, rulerGroup);
+
+  function tri(contour, holes) {
+    const cv = []; for (let i = 0; i < contour.length; i += 2) cv.push(new THREE.Vector2(contour[i], contour[i + 1]));
+    const hv = holes.map(h => { const a = []; for (let i = 0; i < h.length; i += 2) a.push(new THREE.Vector2(h[i], h[i + 1])); return a; });
+    if (THREE.ShapeUtils.isClockWise(cv)) cv.reverse();
+    for (const h of hv) if (!THREE.ShapeUtils.isClockWise(h)) h.reverse();
+    let faces;
+    try { faces = THREE.ShapeUtils.triangulateShape(cv, hv); } catch (e) { faces = []; }
+    return { cv, hv, faces, all: cv.concat(...hv) };
+  }
+  function extrude(p, z0, z1, pos, cache) {
+    if (p.o.length < 6) return;
+    let t = cache.get(p); if (!t) { t = tri(p.o, p.h); cache.set(p, t); }
+    const { faces, all, cv, hv } = t;
+    const X = v => v.x * SC + OX, Y = v => v.y * SC + OY, Za = z0 * SC + OZ, Zb = z1 * SC + OZ;
+    for (const f of faces) {
+      let a = all[f[0]], b = all[f[1]], c = all[f[2]];
+      if (!a || !b || !c) continue;
+      const area = (b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y);
+      if (area < 0) { const tmp = b; b = c; c = tmp; }
+      pos.push(X(a), Y(a), Zb, X(b), Y(b), Zb, X(c), Y(c), Zb);
+      pos.push(X(a), Y(a), Za, X(c), Y(c), Za, X(b), Y(b), Za);
+    }
+    for (const ring of [cv, ...hv]) {
+      const n = ring.length;
+      for (let j = 0; j < n; j++) {
+        const p0 = ring[j], q0 = ring[(j + 1) % n];
+        const px = X(p0), py = Y(p0), qx = X(q0), qy = Y(q0);
+        pos.push(px, py, Za, qx, qy, Za, qx, qy, Zb, px, py, Za, qx, qy, Zb, px, py, Zb);
+      }
+    }
+  }
+  function polyHash(arr) { let h = arr.length * 7.13; for (const p of arr) { const o = p.o; h += o.length * 3.1; for (let i = 0; i < o.length; i += 3) h = (h * 1.000173 + o[i] * 0.731 + (i % 7)) % 1e9; for (const ho of p.h) h += ho.length * 0.37 + (ho[0] || 0); } return Math.round(h * 100); }
+
+  let built = null;
+  function stageNow() { return S.anim ? S.anim.stage : (S.step === 1 && !S.done[1] && S.mode !== 'inspect' ? 0 : Math.min(S.step, 5)); }
+  function rebuildXsec() {
+    const loc = currentLoc();
+    const stNow = stageNow();
+    const anim = S.anim ? S.anim.p : 1;
+    // thermal oxide is drawn translucent while it grows, so the oxidant can be seen diffusing through it
+    const glassy = stNow <= 1;
+    if (MAT.ox.transparent !== glassy) { MAT.ox.transparent = glassy; MAT.ox.opacity = glassy ? 0.58 : 1; MAT.ox.depthWrite = !glassy; MAT.ox.needsUpdate = true; }
+    const out = G.build(S.r, loc, stNow, anim, { seed: S.inspect ? S.inspect.seed : 11 });
+    built = out; S.curStage = stNow;
+    fineRuler.visible = stNow <= 1;
+    const L = out.ns * out.sliceLen;
+    for (const key of ['si', 'wedge', 'ox', 'nit', 'res', 'fill']) {
+      const pos = [], cache = new Map();
+      const sl = out.slices;
+      let s = 0;
+      while (s < sl.length) {
+        const hs = polyHash(sl[s][key]);
+        let e = s; while (e + 1 < sl.length && polyHash(sl[e + 1][key]) === hs) e++;
+        const z1 = -s * out.sliceLen, z0 = out.uniform ? -L : -(e + 1) * out.sliceLen;
+        for (const p of sl[s][key]) extrude(p, z0, z1, pos, cache);
+        s = e + 1;
+      }
+      let mesh = xMeshes[key];
+      if (!mesh) { mesh = new THREE.Mesh(new THREE.BufferGeometry(), MAT[key]); mesh.renderOrder = key === 'ox' ? 3 : 0; xMeshes[key] = mesh; xsec.add(mesh); }
+      mesh.geometry.dispose();
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.computeVertexNormals();
+      mesh.geometry = g;
+      mesh.visible = S.vis[VIS_OF[key]] && pos.length > 0;
+    }
+    // front outlines
+    const lp = [];
+    const zf = 0.6;
+    for (const key of ['si', 'wedge', 'ox', 'nit', 'res', 'fill']) {
+      if (!S.vis[VIS_OF[key]]) continue;
+      for (const p of out.slices[0][key]) for (const ring of [p.o, ...p.h]) {
+        const n = ring.length / 2;
+        for (let j = 0; j < n; j++) { const a = j * 2, b = ((j + 1) % n) * 2; lp.push(ring[a] * SC + OX, ring[a + 1] * SC + OY, zf * SC + OZ, ring[b] * SC + OX, ring[b + 1] * SC + OY, zf * SC + OZ); }
+      }
+    }
+    if (outline) { outline.geometry.dispose(); xsec.remove(outline); }
+    const og = new THREE.BufferGeometry(); og.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
+    outline = new THREE.LineSegments(og, outlineMat); xsec.add(outline);
+    buildDecals(out, L);
+    buildAerial(out);
+    updatePad(out);
+    setCallouts(out.callouts);
+    if (MS.on) renderPresets();
+  }
+
+  const DECAL = {
+    boron: new THREE.MeshBasicMaterial({ color: '#c2338f', transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide }),
+    pen: new THREE.MeshBasicMaterial({ color: '#e0442a', transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide }),
+    side: new THREE.MeshBasicMaterial({ color: '#c2338f', transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide })
+  };
+  const dislMat = new THREE.LineBasicMaterial({ color: '#a0182c' });
+  const origMat = new THREE.LineDashedMaterial({ color: '#1d2833', dashSize: 0.05, gapSize: 0.035, transparent: true, opacity: 0.85, depthTest: false });
+  function disposeGroup(g) { while (g.children.length) { const c = g.children.pop(); c.geometry && c.geometry.dispose(); if (c.material && c.material.isCloned) c.material.dispose(); } }
+  function buildDecals(out, L) {
+    disposeGroup(decalGroup);
+    decalGroup.visible = S.vis.dop;
+    const zFront = 0.9 * SC + OZ, zBack = (-L - 0.9) * SC + OZ;
+    for (const d of out.decals) {
+      if (d.a <= 0.01) continue;
+      if (d.kind === 'side') {
+        const sh = new THREE.Shape(); sh.moveTo(d.pts[0] * SC + OX, d.pts[1] * SC + OY);
+        for (let i = 2; i < d.pts.length; i += 2) sh.lineTo(d.pts[i] * SC + OX, d.pts[i + 1] * SC + OY);
+        const g = new THREE.ShapeGeometry(sh);
+        const mat = DECAL.side.clone(); mat.isCloned = true; mat.opacity = 0.55 * d.a;
+        for (const z of [zFront, zBack]) { const m = new THREE.Mesh(g, mat); m.position.z = z; decalGroup.add(m); }
+        continue;
+      }
+      for (const [sc, op] of [[1, 0.22], [0.72, 0.3], [0.45, 0.38]]) {
+        const g = new THREE.CircleGeometry(1, 40);
+        const mat = DECAL[d.kind].clone(); mat.isCloned = true; mat.opacity = op * d.a;
+        for (const z of [zFront, zBack]) {
+          const m = new THREE.Mesh(g, mat);
+          m.scale.set(d.rx * sc * SC, d.ry * sc * SC, 1);
+          m.position.set(d.cx * SC + OX, d.cy * SC + OY, z);
+          decalGroup.add(m);
+        }
+      }
+    }
+    for (const l of out.lines) {
+      const g = new THREE.BufferGeometry().setFromPoints([P(l.pts[0], l.pts[1], 0.9), P(l.pts[2], l.pts[3], 0.9)]);
+      if (l.kind === 'orig') { const ln = new THREE.Line(g, origMat); ln.computeLineDistances(); ln.renderOrder = 4; decalGroup.add(ln); }
+      else decalGroup.add(new THREE.Line(g, dislMat));
+    }
+  }
+  const aerialMat = new THREE.LineBasicMaterial({ color: '#e8a900' });
+  const thrMat = new THREE.LineDashedMaterial({ color: '#e8a900', dashSize: 0.18, gapSize: 0.12, transparent: true, opacity: 0.8 });
+  function buildAerial(out) {
+    disposeGroup(aerialGroup);
+    if (!out.aerial) return;
+    const a = out.aerial, pts = [];
+    for (let i = 0; i < a.pts.length; i += 2) pts.push(P(a.pts[i], a.base + a.scale * a.pts[i + 1], 0.6));
+    aerialGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), aerialMat));
+    const thr = a.base + a.scale * Math.min(1.2, a.thr);
+    const tl = new THREE.Line(new THREE.BufferGeometry().setFromPoints([P(0, thr, 0.6), P(F.WIN, thr, 0.6)]), thrMat);
+    tl.computeLineDistances(); aerialGroup.add(tl);
+    const base = new THREE.Line(new THREE.BufferGeometry().setFromPoints([P(0, a.base, 0.6), P(F.WIN, a.base, 0.6)]), new THREE.LineBasicMaterial({ color: '#8794a0', transparent: true, opacity: 0.5 }));
+    aerialGroup.add(base);
+    out.callouts.push({ x: 2470, y: a.base + a.scale * 0.95, z: 0, kind: 'info', text: 'Aerial image · dashed = clearing threshold' });
+  }
+  // rulers: depth ticks on the left front edge
+  (function buildRulers() {
+    const lp = [];
+    for (let y = 0; y >= -700; y -= 100) { lp.push(P(-8, y, 0), P(-30, y, 0)); }
+    lp.push(P(-8, 0, 0), P(-8, -700, 0));
+    for (let x = 0; x <= 2500; x += 500) lp.push(P(x, G.YB, 0), P(x, G.YB - 25, 0));
+    rulerGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(lp), new THREE.LineBasicMaterial({ color: '#6c7a86' })));
+  })();
+  // fine ruler for the oxidation close-up (5 nm ticks)
+  const fineRuler = new THREE.Group(); xsec.add(fineRuler);
+  (function () {
+    const lp = [P(-1, -20, 0.5), P(-1, 40, 0.5)];
+    for (let y = -20; y <= 40; y += 5) lp.push(P(-1, y, 0.5), P(y % 10 === 0 ? -9 : -5, y, 0.5));
+    fineRuler.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(lp), new THREE.LineBasicMaterial({ color: '#4f5c68' })));
+  })();
+  const ticks = [];
+  for (let y = -20; y <= 40; y += 10) ticks.push({ p: P(-10, y, 0.5), t: (y > 0 ? '+' : '') + y + (y === 40 ? ' nm' : ''), fine: true });
+  for (let y = 0; y >= -600; y -= 200) ticks.push({ p: P(-34, y, 0), t: (y === 0 ? '0' : y) + (y === 0 ? ' nm' : ''), coarse: true });
+  for (let x = 0; x <= 2500; x += 500) ticks.push({ p: P(x + 4, G.YB - 50, 0), t: (x / 1000).toFixed(1) + ' µm', c: true });
+  const tickEls = ticks.map(t => { const el = document.createElement('div'); el.className = 'ticklbl'; el.textContent = t.t; if (t.c) el.style.transform = 'translate(-50%, 0)'; $('#callouts').appendChild(el); return el; });
+
+  // ion shower (implant step)
+  const ION_N = 240;
+  const ionPos = new Float32Array(ION_N * 6), ionSeed = [];
+  for (let i = 0; i < ION_N; i++) ionSeed.push({ x: Math.random(), z: Math.random(), t: Math.random(), v: 0.7 + 0.6 * Math.random() });
+  const ionGeo = new THREE.BufferGeometry(); ionGeo.setAttribute('position', new THREE.BufferAttribute(ionPos, 3));
+  const ionMat = new THREE.LineBasicMaterial({ color: '#c2338f', transparent: true, opacity: 0.0 });
+  const ions = new THREE.LineSegments(ionGeo, ionMat); ions.frustumCulled = false; xsec.add(ions);
+  function updateIons(dt) {
+    const show = S.mode === 'xsec' && (S.step === 4 || (S.anim && S.anim.stage === 4));
+    if (!show) { ionMat.opacity = 0; ions.visible = false; return; }
+    const target = S.anim && S.anim.stage === 4 ? 0.85 : 0.35;
+    ionMat.opacity += (target - ionMat.opacity) * Math.min(1, dt * 4);
+    ions.visible = ionMat.opacity > 0.01;
+    if (!ions.visible) return;
+    const tilt = S.r.tilt * Math.PI / 180, dx = Math.sin(tilt), dy = -Math.cos(tilt);
+    const top = 700, bot = -150, len = 60;
+    for (let i = 0; i < ION_N; i++) {
+      const s = ionSeed[i]; s.t += dt * 0.55 * s.v; if (s.t > 1) { s.t -= 1; s.x = Math.random(); s.z = Math.random(); }
+      const y = top + (bot - top) * s.t, x = s.x * F.WIN + (y - top) / dy * dx, z = -s.z * G.NS * G.SLICE;
+      const a = P(x, y, z), b = P(x - dx * len, y - dy * len, z);
+      ionPos.set([a.x, a.y, a.z, b.x, b.y, b.z], i * 6);
+    }
+    ionGeo.attributes.position.needsUpdate = true;
+  }
+  // CMP pad
+  const pad = new THREE.Mesh(new THREE.BoxGeometry(30, 0.5, 16), new THREE.MeshStandardMaterial({ color: '#d7c9a3', transparent: true, opacity: 0.35, roughness: 0.9 }));
+  pad.visible = false; xsec.add(pad);
+  function updatePad(out) {
+    const on = S.anim && S.anim.stage === 5 && S.anim.p > 0.02 && S.anim.p < 0.995;
+    pad.visible = !!on;
+    if (!on) return;
+    const m = out.m, t = S.anim.p * S.r.cmpT;
+    const level = m.rr * t < F.FILL ? (m.tox + F.T_NIT + F.FILL - m.rr * t) : (m.tox + F.T_NIT);
+    pad.position.set(0, level * SC + OY + 0.25, OZ - 6);
+  }
+
+
+  // ======================= OXIDATION: oxidant molecules, furnace glow, furnace card =======================
+  function molTexture(kind) {
+    const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+    const ball = (x, y, r, fill) => { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fillStyle = fill; g.fill(); g.lineWidth = 3; g.strokeStyle = 'rgba(20,28,36,.55)'; g.stroke(); };
+    if (kind === 'o2') { ball(22, 32, 14, '#e2483a'); ball(42, 32, 14, '#e2483a'); }
+    else if (kind === 'h2o') { ball(17, 22, 9, '#f4f6f8'); ball(47, 22, 9, '#f4f6f8'); ball(32, 36, 15, '#e2483a'); }
+    else { const gr = g.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, 'rgba(255,240,180,1)'); gr.addColorStop(0.4, 'rgba(255,170,60,.85)'); gr.addColorStop(1, 'rgba(255,120,40,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); }
+    return new THREE.CanvasTexture(c);
+  }
+  const MOL_MAX = 240;
+  const molSets = {};
+  for (const kind of ['o2', 'h2o', 'spark']) {
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MOL_MAX * 3), 3)); geo.setDrawRange(0, 0);
+    const mat = new THREE.PointsMaterial({ map: molTexture(kind), size: kind === 'spark' ? 18 : (kind === 'h2o' ? 15 : 14), sizeAttenuation: false, transparent: true, alphaTest: 0.08, depthWrite: false });
+    const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; pts.renderOrder = 1; pts.visible = false; xsec.add(pts);
+    molSets[kind] = { pts, geo, list: [] };
+  }
+  function molSpawn(scatter) {
+    const tox = built ? (built.tox || 0) : 0;
+    return { x: 10 + Math.random() * 300, z: -4 - Math.random() * 160, y: tox + (scatter ? Math.random() * 170 : 130 + Math.random() * 60), ph: 0, j: Math.random() * 6.28 };
+  }
+  function molReset() {
+    const wet = S.r.wet, set = molSets[wet ? 'h2o' : 'o2'], n = wet ? 210 : 95;
+    for (const k in molSets) { molSets[k].list = []; molSets[k].pts.visible = false; }
+    for (let i = 0; i < n; i++) set.list.push(molSpawn(true));
+  }
+  function updateMolecules(dt) {
+    const running = S.anim && S.anim.stage === 1 && S.mode === 'xsec';
+    if (!running) { for (const k in molSets) molSets[k].pts.visible = false; return; }
+    const wet = S.r.wet, set = molSets[wet ? 'h2o' : 'o2'], sp = molSets.spark;
+    const tox = built ? (built.tox || 0) : 0;
+    const vGas = 70, vOx = wet ? 7 : 3.5;   // nm/s on screen: H2O dissolves in and diffuses through SiO2 far faster than O2
+    for (const m of set.list) {
+      m.j += dt * 3;
+      if (m.ph === 0) { m.y -= vGas * dt * (0.8 + 0.4 * Math.sin(m.j)); m.x += Math.sin(m.j * 1.3) * 6 * dt; if (m.y <= tox) { m.ph = 1; m.y = tox; } }
+      else {
+        m.y -= vOx * dt * (0.6 + Math.random()); m.x += (Math.random() - 0.5) * 8 * dt;
+        if (m.y > tox) m.y = tox;
+        if (m.y <= 0.35) { if (sp.list.length < MOL_MAX) sp.list.push({ x: m.x, y: 0.2, z: m.z, t: 0 }); Object.assign(m, molSpawn(false)); }
+      }
+    }
+    sp.list = sp.list.filter(s => (s.t += dt) < 0.32);
+    for (const s of [set, sp]) {
+      const arr = s.geo.attributes.position.array; let k = 0;
+      for (const m of s.list) { const v = P(m.x, m.y, m.z); arr[k++] = v.x; arr[k++] = v.y; arr[k++] = v.z; }
+      s.geo.setDrawRange(0, s.list.length); s.geo.attributes.position.needsUpdate = true; s.pts.visible = s.list.length > 0;
+    }
+  }
+  const heat = $('#heat');
+  function updateHeat() {
+    const on = S.anim && S.anim.stage === 1 && S.mode === 'xsec';
+    if (!on) { heat.style.opacity = 0; return; }
+    const p = S.anim.p, env = Math.min(1, p * 6, (1 - p) * 6);
+    heat.style.opacity = (0.25 + 0.75 * (S.r.oxT - 750) / 350) * Math.max(0, env);
+  }
+  // furnace card: Deal-Grove thickness against process time
+  let furnHoverT = null;
+  function furnaceVisible() { return S.step === 1 && S.mode === 'xsec'; }
+  function drawFurnace() {
+    const box = $('#furnace'); box.hidden = !furnaceVisible(); vp.classList.toggle('step1', !box.hidden); updateHint();
+    if (box.hidden) return;
+    const r = S.r, loc = currentLoc(), wet = r.wet, tMax = r.oxTime;
+    const running = S.anim && S.anim.stage === 1, done = S.done[1] && !running;
+    const tNow = running ? S.anim.p * tMax : (done ? tMax : 0);
+    const xAt = t => F.dealGrove(r.oxT, t, wet) * loc.ox;
+    const xNow = xAt(tNow), xEnd = xAt(tMax);
+    $('#fnHead').textContent = (wet ? 'Wet H₂O' : 'Dry O₂') + ' · ' + r.oxT + ' °C';
+    $('#fnChem').textContent = wet ? 'Si + 2H₂O → SiO₂ + 2H₂' : 'Si + O₂ → SiO₂';
+    $('#fnT').textContent = (running || done ? tNow.toFixed(1) : '0.0') + ' / ' + tMax.toFixed(0) + ' min';
+    $('#fnX').textContent = running || done ? xNow.toFixed(1) + ' nm' : '—';
+    $('#fnBar').style.width = (tMax > 0 ? tNow / tMax * 100 : 0) + '%';
+    $('#fnState').textContent = running ? 'In the furnace' : (done ? 'Unloaded' : 'Loaded, not started');
+    $('#furnace').classList.toggle('hot', !!running);
+    const kT = 8.617e-5 * (r.oxT + 273.15);
+    const B = wet ? 386 * Math.exp(-0.78 / kT) : 772 * Math.exp(-1.23 / kT), BA = wet ? 9.7e7 * Math.exp(-2.05 / kT) : 6.13e6 * Math.exp(-2.0 / kT);
+    const A = B / BA * 1000;
+    const other = F.dealGrove(r.oxT, tMax, !wet) * loc.ox;
+    $('#fnNote').textContent = (xEnd < A / 2 ? 'Linear regime: the reaction at the interface limits growth. ' : 'Parabolic regime: diffusion through the oxide limits growth. ') + (wet ? 'Dry O₂' : 'Wet H₂O') + ' with the same settings would give ' + other.toFixed(1) + ' nm.';
+    const cv = $('#fnChart'), ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
+    const cs = getComputedStyle(document.documentElement), col = n => cs.getPropertyValue(n).trim();
+    const pL = 64, pR = 18, pT = 14, pB = 40, pw = W - pL - pR, ph = H - pT - pB;
+    const yMax = Math.max(26, xEnd * 1.12);
+    const X = t => pL + t / tMax * pw, Y = x => pT + ph - x / yMax * ph;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = col('--good-soft'); ctx.fillRect(pL, Y(SP.tox[1]), pw, Y(SP.tox[0]) - Y(SP.tox[1]));
+    ctx.fillStyle = col('--good'); ctx.font = '17px "IBM Plex Mono", monospace'; ctx.textAlign = 'left'; ctx.fillText('spec ' + SP.tox[0] + '–' + SP.tox[1] + ' nm', pL + 8, Y(SP.tox[1]) + 18);
+    ctx.fillStyle = col('--muted'); ctx.font = '18px "IBM Plex Mono", monospace'; ctx.textAlign = 'right';
+    const yStep = yMax > 120 ? 50 : (yMax > 60 ? 20 : 10);
+    for (let v = 0; v <= yMax; v += yStep) { ctx.fillText(v, pL - 8, Y(v) + 6); ctx.strokeStyle = col('--line'); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(pL, Y(v)); ctx.lineTo(pL + pw, Y(v)); ctx.stroke(); }
+    ctx.textAlign = 'center';
+    for (const f of [0, 0.5, 1]) ctx.fillText((tMax * f).toFixed(0) + (f === 1 ? ' min' : ''), X(tMax * f) - (f === 1 ? 22 : 0), H - 12);
+    ctx.save(); ctx.translate(16, pT + ph / 2); ctx.rotate(-Math.PI / 2); ctx.fillText('nm', 0, 4); ctx.restore();
+    // curve: solid where processed, dashed where still projected
+    const N = 90, pts = []; for (let i = 0; i <= N; i++) { const t = tMax * i / N; pts.push([X(t), Y(xAt(t)), t]); }
+    ctx.lineWidth = 3; ctx.strokeStyle = col('--accent-ink'); ctx.lineJoin = 'round';
+    ctx.setLineDash([]); ctx.beginPath(); let started = false;
+    for (const [x, y, t] of pts) { if (t > tNow + 1e-9) break; if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y); }
+    if (started) { ctx.lineTo(X(tNow), Y(xNow)); ctx.stroke(); }
+    ctx.setLineDash([7, 6]); ctx.lineWidth = 2; ctx.globalAlpha = 0.7; ctx.beginPath(); started = false;
+    for (const [x, y, t] of pts) { if (t < tNow) continue; if (!started) { ctx.moveTo(X(tNow), Y(xNow)); started = true; } ctx.lineTo(x, y); }
+    ctx.stroke(); ctx.globalAlpha = 1; ctx.setLineDash([]);
+    if (running || done) { ctx.fillStyle = col('--accent-ink'); ctx.beginPath(); ctx.arc(X(tNow), Y(xNow), 7, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = col('--raise'); ctx.lineWidth = 3; ctx.stroke(); }
+    if (furnHoverT != null) {
+      const t = furnHoverT, x = xAt(t), right = X(t) > W - 190;
+      ctx.strokeStyle = col('--faint'); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(X(t), pT); ctx.lineTo(X(t), pT + ph); ctx.stroke();
+      ctx.fillStyle = col('--ink'); ctx.beginPath(); ctx.arc(X(t), Y(x), 5, 0, Math.PI * 2); ctx.fill();
+      ctx.font = '18px "IBM Plex Mono", monospace'; ctx.textAlign = right ? 'right' : 'left';
+      ctx.fillText(t.toFixed(1) + ' min · ' + x.toFixed(1) + ' nm', X(t) + (right ? -10 : 10), Math.max(pT + 18, Y(x) - 12));
+    }
+  }
+  (function wireFurnace() {
+    const cv = $('#fnChart');
+    $('#fnMore').addEventListener('click', e => { const box = $('#furnace'), open = !box.classList.contains('open'); box.classList.toggle('open', open); e.target.setAttribute('aria-expanded', open); e.target.textContent = open ? 'Hide growth curve' : 'Show growth curve'; drawFurnace(); });
+    cv.addEventListener('pointermove', e => { const rc = cv.getBoundingClientRect(), sx = cv.width / rc.width, x = (e.clientX - rc.left) * sx; const t = (x - 64) / (cv.width - 82) * S.r.oxTime; furnHoverT = t >= 0 && t <= S.r.oxTime ? t : null; drawFurnace(); });
+    cv.addEventListener('pointerleave', () => { furnHoverT = null; drawFurnace(); });
+  })();
+
+  // ======================= CALLOUTS (projected HTML) =======================
+  const coLayer = $('#callouts');
+  let coEls = [];
+  function setCallouts(list) {
+    for (const el of coEls) el.remove();
+    coEls = (list || []).slice(0, 7).map(c => {
+      const el = document.createElement('div'); el.className = 'co ' + c.kind;
+      el.innerHTML = '<span class="stem"></span><span class="dot"></span><span class="tag"></span>';
+      el.querySelector('.tag').textContent = c.text;
+      el._p = P(c.x, c.y, c.z);
+      coLayer.appendChild(el); return el;
+    });
+  }
+  const tmpV = new THREE.Vector3();
+  function placeOverlays() {
+    const w = vp.clientWidth, h = vp.clientHeight;
+    const vis = S.mode !== 'wafer';
+    const boxes = [];
+    for (const el of coEls) {
+      if (!vis) { el.style.display = 'none'; continue; }
+      tmpV.copy(el._p).project(camera);
+      if (tmpV.z > 1 || Math.abs(tmpV.x) > 1.15 || Math.abs(tmpV.y) > 1.15) { el.style.display = 'none'; continue; }
+      el.style.display = '';
+      const sx = (tmpV.x + 1) / 2 * w, sy = (1 - tmpV.y) / 2 * h;
+      let lift = 34; const tag = el.querySelector('.tag');
+      const tw = tag.offsetWidth || 120;
+      for (let tries = 0; tries < 8; tries++) {
+        const bx = sx + 8, by = sy - lift - 22;
+        if (boxes.some(b => bx < b.x + b.w && bx + tw > b.x && by < b.y + 24 && by + 24 > b.y)) lift += 26; else { boxes.push({ x: bx, y: by, w: tw }); break; }
+      }
+      let left = sx + 8 + tw > w - 8 ? -tw - 8 : 8;
+      if (sx + left < 6) left = 6 - sx;
+      if (sx + left + tw > w - 6) left = w - 6 - tw - sx;
+      tag.style.left = left + 'px';
+      tag.style.top = (-lift - 22) + 'px';
+      el.querySelector('.stem').style.height = lift + 'px';
+      el.style.transform = `translate(${sx}px, ${sy}px)`;
+    }
+    for (const l of mLabels) {
+      tmpV.copy(l.p).project(camera);
+      if (tmpV.z > 1 || Math.abs(tmpV.x) > 1.2 || Math.abs(tmpV.y) > 1.2) { l.el.style.display = 'none'; continue; }
+      l.el.style.display = '';
+      l.el.style.transform = `translate(${(tmpV.x + 1) / 2 * w}px, ${(1 - tmpV.y) / 2 * h}px) translate(-50%, -130%)`;
+    }
+    for (let i = 0; i < ticks.length; i++) {
+      const el = tickEls[i];
+      if (!vis) { el.style.display = 'none'; continue; }
+      const close = camera.position.distanceTo(controls.target) < 9;
+      if ((ticks[i].fine && !(S.curStage <= 1 && close)) || (ticks[i].coarse && S.curStage <= 1 && close)) { el.style.display = 'none'; continue; }
+      tmpV.copy(ticks[i].p).project(camera);
+      el.style.display = tmpV.z > 1 ? 'none' : '';
+      el.style.left = ((tmpV.x + 1) / 2 * w) + 'px'; el.style.top = ((1 - tmpV.y) / 2 * h) + 'px';
+    }
+  }
+
+  // ======================= CAMERA VIEWS =======================
+  let camTween = null;
+  let viewDx = 0;
+  function applyViewOffset() {
+    const w = vp.clientWidth, h = vp.clientHeight, wide = w > 700;
+    let dx = 0;
+    if (wide && MS.on && S.mode !== 'wafer') dx -= 140;
+    if (wide && S.mode === 'wafer') dx += MS.on ? 0 : 150;
+    viewDx = dx;
+    if (dx === 0) camera.clearViewOffset();
+    else if (dx < 0) camera.setViewOffset(w - 2 * dx, h, -2 * dx, 0, w, h);
+    else camera.setViewOffset(w + 2 * dx, h, 0, 0, w, h);
+  }
+  function goView(name, instant) {
+    if (S.mode !== 'wafer' && (name === 'zoom' || name === 'surface') && stageNow() <= 1) name = 'surface';
+    else if (name === 'surface') name = 'zoom';
+    S.lastView = name;
+    let pos, tgt;
+    const effAspect = Math.max(0.4, (vp.clientWidth - Math.abs(2 * viewDx)) / Math.max(1, vp.clientHeight));
+    if (S.mode === 'wafer') {
+      tgt = new THREE.Vector3(0, -0.6, 0);
+      const vf = camera.fov * Math.PI / 180, hf = 2 * Math.atan(Math.tan(vf / 2) * effAspect);
+      const dist = Math.max(17.4 / Math.tan(hf / 2), 16.6 / Math.tan(vf / 2));
+      const dir = name === 'top' ? new THREE.Vector3(0, 1, 0.0005) : name === 'front' ? new THREE.Vector3(0, 0.18, 1).normalize() : new THREE.Vector3(0.25, 0.78, 0.58).normalize();
+      pos = tgt.clone().add(dir.multiplyScalar(dist * (name === 'top' ? 1.0 : 0.94)));
+      if (name === 'zoom') { tgt = new THREE.Vector3(9, 0, 6); pos = new THREE.Vector3(14, 12, 18); }
+    } else {
+      const yTop = S.step >= 2 || S.mode === 'inspect' ? 3.0 : 0.4;
+      tgt = new THREE.Vector3(0, (yTop - 6.6) / 2 + 0.3, 0);
+      const vf = camera.fov * Math.PI / 180, hf = 2 * Math.atan(Math.tan(vf / 2) * effAspect);
+      const fitW = 15.4 / Math.tan(hf / 2), fitH = 6.8 / Math.tan(vf / 2);
+      const dist = Math.max(fitW, fitH) * (name === 'front' ? 1.0 : 1.08);
+      const dir = name === 'front' ? new THREE.Vector3(0, 0, 1) : name === 'top' ? new THREE.Vector3(0, 1, 0.0005) : new THREE.Vector3(0.42, 0.36, 0.83).normalize();
+      pos = tgt.clone().add(dir.multiplyScalar(dist + (name === 'front' ? 6 : 0)));
+      if (name === 'surface') {
+        // close-up of the front-left corner of the top surface: the oxide band and the incoming oxidant
+        tgt = P(125, vp.clientWidth < 700 ? -30 : 22, -30);
+        const d3 = Math.max(1.8 / Math.tan(hf / 2), 1.15 / Math.tan(vf / 2));
+        pos = tgt.clone().add(new THREE.Vector3(0.14, 0.15, 0.98).normalize().multiplyScalar(d3));
+      }
+      if (name === 'zoom') {
+        const top = S.mode === 'inspect' || S.step >= 5 ? 1.5 : (S.step >= 2 ? 4.0 : 0.4);
+        tgt = new THREE.Vector3(-5.2, (top - 4.2) / 2 + OY, OZ - 2.5);
+        const d2 = Math.max(6.4 / Math.tan(hf / 2), ((top + 4.2) / 2 + 0.6) / Math.tan(vf / 2));
+        pos = tgt.clone().add(new THREE.Vector3(0.3, 0.28, 0.91).normalize().multiplyScalar(d2 + 2.5));
+      }
+    }
+    if (instant) { camera.position.copy(pos); controls.target.copy(tgt); controls.update(); return; }
+    camTween = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos, t1: tgt, k: 0 };
+  }
+
+  // ======================= WAFER VIEW =======================
+  const WR = 15;
+  const waferDisk = new THREE.Mesh(new THREE.CylinderGeometry(WR, WR, 0.16, 180), new THREE.MeshStandardMaterial({ color: '#3a4652', metalness: 0.55, roughness: 0.28 }));
+  waferDisk.position.y = -0.08; waferG.add(waferDisk);
+  const notch = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.2, 3), new THREE.MeshBasicMaterial({ color: '#0d1216' }));
+  notch.position.set(0, -0.06, WR - 0.05); waferG.add(notch);
+  const exRing = new THREE.Mesh(new THREE.RingGeometry(WR - 0.3, WR - 0.28, 160), new THREE.MeshBasicMaterial({ color: '#8794a0', side: THREE.DoubleSide }));
+  exRing.rotation.x = -Math.PI / 2; exRing.position.y = 0.005; waferG.add(exRing);
+  const dies = F.dieList();
+  const dieGeo = new THREE.BoxGeometry(0.93, 0.07, 0.93);
+  const dieMat = new THREE.MeshStandardMaterial({ roughness: 0.45, metalness: 0.1 });
+  const dieMesh = new THREE.InstancedMesh(dieGeo, dieMat, dies.length);
+  dieMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  waferG.add(dieMesh);
+  // red rim under out-of-spec dies (status: critical) so the flag is not carried by the colour scale alone
+  const haloMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1.0, 0.05, 1.0), new THREE.MeshBasicMaterial({ color: '#d83a30' }), dies.length);
+  haloMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  waferG.add(haloMesh);
+  const dummy = new THREE.Object3D(), cTmp = new THREE.Color();
+  // serpentine probe order
+  const order = dies.map((d, i) => i).sort((a, b) => { const A = dies[a], B = dies[b]; if (A.iy !== B.iy) return B.iy - A.iy; return (A.iy % 2 ? -1 : 1) * (A.ix - B.ix); });
+  const rank = new Array(dies.length); order.forEach((di, k) => rank[di] = k);
+  let sortAnim = null;
+
+  // ---------- metrology parameters (per-die values from the same model that sorts the wafer)
+  const METRO = [
+    { k: 'pass', label: 'Pass / fail', step: 6 },
+    { k: 'tox', label: 'Pad oxide thickness', unit: 'nm', d: 1, step: 1, lo: SP.tox[0], hi: SP.tox[1], get: R => R.m.tox },
+    { k: 'focus', label: 'Local focus', unit: 'µm', d: 3, step: 2, get: R => S.r.focus + R.loc.focus },
+    { k: 'cd', label: 'Litho CD, resist foot', unit: 'nm', d: 1, step: 2, lo: 81, hi: 99, get: R => R.m.cd },
+    { k: 'lineH', label: 'Resist line height', unit: 'nm', d: 0, step: 2, lo: 150, get: R => R.m.lineH },
+    { k: 'depth', label: 'Trench etch depth, dense', unit: 'nm', d: 1, step: 3, lo: SP.depth[0], hi: SP.depth[1], get: R => R.m.depth },
+    { k: 'depthW', label: 'Trench etch depth, wide', unit: 'nm', d: 1, step: 3, get: R => R.m.depthW },
+    { k: 'act', label: 'Active (fin) width', unit: 'nm', d: 1, step: 3, lo: SP.act[0], hi: SP.act[1], get: R => R.m.act },
+    { k: 'under', label: 'Undercut per side', unit: 'nm', d: 1, step: 3, hi: 8, get: R => R.m.under },
+    { k: 'nitRem', label: 'Nitride left after etch', unit: 'nm', d: 1, step: 3, get: R => R.m.nitRem },
+    { k: 'vtf', label: 'Field Vt', unit: 'V', d: 2, step: 4, lo: SP.vtf, get: R => R.m.vtf },
+    { k: 'dEff', label: 'Channel-stop dose, effective', unit: 'cm⁻²', sci: true, step: 4, get: R => R.m.dEff },
+    { k: 'dish', label: 'Dishing, wide trench', unit: 'nm', d: 1, step: 5, get: R => (R.m.residue > 0 ? 0 : R.m.dish) },
+    { k: 'nitFinal', label: 'Nitride left after CMP', unit: 'nm', d: 1, step: 5, lo: SP.nitMin, get: R => R.m.nitFinal },
+    { k: 'stepH', label: 'Final field step height', unit: 'nm', d: 1, step: 5, lo: SP.step[0], hi: SP.step[1], get: R => R.m.step },
+    { k: 'residue', label: 'Oxide residue', unit: 'nm', d: 1, step: 5, hi: SP.residue, get: R => R.m.residue }
+  ];
+  const METRO_DEF = { 1: 'tox', 2: 'cd', 3: 'depth', 4: 'vtf', 5: 'dish', 6: 'pass' };
+  const metroBy = k => METRO.find(p => p.k === k);
+  const SEQ = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'].map(c => new THREE.Color(c));
+  function seqColor(t, out) { t = Math.max(0, Math.min(1, t)) * (SEQ.length - 1); const i = Math.min(SEQ.length - 2, Math.floor(t)); return out.copy(SEQ[i]).lerp(SEQ[i + 1], t - i); }
+  const fmtVal = (p, v) => !isFinite(v) ? '—' : (p.sci ? sci(v) : v.toFixed(p.d)) + ' ' + p.unit;
+  const outOfSpec = (p, v) => (p.lo != null && v < p.lo) || (p.hi != null && v > p.hi);
+  let metroStats = null;
+  function metroAvailable() { return METRO.filter(p => p.k === 'pass' ? S.done[6] && S.step === 6 : p.step <= Math.min(S.step, 5)); }
+  function computeMetroStats() {
+    const p = metroBy(S.metroKey); metroStats = null;
+    if (!p || p.k === 'pass' || !S.wafer) return;
+    const vals = S.wafer.dies.map(R => p.get(R));
+    let mn = Infinity, mx = -Infinity, sum = 0, n = 0, oos = 0;
+    for (const v of vals) { if (!isFinite(v)) continue; mn = Math.min(mn, v); mx = Math.max(mx, v); sum += v; n++; if (outOfSpec(p, v)) oos++; }
+    const mean = n ? sum / n : NaN; let ss = 0; for (const v of vals) if (isFinite(v)) ss += (v - mean) ** 2;
+    metroStats = { p, vals, mn, mx, mean, sd: n > 1 ? Math.sqrt(ss / (n - 1)) : 0, oos, n };
+  }
+  function dieColor(i, out) {
+    const W = S.wafer; if (!W) return out.set('#5b6672');
+    if (S.metroKey === 'pass' || !metroStats) { const f = W.dies[i].fail; return out.set(f ? CODE[f.code].color : PASS_COLOR); }
+    const v = metroStats.vals[i]; if (!isFinite(v)) return out.set('#5b6672');
+    const span = metroStats.mx - metroStats.mn;
+    return seqColor(span > 1e-9 ? (v - metroStats.mn) / span : 0.5, out);
+  }
+  const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
+  const litCol = new THREE.Color();
+  function layoutDies(t) {
+    const showHalo = metroStats && S.metroKey !== 'pass';
+    for (let i = 0; i < dies.length; i++) {
+      const d = dies[i];
+      const k = rank[i] / dies.length;
+      const lit = t == null ? 1 : Math.max(0, Math.min(1, (t - k) * 14));
+      const pop = lit > 0 && lit < 1 ? Math.sin(lit * Math.PI) * 0.12 : 0;
+      const marked = MS.on && S.mode === 'wafer' && (MS.wPending === i || MS.ws.some(m => m.i === i || m.j === i));
+      dummy.position.set(d.cx / 10, 0.035 + pop + (marked ? 0.05 : 0), -d.cy / 10);
+      dummy.scale.set(1, 1 + pop * 6, 1);
+      dummy.updateMatrix(); dieMesh.setMatrixAt(i, dummy.matrix);
+      cTmp.set('#55606b').lerp(dieColor(i, litCol), lit);
+      if (S.hover === i) cTmp.offsetHSL(0, 0, 0.12);
+      dieMesh.setColorAt(i, cTmp);
+      if (showHalo && outOfSpec(metroStats.p, metroStats.vals[i])) { dummy.position.y = 0.02; dummy.scale.set(1, 1, 1); dummy.updateMatrix(); haloMesh.setMatrixAt(i, dummy.matrix); }
+      else haloMesh.setMatrixAt(i, hidden);
+    }
+    dieMesh.instanceMatrix.needsUpdate = true; if (dieMesh.instanceColor) dieMesh.instanceColor.needsUpdate = true;
+    haloMesh.instanceMatrix.needsUpdate = true;
+  }
+  const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
+  const tip = $('#tip');
+  function setMouse(ev) { const rc = renderer.domElement.getBoundingClientRect(); mouse.set(((ev.clientX - rc.left) / rc.width) * 2 - 1, -((ev.clientY - rc.top) / rc.height) * 2 + 1); ray.setFromCamera(mouse, camera); return rc; }
+  const diePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.07);
+  const dieIndex = new Map(dies.map((d, i) => [d.ix + ',' + d.iy, i]));
+  function pickDie(ev) {
+    setMouse(ev);
+    const pt = new THREE.Vector3();
+    if (!ray.ray.intersectPlane(diePlane, pt)) return null;
+    const id = dieIndex.get(Math.floor(pt.x * 10 / F.DIE) + ',' + Math.floor(-pt.z * 10 / F.DIE));
+    return id == null ? null : id;
+  }
+  function dieInfoHTML(i) {
+    const R = S.wafer.dies[i], d = R.die, f = R.fail;
+    const where = `<div class="mono">die (${d.ix}, ${d.iy}) · r = ${R.loc.r.toFixed(0)} mm</div>`;
+    const act = MS.on ? (MS.wPending == null ? 'click to start a measurement here' : 'click to finish the measurement') : 'click to inspect cross-section';
+    if (S.metroKey !== 'pass' && metroStats) {
+      const p = metroStats.p, v = metroStats.vals[i], bad = outOfSpec(p, v);
+      return `<b>${fmtVal(p, v)}</b> <span class="mono">${bad ? '· out of spec' : ''}</span><br>${p.label}${where}<div class="mono">${act}</div>`;
+    }
+    const name = f ? CODE[f.code].name : 'Pass';
+    return `<b style="color:${f ? CODE[f.code].color : PASS_COLOR}">${name}</b><br>${f ? escapeHTML(f.msg) : 'All checks in spec'}${where}<div class="mono">${act}</div>`;
+  }
+  function escapeHTML(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+  function placeTip(e, w, h) {
+    const rc = vp.getBoundingClientRect();
+    let x = e.clientX - rc.left + 14, y = e.clientY - rc.top + 14;
+    if (x + w > rc.width) x = e.clientX - rc.left - w - 6;
+    if (y + h > rc.height) y = e.clientY - rc.top - h - 6;
+    tip.style.left = Math.max(4, x) + 'px'; tip.style.top = Math.max(4, y) + 'px';
+  }
+
+  // ======================= MEASURE =======================
+  const MS = { on: false, lock: 'free', snap: true, xs: [], ws: [], pending: null, wPending: null, hover: null, id: 1 };
+  layoutDies(0);
+  const measureG = new THREE.Group(); measureG.renderOrder = 10; scene.add(measureG);
+  const MCOL = '#e8a900';
+  const mLine = new THREE.LineBasicMaterial({ color: MCOL, depthTest: false, transparent: true });
+  const mDash = new THREE.LineDashedMaterial({ color: MCOL, dashSize: 0.1, gapSize: 0.07, depthTest: false, transparent: true, opacity: 0.8 });
+  const dotTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.beginPath(); g.arc(32, 32, 24, 0, Math.PI * 2); g.fillStyle = MCOL; g.fill(); g.lineWidth = 9; g.strokeStyle = '#ffffff'; g.stroke(); return new THREE.CanvasTexture(c); })();
+  const mDot = new THREE.PointsMaterial({ map: dotTex, size: 12, sizeAttenuation: false, transparent: true, depthTest: false, alphaTest: 0.05 });
+  const mHov = new THREE.PointsMaterial({ map: dotTex, size: 16, sizeAttenuation: false, transparent: true, depthTest: false, opacity: 0.65, alphaTest: 0.05 });
+  const hovPts = new THREE.Points(new THREE.BufferGeometry(), mHov); hovPts.visible = false; hovPts.renderOrder = 12; scene.add(hovPts);
+  const rubber = new THREE.Line(new THREE.BufferGeometry(), mDash); rubber.visible = false; rubber.renderOrder = 11; scene.add(rubber);
+  const MATNAME = { si: 'Si', wedge: 'Oxide (bird’s beak)', ox: 'Thermal pad oxide', nit: 'Si₃N₄', res: 'Resist', fill: 'HDP oxide' };
+  const W2 = p => new THREE.Vector3(p.x * SC + OX, p.y * SC + OY, p.z * SC + OZ);
+  const fromW = v => ({ x: (v.x - OX) / SC, y: (v.y - OY) / SC, z: (v.z - OZ) / SC });
+  const dieW = (i, lift) => new THREE.Vector3(dies[i].cx / 10, lift, -dies[i].cy / 10);
+  const fmtLen = v => v >= 1000 ? (v / 1000).toFixed(3) + ' µm' : v.toFixed(1) + ' nm';
+  const AXN = { x: 'width (x)', y: 'height (y)', z: 'length (z)' };
+  function lockedEnd(a, b, lock) { return lock === 'x' ? { x: b.x, y: a.y, z: a.z } : lock === 'y' ? { x: a.x, y: b.y, z: a.z } : lock === 'z' ? { x: a.x, y: a.y, z: b.z } : b; }
+  function measVal(a, b, lock) { const e = lockedEnd(a, b, lock); return Math.hypot(e.x - a.x, e.y - a.y, e.z - a.z); }
+  function mLabelText(m) {
+    const v = measVal(m.a, m.b, m.lock);
+    const sub = m.lock === 'free' ? `Δx ${Math.abs(m.b.x - m.a.x).toFixed(1)} · Δy ${Math.abs(m.b.y - m.a.y).toFixed(1)} · Δz ${Math.abs(m.b.z - m.a.z).toFixed(1)}` : AXN[m.lock];
+    return { main: fmtLen(v), sub: (m.name ? m.name + ' · ' : '') + sub };
+  }
+  function wLabelText(m) {
+    const A = dies[m.i], B = dies[m.j], dist = Math.hypot(A.cx - B.cx, A.cy - B.cy);
+    let sub = 'die (' + A.ix + ',' + A.iy + ') → (' + B.ix + ',' + B.iy + ')';
+    if (metroStats && S.metroKey !== 'pass') { const p = metroStats.p, va = metroStats.vals[m.i], vb = metroStats.vals[m.j], dv = vb - va; sub = `${p.label}: ${fmtVal(p, va)} → ${fmtVal(p, vb)} (Δ ${dv >= 0 ? '+' : ''}${p.sci ? sci(Math.abs(dv)) : dv.toFixed(p.d)})`; }
+    else if (S.wafer) { const fa = S.wafer.dies[m.i].fail, fb = S.wafer.dies[m.j].fail; sub = (fa ? CODE[fa.code].name : 'Pass') + ' → ' + (fb ? CODE[fb.code].name : 'Pass'); }
+    return { main: dist.toFixed(1) + ' mm', sub };
+  }
+  let mLabels = [];
+  const mLayer = $('#mlabels');
+  function drawMeasures() {
+    while (measureG.children.length) { const c = measureG.children.pop(); c.geometry.dispose(); }
+    for (const l of mLabels) l.el.remove(); mLabels = [];
+    const addLabel = (pos, txt, id) => {
+      const el = document.createElement('div'); el.className = 'mlabel';
+      el.innerHTML = `<b></b><span></span>`; el.querySelector('b').textContent = txt.main; el.querySelector('span').textContent = txt.sub;
+      mLayer.appendChild(el); mLabels.push({ el, p: pos, id });
+    };
+    const dots = [];
+    if (S.mode === 'wafer') {
+      for (const m of MS.ws) {
+        const a = dieW(m.i, 0.35), b = dieW(m.j, 0.35);
+        measureG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), mLine));
+        dots.push(a, b); addLabel(a.clone().lerp(b, 0.5), wLabelText(m), m.id);
+      }
+      if (MS.wPending != null) dots.push(dieW(MS.wPending, 0.35));
+    } else {
+      for (const m of MS.xs) {
+        const A = W2(m.a), E = W2(lockedEnd(m.a, m.b, m.lock)), B = W2(m.b);
+        measureG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([A, E]), mLine));
+        // end ticks perpendicular to the dimension line (in screen-ish sense: small cross)
+        if (m.lock !== 'free') { const wl = new THREE.Line(new THREE.BufferGeometry().setFromPoints([E, B]), mDash); wl.computeLineDistances(); measureG.add(wl); }
+        dots.push(A, E); addLabel(A.clone().lerp(E, 0.5), mLabelText(m), m.id);
+      }
+      if (MS.pending) dots.push(W2(MS.pending));
+    }
+    if (dots.length) { const pts = new THREE.Points(new THREE.BufferGeometry().setFromPoints(dots), mDot); pts.renderOrder = 12; measureG.add(pts); }
+    measureG.visible = MS.on || MS.xs.length > 0 || MS.ws.length > 0;
+    renderMeasureList();
+  }
+  function snapCandidate(p, e, faceZ) {
+    if (!built) return null;
+    const rc = renderer.domElement.getBoundingClientRect();
+    const mx = e.clientX - rc.left, my = e.clientY - rc.top;
+    const L = built.ns * built.sliceLen, sl = [];
+    if (built.uniform) sl.push([0, 0, -L]);
+    else { const s = Math.max(0, Math.min(built.ns - 1, Math.floor(-p.z / built.sliceLen + 1e-6))); sl.push([s, -s * built.sliceLen, -(s + 1) * built.sliceLen]); }
+    let best = null, bd = 15 * 15;
+    for (const [s, z1, z0] of sl) {
+      const zs = faceZ != null ? [faceZ] : [z1, z0];
+      for (const key in built.slices[s]) {
+        if (!S.vis[VIS_OF[key]]) continue;
+        for (const poly of built.slices[s][key]) for (const ring of [poly.o, ...poly.h]) for (let i = 0; i < ring.length; i += 2) for (const z of zs) {
+          tmpV.set(ring[i] * SC + OX, ring[i + 1] * SC + OY, z * SC + OZ).project(camera);
+          if (tmpV.z > 1) continue;
+          const d = ((tmpV.x + 1) / 2 * rc.width - mx) ** 2 + ((1 - tmpV.y) / 2 * rc.height - my) ** 2;
+          if (d < bd) { bd = d; best = { x: ring[i], y: ring[i + 1], z }; }
+        }
+      }
+    }
+    return best;
+  }
+  function pickSurface(e) {
+    setMouse(e);
+    const objs = Object.values(xMeshes).filter(m => m.visible);
+    const hits = ray.intersectObjects(objs, false);
+    if (!hits.length) return null;
+    const h = hits[0]; let p = fromW(h.point), snapped = false;
+    const key = Object.keys(xMeshes).find(k => xMeshes[k] === h.object);
+    if (MS.snap) {
+      const faceZ = h.face && Math.abs(h.face.normal.z) > 0.9 ? p.z : null;
+      const c = snapCandidate(p, e, faceZ != null ? Math.round(faceZ * 1000) / 1000 : null);
+      if (c) { p = c; snapped = true; }
+    }
+    return { p, key, snapped };
+  }
+  let hovT = 0;
+  function measureHover(e) {
+    const now = performance.now(); if (now - hovT < 45) return; hovT = now;
+    const r = pickSurface(e);
+    if (!r) { hovPts.visible = false; rubber.visible = false; tip.hidden = true; MS.hover = null; return; }
+    MS.hover = r;
+    const w = W2(r.p);
+    hovPts.geometry.dispose(); hovPts.geometry = new THREE.BufferGeometry().setFromPoints([w]); hovPts.visible = true;
+    let extra = '';
+    if (MS.pending) {
+      const E = lockedEnd(MS.pending, r.p, MS.lock);
+      rubber.geometry.dispose(); rubber.geometry = new THREE.BufferGeometry().setFromPoints([W2(MS.pending), W2(E)]); rubber.computeLineDistances(); rubber.visible = true;
+      extra = `<div><b>${fmtLen(measVal(MS.pending, r.p, MS.lock))}</b> ${MS.lock === 'free' ? '' : AXN[MS.lock]}</div>`;
+    } else rubber.visible = false;
+    tip.innerHTML = `${extra}<b>${MATNAME[r.key] || r.key}</b>${r.snapped ? ' <span class="mono">· corner</span>' : ''}<div class="mono">x ${r.p.x.toFixed(1)} · y ${r.p.y.toFixed(1)} · z ${r.p.z.toFixed(1)} nm</div>`;
+    tip.hidden = false; placeTip(e, 230, 70);
+  }
+  function measureClick(e) {
+    if (S.mode === 'wafer') {
+      const i = pickDie(e); if (i == null) return;
+      if (MS.wPending == null) MS.wPending = i;
+      else if (i !== MS.wPending) { MS.ws.push({ i: MS.wPending, j: i, id: MS.id++ }); MS.wPending = null; }
+      drawMeasures(); layoutDies(); return;
+    }
+    const r = pickSurface(e); if (!r) return;
+    if (!MS.pending) MS.pending = r.p;
+    else { MS.xs.push({ a: MS.pending, b: r.p, lock: MS.lock, id: MS.id++ }); MS.pending = null; rubber.visible = false; }
+    drawMeasures();
+  }
+  function setMeasure(on) {
+    MS.on = on; MS.pending = null; MS.wPending = null; rubber.visible = false; hovPts.visible = false; tip.hidden = true;
+    $('#btnMeasure').setAttribute('aria-pressed', on);
+    $('#mpanel').hidden = !on;
+    renderer.domElement.style.cursor = on ? 'crosshair' : '';
+    drawMeasures(); if (S.mode === 'wafer') layoutDies();
+    vp.classList.toggle('measuring', on);
+    applyViewOffset(); camera.updateProjectionMatrix(); goView(S.lastView || 'iso');
+    updateHint();
+  }
+  function renderMeasureList() {
+    const ol = $('#mpList'); if (!ol) return;
+    const w = S.mode === 'wafer';
+    const list = w ? MS.ws : MS.xs;
+    $('#mpHelp').textContent = w ? 'Click two dies to get their spacing and the mapped value at each.' : (MS.pending ? 'Now click the second point. Esc cancels.' : 'Click two points, or pick a quick one. Dragging still rotates.');
+    $('#mpLockRow').hidden = w; $('#mpPresets').hidden = w; $('#mpSnapRow').hidden = w;
+    ol.innerHTML = '';
+    if (!list.length) { const li = document.createElement('li'); li.className = 'mp-empty'; li.textContent = 'No measurements yet.'; ol.appendChild(li); }
+    list.forEach((m, k) => {
+      const t = w ? wLabelText(m) : mLabelText(m);
+      const li = document.createElement('li');
+      const s = document.createElement('span'); s.innerHTML = `<b></b> <small></small>`; s.querySelector('b').textContent = t.main; s.querySelector('small').textContent = t.sub;
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'mp-del'; del.setAttribute('aria-label', 'Delete measurement ' + (k + 1)); del.textContent = '×';
+      del.addEventListener('click', () => { list.splice(k, 1); drawMeasures(); if (w) layoutDies(); });
+      li.append(s, del); ol.appendChild(li);
+    });
+  }
+  // preset measurements from the front cross-section
+  function presetList() {
+    const out = [];
+    if (!built) return out;
+    const st = built.stage;
+    const m = built.m, tox = st >= 1 ? m.tox : 0;
+    if (st === 1) out.push(['Pad oxide', [{ x: 130, y: 0, z: 0 }, { x: 130, y: tox, z: 0 }, 'y']]);
+    if (st === 2) {
+      const poly = built.slices[0].res.find(p => { let a = Infinity, b = -Infinity; for (let i = 0; i < p.o.length; i += 2) { a = Math.min(a, p.o[i]); b = Math.max(b, p.o[i]); } return a < 755 && b > 755; });
+      if (poly) {
+        let y0 = Infinity, xa = Infinity, xb = -Infinity, top = -Infinity;
+        for (let i = 1; i < poly.o.length; i += 2) y0 = Math.min(y0, poly.o[i]);
+        for (let i = 0; i < poly.o.length; i += 2) { if (Math.abs(poly.o[i + 1] - y0) < 0.5) { xa = Math.min(xa, poly.o[i]); xb = Math.max(xb, poly.o[i]); } if (Math.abs(poly.o[i] - 755) < 8) top = Math.max(top, poly.o[i + 1]); }
+        out.push(['Resist CD', [{ x: xa, y: y0, z: 0 }, { x: xb, y: y0, z: 0 }, 'x']]);
+        if (isFinite(top)) out.push(['Resist height', [{ x: 755, y: y0, z: 0 }, { x: 755, y: top, z: 0 }, 'y']]);
+      }
+    }
+    if (st >= 3 && built.front && built.front.tr.length > 3) {
+      const tr = built.front.tr, a = tr[2], b = tr[3];
+      const bb = st >= 5 ? m.bb : 0;
+      const xl = a.xR(0) + bb, xr = b.xL(0) - bb, xc = (a.xR(0) + b.xL(0)) / 2;
+      if (xr > xl) out.push(['Fin width', [{ x: xl, y: 0, z: 0 }, { x: xr, y: 0, z: 0 }, 'x']]);
+      out.push(['Fin height', [{ x: b.xL(0) + 2, y: 0, z: 0 }, { x: b.xL(b.yv) + 2, y: -b.yv, z: 0 }, 'y']]);
+      const hm = built.front.hmTop[Math.max(0, Math.min(built.front.hmTop.length - 1, Math.round(xc / G.DX)))];
+      if (hm > 0.5) out.push(['Mask stack', [{ x: xc, y: 0, z: 0 }, { x: xc, y: hm, z: 0 }, 'y']]);
+      const wide = tr.reduce((p, q) => (q.w > p.w ? q : p), tr[0]);
+      out.push(['Wide trench depth', [{ x: wide.tb - 60, y: 0, z: 0 }, { x: wide.tb - 60, y: -wide.yv, z: 0 }, 'y']]);
+    }
+    if (st >= 5 && m.residue <= 0 && built.dishW != null) {
+      const xc = (built._wide.ta + built._wide.tb) / 2, top = m.yField + m.dish;
+      out.push(['Dishing', [{ x: built._wide.tb + 40, y: top, z: 0 }, { x: xc, y: m.yField, z: 0 }, 'y']]);
+    }
+    return out;
+  }
+  function renderPresets() {
+    const box = $('#mpPresets'); if (!box) return;
+    box.innerHTML = '';
+    for (const [name, [a, b, lock]] of presetList()) {
+      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'chipbtn'; btn.textContent = name;
+      btn.addEventListener('click', () => { MS.xs.push({ a, b, lock, name, id: MS.id++ }); drawMeasures(); if (S.mode !== 'wafer') goView('front'); });
+      box.appendChild(btn);
+    }
+  }
+
+  // ---------- pointer wiring (orbit drag vs click)
+  let downAt = null;
+  renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+  renderer.domElement.addEventListener('pointermove', e => {
+    if (e.buttons) { tip.hidden = true; return; }
+    if (MS.on && S.mode !== 'wafer') { measureHover(e); return; }
+    if (S.mode !== 'wafer' || !S.wafer) { tip.hidden = true; return; }
+    const i = pickDie(e);
+    if (i !== S.hover) { S.hover = i; if (!sortAnim) layoutDies(); highlightProfile(); }
+    if (i == null) { tip.hidden = true; renderer.domElement.style.cursor = MS.on ? 'crosshair' : ''; return; }
+    renderer.domElement.style.cursor = MS.on ? 'crosshair' : 'pointer';
+    tip.innerHTML = dieInfoHTML(i); tip.hidden = false; placeTip(e, 290, 110);
+  });
+  renderer.domElement.addEventListener('pointerleave', () => { tip.hidden = true; hovPts.visible = false; rubber.visible = false; if (S.hover != null) { S.hover = null; layoutDies(); highlightProfile(); } });
+  renderer.domElement.addEventListener('pointerup', e => {
+    if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+    if (e.button !== 0) return;
+    if (MS.on) { measureClick(e); return; }
+    if (S.mode !== 'wafer' || !S.wafer) return;
+    const i = pickDie(e); if (i == null) return;
+    sortAnim = null; layoutDies();
+    inspectDie(i);
+  });
+  window.addEventListener('keydown', e => { if (e.key === 'Escape' && MS.on) { if (MS.pending || MS.wPending != null) { MS.pending = null; MS.wPending = null; rubber.visible = false; drawMeasures(); if (S.mode === 'wafer') layoutDies(); } else setMeasure(false); } });
+
+  function inspectDie(i) {
+    const R = S.wafer.dies[i];
+    S.inspect = { i, seed: 1000 + i, loc: R.loc, fail: R.fail, die: R.die };
+    S.mode = 'inspect'; tip.hidden = true;
+    applyMode(); S.dirty = true; goView('iso');
+  }
+
+  // ---------- metrology overlay (map selector, colour bar, stats, radial profile)
+  let waferT = null;
+  function ensureWafer() { if (!S.wafer || S.waferStale) { S.wafer = F.runWafer(S.r, S.waferSeed); S.waferStale = false; } }
+  function refreshWaferView() {
+    if (S.mode !== 'wafer') return;
+    ensureWafer(); computeMetroStats(); renderMetro(); if (!sortAnim) layoutDies(); drawMeasures(); updateBadge();
+  }
+  function scheduleWafer() { clearTimeout(waferT); waferT = setTimeout(refreshWaferView, 160); }
+  function renderMetro() {
+    const box = $('#metro'); box.hidden = S.mode !== 'wafer'; if (box.hidden) return;
+    const avail = metroAvailable();
+    if (!avail.some(p => p.k === S.metroKey)) S.metroKey = avail.length ? avail[avail.length - 1].k : 'tox';
+    const sel = $('#mtSel');
+    sel.innerHTML = avail.map(p => `<option value="${p.k}"${p.k === S.metroKey ? ' selected' : ''}>${p.k === 'pass' ? 'Pass / fail (sort)' : p.label}</option>`).join('');
+    const pass = S.metroKey === 'pass';
+    $('#mtScale').hidden = pass; $('#mtProfWrap').hidden = pass; $('#mtCats').hidden = !pass;
+    if (pass) {
+      $('#mtStats').textContent = S.wafer ? `${S.wafer.good} of ${S.wafer.gross} dies pass · yield ${(S.wafer.good / S.wafer.gross * 100).toFixed(1)} %` : '';
+      $('#mtCats').innerHTML = Object.values(CAT).map(c => `<span><i style="background:${c.color}"></i>${c.name}</span>`).join('') + `<span><i style="background:${PASS_COLOR}"></i>Pass</span>`;
+      return;
+    }
+    const ms = metroStats; if (!ms) return;
+    const p = ms.p;
+    $('#mtMin').textContent = fmtVal(p, ms.mn); $('#mtMax').textContent = fmtVal(p, ms.mx);
+    const span = ms.mx - ms.mn, rel = Math.abs(ms.mean) > 1e-12 ? span / 2 / Math.abs(ms.mean) * 100 : 0;
+    const specTxt = (p.lo != null || p.hi != null) ? ` · ${ms.oos} out of spec` : '';
+    $('#mtStats').innerHTML = `mean <b>${fmtVal(p, ms.mean)}</b> · range <b>${p.sci ? sci(span) : span.toFixed(p.d)}</b> (±${rel.toFixed(1)} %) · 3σ <b>${p.sci ? sci(3 * ms.sd) : (3 * ms.sd).toFixed(p.d)}</b>${specTxt}`;
+    $('#mtSpec').textContent = (p.lo != null || p.hi != null) ? 'spec ' + (p.lo != null ? (p.sci ? sci(p.lo) : p.lo) : '−∞') + ' to ' + (p.hi != null ? (p.sci ? sci(p.hi) : p.hi) : '+∞') + ' ' + p.unit + ' · red rim = out of spec' : 'no spec limit at this layer';
+    drawProfile();
+  }
+  let profPts = [];
+  function drawProfile() {
+    const cv = $('#mtProf'); const ms = metroStats; if (!cv || !ms) return;
+    const ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
+    const cs = getComputedStyle(document.documentElement), col = n => cs.getPropertyValue(n).trim();
+    const pL = 92, pR = 16, pT = 14, pB = 44, pw = W - pL - pR, ph = H - pT - pB;
+    ctx.clearRect(0, 0, W, H);
+    let lo = ms.mn, hi = ms.mx; const pad = Math.max((hi - lo) * 0.12, Math.abs(ms.mean) * 0.002, 1e-9); lo -= pad; hi += pad;
+    const p = ms.p;
+    const X = r => pL + r / 150 * pw, Y = v => pT + ph - (v - lo) / (hi - lo) * ph;
+    // grid + axes (recessive)
+    ctx.strokeStyle = col('--line'); ctx.lineWidth = 1.5;
+    for (let k = 0; k <= 3; k++) { const y = pT + ph * k / 3; ctx.beginPath(); ctx.moveTo(pL, y); ctx.lineTo(pL + pw, y); ctx.stroke(); }
+    ctx.fillStyle = col('--muted'); ctx.font = '20px "IBM Plex Mono", monospace'; ctx.textAlign = 'right';
+    for (let k = 0; k <= 3; k++) { const v = hi - (hi - lo) * k / 3; ctx.fillText(p.sci ? sci(v) : v.toFixed(Math.max(0, p.d - (hi - lo > 20 ? 1 : 0))), pL - 8, pT + ph * k / 3 + 7); }
+    ctx.textAlign = 'center';
+    for (const r of [0, 50, 100]) ctx.fillText(r, X(r), H - 14);
+    ctx.textAlign = 'right'; ctx.fillText('150 mm', X(150) + 14, H - 14);
+    // spec limits if within view
+    ctx.setLineDash([8, 6]); ctx.strokeStyle = col('--bad'); ctx.lineWidth = 2;
+    for (const lim of [p.lo, p.hi]) if (lim != null && lim >= lo && lim <= hi) { ctx.beginPath(); ctx.moveTo(pL, Y(lim)); ctx.lineTo(pL + pw, Y(lim)); ctx.stroke(); }
+    ctx.setLineDash([]);
+    // points: one per die
+    profPts = [];
+    const c = new THREE.Color();
+    for (let i = 0; i < dies.length; i++) {
+      const v = ms.vals[i]; if (!isFinite(v)) continue;
+      const R = S.wafer.dies[i], x = X(R.loc.r), y = Y(v);
+      profPts.push([x, y, i]);
+      const bad = outOfSpec(p, v);
+      seqColor(ms.mx - ms.mn > 1e-9 ? (v - ms.mn) / (ms.mx - ms.mn) : 0.5, c);
+      ctx.beginPath(); ctx.arc(x, y, bad ? 5.5 : 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#' + c.getHexString(); ctx.fill();
+      ctx.lineWidth = bad ? 2.5 : 1.5; ctx.strokeStyle = bad ? col('--bad') : col('--raise'); ctx.stroke();
+    }
+    if (S.hover != null && isFinite(ms.vals[S.hover])) {
+      const R = S.wafer.dies[S.hover]; ctx.beginPath(); ctx.arc(X(R.loc.r), Y(ms.vals[S.hover]), 10, 0, Math.PI * 2); ctx.lineWidth = 3; ctx.strokeStyle = col('--ink'); ctx.stroke();
+      $('#mtCap').textContent = `die (${R.die.ix}, ${R.die.iy}) · r = ${R.loc.r.toFixed(0)} mm · ${fmtVal(p, ms.vals[S.hover])}`;
+    } else $('#mtCap').textContent = 'Radial profile, one dot per die. Hover a dot or a die.';
+  }
+  function highlightProfile() { if (S.mode === 'wafer' && metroStats && S.metroKey !== 'pass') drawProfile(); }
+  (function wireMetro() {
+    $('#mtSel').addEventListener('change', e => { S.metroKey = e.target.value; computeMetroStats(); renderMetro(); layoutDies(); drawMeasures(); updateBadge(); });
+    const cv = $('#mtProf');
+    cv.addEventListener('pointermove', e => {
+      const rc = cv.getBoundingClientRect(), sx = cv.width / rc.width, x = (e.clientX - rc.left) * sx, y = (e.clientY - rc.top) * sx;
+      let best = null, bd = 18 * 18; for (const [px, py, i] of profPts) { const d = (px - x) ** 2 + (py - y) ** 2; if (d < bd) { bd = d; best = i; } }
+      if (best !== S.hover) { S.hover = best; layoutDies(); drawProfile(); }
+    });
+    cv.addEventListener('pointerleave', () => { if (S.hover != null) { S.hover = null; layoutDies(); drawProfile(); } });
+    cv.addEventListener('click', () => { if (S.hover != null && !MS.on) inspectDie(S.hover); });
+  })();
+
+  function applyMode() {
+    const w = S.mode === 'wafer';
+    waferG.visible = w; xsec.visible = !w;
+    $('#legend').hidden = w;
+    $('#mdlX').setAttribute('aria-pressed', !w); $('#mdlW').setAttribute('aria-pressed', w);
+    const ib = $('#inspect');
+    if (S.mode === 'inspect' && S.inspect) {
+      const R = S.inspect, f = R.fail;
+      ib.hidden = false;
+      const head = S.done[6] && S.step === 6
+        ? `<b style="color:${f ? CODE[f.code].color : PASS_COLOR}">${f ? CODE[f.code].name : 'Passing die'}</b>`
+        : (metroStats ? `<b>${fmtVal(metroStats.p, metroStats.vals[R.i])}</b> <span class="mono">${metroStats.p.label}</span>` : '<b>Die</b>');
+      ib.querySelector('.what').innerHTML = `${head} <span class="mono">die (${R.die.ix}, ${R.die.iy}) · r = ${R.loc.r.toFixed(0)} mm</span>`;
+    } else ib.hidden = true;
+    if (w) { refreshWaferView(); } else { $('#metro').hidden = true; }
+    MS.pending = null; MS.wPending = null; rubber.visible = false; hovPts.visible = false;
+    drawMeasures(); renderPresets();
+    applyViewOffset(); camera.updateProjectionMatrix();
+    drawFurnace();
+    updateBadge(); updateHint();
+  }
+  function updateHint() {
+    const h = $('#hint3d');
+    h.hidden = MS.on || furnaceVisible();
+    h.textContent = isTouch ? 'One finger rotate · two fingers pan & zoom' : (S.mode === 'wafer' ? 'Drag rotate · scroll zoom · click a die to inspect' : 'Drag rotate · right-drag pan · scroll zoom');
+  }
+  const isTouch = window.matchMedia('(pointer: coarse)').matches;
+
+  // ======================= PANEL RENDERING =======================
+  const panel = $('#panelBody'), foot = $('#panelFoot'), stepper = $('#stepper');
+  function unlocked(n) { if (n === 1) return true; for (let k = 1; k < n; k++) if (!S.done[k]) return false; return true; }
+  function renderStepper() {
+    stepper.innerHTML = '';
+    for (const st of STEPS) {
+      const b = document.createElement('button');
+      b.innerHTML = `<span class="n">${String(st.n).padStart(2, '0')}</span><span class="l">${st.name}</span>`;
+      if (st.n === S.step) b.setAttribute('aria-current', 'step');
+      if (S.done[st.n]) b.classList.add('done');
+      b.disabled = !unlocked(st.n);
+      b.title = st.title || st.name;
+      b.addEventListener('click', () => gotoStep(st.n));
+      stepper.appendChild(b);
+    }
+  }
+  function knobValueText(kn) {
+    const v = S.r[kn.k];
+    if (kn.log) { const d = Math.pow(10, v); return sci(d, 1) + ' <small>' + kn.unit + '</small>'; }
+    return (kn.signed && v > 0 ? '+' : '') + v.toFixed(kn.d) + ' <small>' + kn.unit + '</small>';
+  }
+  function renderPanel() {
+    const keepScroll = panel.dataset.step === String(S.step) ? panel.scrollTop : 0;
+    panel.dataset.step = S.step;
+    renderStepper();
+    const st = STEPS[S.step - 1];
+    let html = `<div><div class="eyebrow">Step ${st.n} of 6 · ${st.tool}</div><h2 class="step-title">${st.title || st.name}</h2><p class="step-desc">${st.desc}</p></div>`;
+    if (st.auto) html += `<div class="auto"><b>Auto</b><span>${st.auto}</span></div>`;
+    if (st.key !== 'yield') {
+      html += '<div class="knobs">';
+      for (const kn of st.knobs) {
+        if (kn.seg) {
+          html += `<div class="row-between"><span class="lbl">${kn.label}</span><div class="seg" role="group" aria-label="${kn.label}">` + kn.seg.map(([t, v], j) => `<button type="button" id="seg-${kn.k}-${j}" data-k="${kn.k}" data-v="${v}" aria-pressed="${S.r[kn.k] === v}">${t}</button>`).join('') + '</div></div>';
+        } else {
+          const [a, b, s] = F.RANGES[kn.k];
+          const lo = kn.log ? sci(Math.pow(10, a), 0) : a, hi = kn.log ? sci(Math.pow(10, b), 0) : b;
+          html += `<div class="knob"><label for="k-${kn.k}">${kn.label}</label><span class="val" id="v-${kn.k}">${knobValueText(kn)}</span><input type="range" id="k-${kn.k}" data-k="${kn.k}" min="${a}" max="${b}" step="${s}" value="${S.r[kn.k]}"><div class="hint"><span>${lo}</span><span>${hi}</span></div></div>`;
+        }
+      }
+      html += '</div>';
+      html += `<div class="row-between"><span class="lbl">Show</span><div class="seg" role="group" aria-label="Die location"><button type="button" id="die-c" data-die="center" aria-pressed="${S.die === 'center'}">Centre die</button><button type="button" id="die-e" data-die="edge" aria-pressed="${S.die === 'edge'}">Edge die, r = 140 mm</button></div></div>`;
+      html += `<div><h3 class="sec-h" id="readsH">${readsTitle()}</h3><table class="reads" id="reads"></table></div>`;
+      if (st.key === 'litho') html += `<div class="pw-wrap"><h3 class="sec-h">Process window</h3><canvas id="pwc" width="520" height="325" aria-label="Focus-exposure process window"></canvas><div class="pw-key"><span><i style="background:var(--good)"></i>in spec at centre</span><span><i style="background:var(--ink)"></i>your setting</span><span><i style="background:var(--warn)"></i>edge die focus</span></div></div>`;
+      html += `<p class="watch" id="watch"></p>`;
+    } else {
+      html += renderYieldHTML();
+    }
+    panel.innerHTML = html;
+    // wire
+    panel.querySelectorAll('input[type=range]').forEach(inp => inp.addEventListener('input', () => { S.r[inp.dataset.k] = parseFloat(inp.value); onRecipe(); const kn = st.knobs.find(k => k.k === inp.dataset.k); $('#v-' + inp.dataset.k).innerHTML = knobValueText(kn); }));
+    panel.querySelectorAll('.seg button[data-k]').forEach(b => b.addEventListener('click', () => { S.r[b.dataset.k] = b.dataset.v === 'true'; b.parentElement.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); onRecipe(); }));
+    panel.querySelectorAll('.seg button[data-die]').forEach(b => b.addEventListener('click', () => { S.die = b.dataset.die; b.parentElement.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); onRecipe(); $('#readsH').textContent = readsTitle(); }));
+    if (st.key === 'yield') wireYield();
+    renderFoot(); updateReadouts(); updateBadge(); drawFurnace();
+    if (st.key === 'litho') drawPW();
+    panel.scrollTop = keepScroll;
+  }
+  function readsTitle() { return (S.done[S.step] ? 'Readouts' : 'Projected readouts') + ' · ' + (S.die === 'edge' ? 'edge' : 'centre') + ' die'; }
+  function renderFoot() {
+    const st = STEPS[S.step - 1];
+    const prev = `<button class="btn" id="btnPrev" type="button"${st.n === 1 ? ' disabled' : ''}>← Previous</button>`;
+    if (st.key === 'yield') {
+      foot.innerHTML = `<div class="foot-meta"><span class="cost">Wafer cost <b>${S.wafer ? money(S.wafer.cost.total) : '—'}</b></span></div><div class="foot-nav">${prev}<button class="btn primary" id="btnTune" type="button">Tune recipe from step 1</button></div>`;
+    } else {
+      const c = F.cost(S.r);
+      const stepCost = { ox: c.ox, litho: c.litho, etch: c.etch, imp: c.imp, cmp: c.cmp }[st.key];
+      const done = S.done[st.n];
+      const verb = { ox: 'Run oxidation', litho: 'Expose & develop', etch: 'Run etch', imp: 'Run implant', cmp: 'Fill & polish' }[st.key];
+      const next = STEPS[st.n];
+      foot.innerHTML = `<div class="foot-meta"><span class="cost">Step cost <b id="stepCost">${money(stepCost)}</b> / wafer</span>${done ? '<button class="linkbtn" id="btnRerun" type="button">Replay this step</button>' : ''}</div><div class="foot-nav">${prev}${done ? `<button class="btn primary" id="btnNext" type="button">Next: ${next.title || next.name} →</button>` : `<button class="btn primary" id="btnRun" type="button">${verb}</button>`}</div>`;
+    }
+    const run = $('#btnRun') || $('#btnRerun');
+    run && run.addEventListener('click', () => runStep());
+    const nx = $('#btnNext'); nx && nx.addEventListener('click', () => gotoStep(st.n + 1));
+    const pv = $('#btnPrev'); pv && pv.addEventListener('click', () => gotoStep(st.n - 1));
+    const tu = $('#btnTune'); tu && tu.addEventListener('click', () => gotoStep(1));
+  }
+  function currentLoc() {
+    if (S.mode === 'inspect' && S.inspect) return S.inspect.loc;
+    return S.die === 'edge' ? F.nominalLoc(S.r, 140) : F.NOMLOC;
+  }
+  function updateReadouts() {
+    const st = STEPS[S.step - 1]; if (st.key === 'yield') return;
+    const m = F.evaluate(S.r, currentLoc());
+    const rows = readouts(st.key, m, S.r);
+    const tb = $('#reads'); if (!tb) return;
+    const label = { ok: 'ok', warn: 'marginal', fail: 'fail', info: '' };
+    tb.innerHTML = rows.map(r => `<tr><td>${r.label}</td><td class="v">${r.value}</td><td class="s">${r.spec}</td><td class="p">${r.st === 'info' ? '' : `<span class="pill ${r.st}">${label[r.st]}</span>`}</td></tr>`).join('');
+    // what will fail from this step forward
+    const mine = m.fails.filter(f => f.step === ({ ox: 0, litho: 1, etch: 2, imp: 3, cmp: 4 })[st.key]);
+    const w = $('#watch');
+    if (w) {
+      const extra = [];
+      if (st.key === 'ox' && m.bb > 0.5) extra.push('Bird’s beak will take ' + (2 * m.bb).toFixed(0) + ' nm off the active width after liner oxidation.');
+      if (st.key === 'litho' && (m.pBridge > 0.01 || m.pPinch > 0.01)) extra.push('At this margin about ' + Math.round(100 * (1 - (1 - m.pBridge) * (1 - m.pPinch))) + ' % of dies will carry a stochastic defect somewhere in the array.');
+      if (st.key === 'etch' && m.voidSev > 0) extra.push('HDP fill will pinch off in the narrow trenches.');
+      w.innerHTML = mine.length ? '<b>Will fail:</b> ' + mine.map(f => f.msg).join('; ') + '. ' + extra.join(' ') : (extra.length ? extra.join(' ') : 'Nothing at this step is out of spec for the ' + (S.die === 'edge' ? 'edge' : 'centre') + ' die.');
+    }
+    const sc = $('#stepCost'); if (sc) { const c = F.cost(S.r); sc.textContent = money({ ox: c.ox, litho: c.litho, etch: c.etch, imp: c.imp, cmp: c.cmp }[st.key]); }
+    updateHud();
+  }
+  function updateHud() {
+    const c = F.cost(S.r);
+    $('#hudCost').textContent = money(c.total);
+    $('#hudScore').textContent = S.sorted ? (isFinite(S.sorted.cpg) ? money(S.sorted.cpg) : 'no good dies') : '—';
+    $('#hudBest').textContent = S.best ? money(S.best) : '—';
+  }
+  function updateBadge() {
+    const b = $('#badge');
+    if (S.mode === 'wafer') { if (S.metroKey === 'pass' && S.wafer) { b.textContent = `${S.wafer.good} / ${S.wafer.gross} good`; b.className = 'ov badge done'; } else { b.textContent = 'Metrology \u00b7 ' + (S.step >= 6 ? 'full recipe' : 'after ' + (STEPS[S.step - 1].title || STEPS[S.step - 1].name).toLowerCase()); b.className = 'ov badge'; } return; }
+    if (S.mode === 'inspect') { b.textContent = 'Die inspection'; b.className = 'ov badge'; return; }
+    const st = STEPS[S.step - 1];
+    if (S.anim) { b.textContent = 'Processing…'; b.className = 'ov badge'; }
+    else if (S.done[st.n]) { b.textContent = 'Processed · live'; b.className = 'ov badge done'; }
+    else { b.textContent = st.n === 1 ? 'Bare substrate · not run' : 'Preview · not run'; b.className = 'ov badge'; }
+  }
+
+  // ---------- process window (litho)
+  let PW = null, pwBusy = false;
+  function computePW(cb) {
+    if (PW) return cb();
+    if (pwBusy) return; pwBusy = true;
+    const NF = 33, ND = 31, fr = F.RANGES.focus, dr = F.RANGES.dose;
+    const grid = new Uint8Array(NF * ND); let j = 0;
+    function chunk() {
+      const t0 = performance.now();
+      while (j < NF && performance.now() - t0 < 25) {
+        const f = fr[0] + (fr[1] - fr[0]) * j / (NF - 1), imgs = F.gratingImgs(f);
+        for (let i = 0; i < ND; i++) {
+          const d = dr[0] + (dr[1] - dr[0]) * i / (ND - 1);
+          const L = F.lithoDense(d, f, imgs);
+          grid[i * NF + j] = (L.cd >= 81 && L.cd <= 99 && L.lineH >= 150 && L.mbSig >= F.SPEC.sig && L.mpSig >= F.SPEC.sig) ? 2 : (L.space > 20 && L.lineH > 100 ? 1 : 0);
+        }
+        j++;
+      }
+      if (j < NF) setTimeout(chunk, 0); else { PW = { grid, NF, ND }; pwBusy = false; cb(); }
+    }
+    chunk();
+  }
+  function drawPW() {
+    const cv = $('#pwc'); if (!cv) return;
+    computePW(() => {
+      const cv2 = $('#pwc'); if (!cv2) return;
+      const ctx = cv2.getContext('2d'), W = cv2.width, H = cv2.height;
+      const cs = getComputedStyle(document.documentElement);
+      const col = n => cs.getPropertyValue(n).trim();
+      const padL = 46, padB = 34, padT = 10, padR = 26, pw = W - padL - padR, ph = H - padT - padB;
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = col('--raise'); ctx.fillRect(0, 0, W, H);
+      const { grid, NF, ND } = PW, cw = pw / NF, ch = ph / ND;
+      for (let i = 0; i < ND; i++) for (let j = 0; j < NF; j++) {
+        const g = grid[i * NF + j];
+        ctx.fillStyle = g === 2 ? col('--good') : (g === 1 ? col('--chip') : col('--bad-soft'));
+        ctx.globalAlpha = g === 2 ? 0.75 : 1;
+        ctx.fillRect(padL + j * cw, padT + ph - (i + 1) * ch, cw + 0.6, ch + 0.6);
+      }
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = col('--line'); ctx.strokeRect(padL + 0.5, padT + 0.5, pw, ph);
+      ctx.fillStyle = col('--muted'); ctx.font = '19px "IBM Plex Mono", monospace'; ctx.textAlign = 'center';
+      const fr = F.RANGES.focus, dr = F.RANGES.dose;
+      for (const f of [-0.4, -0.2, 0, 0.2, 0.4]) { const x = padL + (f - fr[0]) / (fr[1] - fr[0]) * pw; ctx.fillText((f > 0 ? '+' : '') + f.toFixed(1), x, H - 12); }
+      ctx.textAlign = 'right';
+      for (const d of [20, 30, 40]) { const y = padT + ph - (d - dr[0]) / (dr[1] - dr[0]) * ph; ctx.fillText(d, padL - 6, y + 6); }
+      ctx.save(); ctx.translate(12, padT + ph / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center'; ctx.font = '17px "IBM Plex Mono", monospace'; ctx.fillText('dose mJ/cm²', 0, 6); ctx.restore();
+      const px = (S.r.focus - fr[0]) / (fr[1] - fr[0]) * pw + padL, py = padT + ph - (S.r.dose - dr[0]) / (dr[1] - dr[0]) * ph;
+      const ef = S.r.focus + F.nominalLoc(S.r, 140).focus, ex = (Math.min(fr[1], ef) - fr[0]) / (fr[1] - fr[0]) * pw + padL;
+      ctx.strokeStyle = col('--warn'); ctx.lineWidth = 3; ctx.setLineDash([6, 5]); ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(ex, py); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = col('--warn'); ctx.beginPath(); ctx.arc(ex, py, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = col('--ink'); ctx.beginPath(); ctx.arc(px, py, 9, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = col('--raise'); ctx.lineWidth = 3; ctx.stroke();
+      ctx.fillStyle = col('--muted'); ctx.textAlign = 'right'; ctx.font = '17px "IBM Plex Mono", monospace'; ctx.fillText('focus µm', W - padR, padT + 18);
+    });
+  }
+
+  // ---------- yield panel
+  function renderYieldHTML() {
+    const W = S.wafer;
+    if (!W) return '<p class="note">Probing…</p>';
+    const y = W.good / W.gross * 100;
+    let h = `<div class="score"><div class="eyebrow">Cost per good die</div><div class="big">${isFinite(W.cpg) ? money(W.cpg) : 'n/a'}</div><div class="sub"><span><b>${W.good}</b> / ${W.gross} good</span><span>yield <b>${y.toFixed(1)} %</b></span><span>best <b>${S.best ? money(S.best) : '—'}</b></span></div></div>`;
+    const tips = verdictTips(W);
+    h += `<p class="verdict">${tips}</p>`;
+    // pareto
+    const entries = Object.entries(W.counts).sort((a, b) => b[1] - a[1]);
+    if (entries.length) {
+      const max = entries[0][1];
+      h += '<div><h3 class="sec-h">Fail pareto</h3><div class="pareto">' + entries.map(([code, n]) => `<div class="par"><span class="nm"><i style="background:${CODE[code].color}"></i><span>${CODE[code].name} <span style="color:var(--faint)">· ${CAT[CODE[code].cat].name}</span></span></span><span class="n">${n}</span><span class="bar"><i style="width:${(n / max * 100).toFixed(1)}%;background:${CODE[code].color}"></i></span></div>`).join('') + '</div></div>';
+    }
+    h += `<div class="pw-key">` + Object.values(CAT).map(c => `<span><i style="background:${c.color}"></i>${c.name}</span>`).join('') + `<span><i style="background:${PASS_COLOR}"></i>Pass</span></div>`;
+    const c = W.cost;
+    h += `<div><h3 class="sec-h">Wafer cost</h3><table class="costs"><tr><td>Substrate + rest of flow</td><td>${money(c.base)}</td></tr><tr><td>Oxidation</td><td>${money(c.ox)}</td></tr><tr><td>Lithography</td><td>${money(c.litho)}</td></tr><tr><td>Etch</td><td>${money(c.etch)}</td></tr><tr><td>Implant</td><td>${money(c.imp)}</td></tr><tr><td>CMP</td><td>${money(c.cmp)}</td></tr><tr><td>Total per wafer</td><td>${money(c.total)}</td></tr></table></div>`;
+    h += `<div class="btn-row"><button class="btn" id="btnReroll" type="button">Probe another wafer</button><button class="btn" id="btnReset" type="button">Reset recipe</button></div>`;
+    h += `<p class="note">Same recipe, new wafer: random defects and die-to-die noise re-roll. Systematic fails stay put.</p>`;
+    return h;
+  }
+  function verdictTips(W) {
+    const e = Object.entries(W.counts).sort((a, b) => b[1] - a[1]);
+    if (!e.length) return 'Every die passed. Only random defects can cost you now, so trim recipe cost.';
+    const [code, n] = e[0];
+    const hint = {
+      act: 'Active width is the top killer. Compensate the etch undercut and bird’s beak with a larger litho CD (lower dose) or more bias power.',
+      dish: 'Dishing in the wide trench is the top killer, mostly at the fast-polishing edge. Cut polish time, drop down-force, or pay for ceria.',
+      residue: 'Oxide residue is the top killer, mostly at the slow-polishing centre. Polish longer.',
+      erosion: 'Nitride eroded through in the dense array. Less over-polish, or keep more nitride by etching with less bias.',
+      high: 'Field oxide stands too high. Ceria barely dishes, so polish longer to bring the step down.',
+      iso: 'Isolation leaks: the trench is too shallow or the channel stop too weak. Etch deeper or raise implant dose.',
+      pen: 'Boron punched through the mask. Lower the energy, or keep more resist on the lines during etch.',
+      bv: 'Channel-stop peak is too high. Lower the dose or spread it with more energy.',
+      side: 'Tilt is doping the trench sidewalls. Bring tilt down toward 7°.',
+      void: 'Fill voids: the narrow trenches are too deep for their width. Etch shallower or open the spaces up.',
+      liftoff: 'The undercut ate the lines. Raise bias power.',
+      erode: 'The etch ate through the mask. Less bias, shorter etch, or keep more resist (focus).',
+      bridge: 'Lines bridge. Raise dose or pull focus back toward best focus.',
+      pinch: 'Lines pinch. Lower dose or move focus away from the negative side.',
+      sbridge: 'Stochastic bridges: your dose margin is too thin. Move to the centre of the process window.',
+      spinch: 'Stochastic line breaks: your dose margin is too thin on the high side.',
+      particle: 'Random particles dominate. You are close to the yield ceiling.',
+      disl: 'Slip dislocations from a thin pad oxide. Grow at least 9 nm.',
+      scratch: 'CMP scratches from high down-force.'
+    }[code] || '';
+    return `<b>${CODE[code].name}</b> killed ${n} dies. ${hint}`;
+  }
+  function wireYield() {
+    const rr = $('#btnReroll'); rr && rr.addEventListener('click', () => { S.waferSeed++; probeWafer(); });
+    const rs = $('#btnReset'); rs && rs.addEventListener('click', () => { S.r = { ...F.DEFAULTS }; S.done = [false, false, false, false, false, false]; S.wafer = null; S.mode = 'xsec'; applyMode(); gotoStep(1); });
+  }
+  function probeWafer() {
+    S.wafer = F.runWafer(S.r, S.waferSeed); S.waferStale = false;
+    S.sorted = { cpg: S.wafer.cpg, good: S.wafer.good, gross: S.wafer.gross };
+    if (isFinite(S.wafer.cpg) && (!S.best || S.wafer.cpg < S.best)) { S.best = S.wafer.cpg; storage.set('stiwr-best', String(S.best)); }
+    S.done[6] = true; S.metroKey = 'pass'; computeMetroStats();
+    sortAnim = { t: 0 };
+    renderPanel(); updateHud(); renderMetro(); drawMeasures(); updateBadge();
+  }
+
+  // ======================= FLOW =======================
+  function gotoStep(n) {
+    if (!unlocked(n)) return;
+    const prevMode = S.mode, prevStep = S.step;
+    S.step = n; S.anim = null; S.inspect = null;
+    S.mode = n === 6 ? 'wafer' : (prevStep === 6 || prevMode === 'inspect' ? 'xsec' : prevMode);
+    S.metroKey = METRO_DEF[n];
+    if (n === 6) { S.mode = 'wafer'; applyMode(); probeWafer(); goView('iso', prevMode !== 'wafer'); }
+    else { applyMode(); renderPanel(); S.dirty = true; if (prevMode !== S.mode || n <= 2) goView('iso', prevMode !== S.mode); }
+    if (S.mode !== 'wafer') toast(STEPS[n - 1].auto ? 'Auto: ' + STEPS[n - 1].auto : '');
+  }
+  function runStep() {
+    if (S.mode !== 'xsec') { S.mode = 'xsec'; S.inspect = null; applyMode(); goView('iso'); }
+    const st = STEPS[S.step - 1];
+    const dur = { ox: 5.0, litho: 1.6, etch: 2.4, imp: 1.8, cmp: 3.0 }[st.key];
+    S.anim = { stage: S.step, p: 0, dur, t: 0 };
+    if (S.step === 1) { rebuildXsec(); molReset(); if (S.lastView !== 'surface') goView('surface'); }
+    document.querySelectorAll('#panelFoot button').forEach(b => b.disabled = true);
+    updateBadge();
+  }
+  function finishAnim() {
+    const st = STEPS[S.step - 1];
+    S.anim = null; S.done[st.n] = true; S.dirty = true;
+    renderPanel();
+    toast(st.n === 1 ? `Oxidation done: ${F.evaluate(S.r, currentLoc()).tox.toFixed(1)} nm of ${S.r.wet ? 'wet' : 'dry'} oxide. Rotate, zoom and pan to inspect it.` : `${st.title || st.name} done. Rotate, zoom and pan to inspect the result.`);
+  }
+  let toastT = null;
+  function toast(msg) {
+    const t = $('#toast'); if (!msg) { t.hidden = true; return; }
+    t.textContent = msg; t.hidden = false; t.style.opacity = 1;
+    clearTimeout(toastT); toastT = setTimeout(() => { t.style.opacity = 0; setTimeout(() => t.hidden = true, 320); }, 3600);
+  }
+    function onRecipe() { S.dirty = true; S.waferStale = true; if (S.step === 1) drawFurnace(); updateReadouts(); if (STEPS[S.step - 1].key === 'litho') drawPW(); if (S.mode === 'wafer') scheduleWafer(); }
+
+  // ======================= LOOP =======================
+  function resize() {
+    const w = vp.clientWidth, h = vp.clientHeight;
+    renderer.setSize(w, h, false); camera.aspect = w / Math.max(1, h); applyViewOffset(); camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(vp);
+  let last = performance.now();
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function frame(now) {
+    const raw = Math.min(0.5, (now - last) / 1000), dt = Math.min(0.1, raw); last = now;
+    if (S.anim) {
+      S.anim.t += raw; S.anim.p = reduced ? 1 : Math.min(1, S.anim.t / S.anim.dur);
+      S.dirty = true;
+      if (S.anim.p >= 1) { S.dirty = true; rebuildXsec(); finishAnim(); }
+    }
+    if (S.dirty && S.mode !== 'wafer') { S.dirty = false; rebuildXsec(); }
+    if (camTween) {
+      camTween.k = Math.min(1, camTween.k + raw * 2.2); const e = 1 - Math.pow(1 - camTween.k, 3);
+      camera.position.lerpVectors(camTween.p0, camTween.p1, e); controls.target.lerpVectors(camTween.t0, camTween.t1, e);
+      if (camTween.k >= 1) camTween = null;
+    }
+    if (sortAnim) { sortAnim.t += raw / (reduced ? 0.01 : 2.6); layoutDies(Math.min(1.08, sortAnim.t)); if (sortAnim.t >= 1.08) { sortAnim = null; layoutDies(); } }
+    updateIons(dt); updateMolecules(raw); updateHeat();
+    if (S.anim && S.anim.stage === 1) drawFurnace();
+    controls.update();
+    renderer.render(scene, camera);
+    placeOverlays();
+    requestAnimationFrame(frame);
+  }
+
+  // ======================= THEME =======================
+  function applyTheme() {
+    const cs = getComputedStyle(document.documentElement);
+    const dark = cs.getPropertyValue('color-scheme').trim() === 'dark' || cs.getPropertyValue('--bg').trim().toLowerCase() === '#0d1216';
+    outlineMat.color.set(dark ? '#030608' : '#0b1218'); outlineMat.opacity = dark ? 0.7 : 0.42;
+    if (STEPS[S.step - 1].key === 'litho') drawPW();
+  }
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+  new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  // ======================= WIRING =======================
+  document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => goView(b.dataset.view)));
+  const LEG = [['si', 'Si'], ['ox', 'Thermal SiO₂'], ['nit', 'Si₃N₄'], ['res', 'Resist'], ['fill', 'HDP oxide'], ['dop', 'Boron']];
+  const legend = $('#legend');
+  for (const [k, t] of LEG) {
+    const b = document.createElement('button'); b.className = 'lg'; b.type = 'button'; b.setAttribute('aria-pressed', 'true');
+    b.innerHTML = `<i style="background:${k === 'dop' ? '#c2338f' : MATCOL[k]}"></i>${t}`;
+    b.addEventListener('click', () => { S.vis[k] = !S.vis[k]; b.setAttribute('aria-pressed', S.vis[k]); S.dirty = true; });
+    legend.appendChild(b);
+  }
+  $('#btnBack').addEventListener('click', () => { S.mode = 'wafer'; S.inspect = null; applyMode(); setCallouts([]); goView('iso'); });
+  $('#mdlX').addEventListener('click', () => { if (S.mode === 'xsec') return; S.mode = 'xsec'; S.inspect = null; applyMode(); S.dirty = true; goView('iso'); });
+  $('#mdlW').addEventListener('click', () => { if (S.mode === 'wafer') return; S.mode = 'wafer'; S.inspect = null; setCallouts([]); applyMode(); goView('iso'); });
+  $('#btnMeasure').addEventListener('click', () => { setMeasure(!MS.on); if (MS.on) renderPresets(); });
+  $('#mpClose').addEventListener('click', () => setMeasure(false));
+  $('#mpClear').addEventListener('click', () => { if (S.mode === 'wafer') MS.ws = []; else MS.xs = []; MS.pending = null; MS.wPending = null; rubber.visible = false; drawMeasures(); if (S.mode === 'wafer') layoutDies(); });
+  $('#mpSnap').addEventListener('change', e => { MS.snap = e.target.checked; });
+  document.querySelectorAll('#mpLock button').forEach(b => b.addEventListener('click', () => { MS.lock = b.dataset.lock; document.querySelectorAll('#mpLock button').forEach(x => x.setAttribute('aria-pressed', x === b)); }));
+
+  function start(data) {
+    if (data && data.r) {
+      Object.assign(S.r, data.r);
+      if (Array.isArray(data.done)) S.done = data.done.slice(0, 6);
+      if (data.die) S.die = data.die;
+      if (data.waferSeed) S.waferSeed = data.waferSeed;
+    }
+    resize(); applyTheme(); renderPanel(); applyMode(); goView('iso', true); updateHud();
+    requestAnimationFrame(frame);
+    const st = data && data.step > 1 && unlocked(data.step) ? data.step : 1;
+    if (st > 1) gotoStep(st);
+    else setTimeout(() => toast('A bare Si(100) wafer. Set the furnace, then press Run oxidation.'), 400);
+  }
+  const hot = window.claude && window.claude.hot;
+  if (hot && hot.snapshot) hot.snapshot(() => ({ r: S.r, done: S.done, step: S.step, die: S.die, waferSeed: S.waferSeed }));
+  if (hot && hot.ready) hot.ready(start); else start((hot && hot.data) || {});
+  window.__S = S; window.__goto = gotoStep; window.__run = runStep; window.__inspect = inspectDie; window.__MS = MS; window.__setMeasure = setMeasure;
+})();
+
+</script>
+</body>
+</html>
