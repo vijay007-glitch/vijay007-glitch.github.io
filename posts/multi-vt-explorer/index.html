@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Multi-Vt Cell Explorer | Vijay</title>
+<meta name="description" content="Sweep temperature, supply, process corner, body bias and gate length across ULVT, LVT, SVT and HVT devices, and watch threshold voltage, leakage and delay trade against each other.">
+<meta name="author" content="Vijay">
+<link rel="canonical" href="https://vijay007-glitch.github.io/posts/multi-vt-explorer/">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Multi-Vt Cell Explorer">
+<meta property="og:description" content="Sweep temperature, supply, process corner, body bias and gate length across ULVT, LVT, SVT and HVT devices, and watch threshold voltage, leakage and delay trade against each other.">
+<meta property="og:url" content="https://vijay007-glitch.github.io/posts/multi-vt-explorer/">
+<meta property="og:image" content="https://vijay007-glitch.github.io/simulations/multi-vt-explorer/thumb.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="site-head">
+<a class="brand" href="../../">Vijay</a>
+<nav aria-label="Site"><a href="../../">All posts</a></nav>
+</header>
+
+<main>
+<article>
+<header>
+<h1>Multi-Vt Cell Explorer</h1>
+<p class="dek">Sweep temperature, supply, process corner, body bias and gate length across ULVT, LVT, SVT and HVT devices, and watch threshold voltage, leakage and delay trade against each other.</p>
+<p class="meta">October 3, 2026, interactive simulator</p>
+</header>
+
+<div class="prose">
+<p>Standard-cell libraries ship the same logic in several threshold-voltage flavors so that timing-critical paths can use fast, leaky cells while everything else uses slow, frugal ones. This lab puts one NMOS transistor in four flavors (ULVT, LVT, SVT and HVT) side by side for three technology classes: planar bulk 28 nm, FinFET 16 nm and FD-SOI 22 nm.</p>
+</div>
+
+<p class="lab-open"><a href="../../simulations/multi-vt-explorer/">Open the simulator full screen</a>. On a phone, that works better than the embedded view below.</p>
+<div class="lab-embed">
+<iframe src="../../simulations/multi-vt-explorer/" title="Multi-Vt Cell Explorer: interactive threshold-voltage, leakage and delay simulator" loading="lazy"></iframe>
+</div>
+
+<div class="prose">
+<p>Things to try:</p>
+<ul>
+<li>Lower V<sub>DD</sub> below the ZTC supply shown in the table, then sweep temperature. Cold becomes the slow corner: temperature inversion.</li>
+<li>Open the leakage components for HVT and set −40 °C. Gate tunneling barely changes with temperature, so it sets a floor that a higher V<sub>th</sub> cannot remove.</li>
+<li>In planar 28 nm, push reverse body bias past about −0.3 V. Junction leakage climbs and total leakage rises again.</li>
+<li>In FD-SOI 22 nm, sweep back-gate bias across ±1.8 V and compare how much more it moves V<sub>th</sub> than in the other two technologies.</li>
+<li>In the Vt-mix budget, note that 4% ULVT cells produce about 41% of the block's leakage at the default corner.</li>
+</ul>
+<p>The device model is a compact physics model with representative parameters, not foundry PDK data. The equations and parameter values are in the "Model and assumptions" section at the bottom of the lab.</p>
+</div>
+</article>
+</main>
+
+<footer class="site-foot">
+<p>Written by Vijay. Built with plain HTML, CSS, and JavaScript.</p>
+<p><a href="../../">Back to all posts</a></p>
+</footer>
+</body>
+</html>

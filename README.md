@@ -16,6 +16,9 @@ simulations/pnr-command-lab/   PnR Command Lab: one self-contained page, plus th
 posts/sti-wafer-run/index.html
                                Blog post that embeds the STI Wafer Run
 simulations/sti-wafer-run/     STI Wafer Run: one self-contained page (three.js from CDN), plus thumb.png
+posts/multi-vt-explorer/index.html
+                               Blog post that embeds the Multi-Vt Cell Explorer
+simulations/multi-vt-explorer/ Multi-Vt Cell Explorer: one self-contained page, plus thumb.png
 assets/css/style.css           Shared styles (light and dark mode)
 assets/js/euv-simulator.js     Simulator code
 assets/img/                    Screenshots used in the post

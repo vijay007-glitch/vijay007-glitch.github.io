@@ -1,0 +1,1027 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Multi-Vt Cell Explorer</title>
+<meta name="description" content="Interactive compact-model simulator comparing ULVT, LVT, SVT and HVT transistors across temperature, VDD, process corner, body bias and gate length.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Base rules (the standalone page needs these explicitly) */
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+
+/* Layout: characterization bench. A monochrome control rack (sticky, left) drives a live readout table and a 2-up grid of sweep plots.
+   Colour is reserved for the four Vt flavors, ordered hot (leaky ULVT) to cool (HVT). */
+:root {
+  --bg: #eef1f4;
+  --panel: #fbfcfd;
+  --inset: #f1f4f7;
+  --ink: #16202b;
+  --ink-2: #3d4956;
+  --muted: #65717d;
+  --rule: #d5dce3;
+  --grid: #e4e9ee;
+  --f0: #c4374f;
+  --f1: #b98105;
+  --f2: #009390;
+  --f3: #5b50c9;
+  --on-ink: #fbfcfd;
+  --display: "Archivo", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1419; --panel: #161c23; --inset: #1b232c; --ink: #e3e9ef; --ink-2: #b5c0cb; --muted: #8592a0;
+    --rule: #2b3540; --grid: #212a34; --f0: #d9475f; --f1: #b98b14; --f2: #1e9f9a; --f3: #8a7ff0; --on-ink: #0f1419;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1419; --panel: #161c23; --inset: #1b232c; --ink: #e3e9ef; --ink-2: #b5c0cb; --muted: #8592a0;
+  --rule: #2b3540; --grid: #212a34; --f0: #d9475f; --f1: #b98b14; --f2: #1e9f9a; --f3: #8a7ff0; --on-ink: #0f1419;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 14px; line-height: 1.5; }
+.wrap { max-width: 1320px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 56px; }
+@media (max-width: 520px) { .wrap { padding-inline: 16px; padding-block: 18px 40px; } }
+
+/* ---------- header ---------- */
+header.top { display: grid; gap: 10px; margin-bottom: 22px; }
+.corner-tag { display: inline-flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.corner-tag code { font-family: var(--mono); font-weight: 600; color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 2px 8px; letter-spacing: 0.02em; }
+h1 { font-family: var(--display); font-variation-settings: "wdth" 120; font-weight: 780; font-size: clamp(28px, 4.2vw, 42px); line-height: 1.05; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+.lede { margin: 0; max-width: 68ch; color: var(--ink-2); font-size: 15px; }
+
+/* ---------- layout ---------- */
+.bench { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 980px) { .bench { grid-template-columns: 296px minmax(0, 1fr); align-items: start; } }
+.results { display: grid; gap: 20px; min-width: 0; grid-template-columns: minmax(0, 1fr); }
+.results > * { min-width: 0; }
+
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: var(--r); }
+
+/* ---------- control rack ---------- */
+.rack { padding: 18px 16px 16px; display: grid; gap: 18px; }
+@media (min-width: 980px) { .rack { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); max-height: calc(100vh - 32px); overflow-y: auto; } }
+.rack h2, .sec-title { font-family: var(--display); font-variation-settings: "wdth" 112; font-weight: 700; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; margin: 0; color: var(--ink); }
+.ctl { display: grid; gap: 7px; }
+.ctl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.ctl-head label, .ctl-head .lbl { font-weight: 600; font-size: 13px; }
+.ctl-head output { font-family: var(--mono); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.hint { font-size: 12px; color: var(--muted); margin: 0; }
+.scale { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.rack-foot { display: flex; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--rule); padding-block: 14px 0; }
+
+.seg { display: flex; flex-wrap: wrap; border: 1px solid var(--rule); border-radius: 5px; background: var(--inset); padding: 2px; gap: 2px; }
+.seg button { flex: 1 1 auto; border: 0; background: transparent; color: var(--ink-2); font: 500 12.5px/1 var(--body); padding: 8px 8px; border-radius: 3px; cursor: pointer; white-space: nowrap; }
+.seg button:hover { color: var(--ink); background: var(--panel); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); font-weight: 600; }
+.seg.small button { font-size: 12px; padding: 6px 8px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { border: 1px solid var(--rule); background: var(--panel); color: var(--ink-2); font: 500 11.5px/1 var(--mono); padding: 5px 7px; border-radius: 3px; cursor: pointer; }
+.chip:hover { border-color: var(--ink-2); color: var(--ink); }
+
+.btn { border: 1px solid var(--ink); background: var(--panel); color: var(--ink); font: 600 12.5px/1 var(--body); padding: 8px 12px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { background: var(--inset); }
+.btn.solid { background: var(--ink); color: var(--on-ink); }
+.btn svg { width: 12px; height: 12px; fill: currentColor; }
+
+input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; background: transparent; margin: 0; cursor: pointer; }
+input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--rule); }
+input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--rule); }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--ink); border: 3px solid var(--panel); box-shadow: 0 0 0 1px var(--ink); margin-top: -6px; }
+input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--ink); border: 3px solid var(--panel); box-shadow: 0 0 0 1px var(--ink); }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+input[type="range"]:focus-visible { outline-offset: 0; }
+
+/* ---------- readout table ---------- */
+.card-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 14px; padding: 14px 16px 10px; }
+.card-head .sub { font-size: 12.5px; color: var(--muted); }
+.card-head .sub code { font-family: var(--mono); color: var(--ink-2); }
+.table-scroll { overflow-x: auto; padding: 0 0 6px; }
+table.readout { border-collapse: collapse; width: 100%; min-width: 860px; font-variant-numeric: tabular-nums; }
+.readout th, .readout td { padding: 9px 12px; text-align: right; border-top: 1px solid var(--rule); white-space: nowrap; vertical-align: top; }
+.readout thead th { border-top: 0; font-weight: 600; font-size: 11.5px; color: var(--muted); line-height: 1.25; vertical-align: bottom; }
+.readout thead th span { display: block; font-family: var(--mono); font-weight: 400; font-size: 10.5px; letter-spacing: 0; text-transform: none; }
+.readout th:first-child, .readout td:first-child { text-align: left; padding-left: 16px; }
+.readout td { font-family: var(--mono); font-size: 13px; }
+.readout td small { display: block; font-size: 11px; color: var(--muted); }
+.flv { display: inline-flex; align-items: center; gap: 8px; font-family: var(--body); }
+.flv b { font-family: var(--display); font-variation-settings: "wdth" 112; font-weight: 750; font-size: 14px; letter-spacing: 0.02em; }
+.flv i { font-style: normal; font-size: 11.5px; color: var(--muted); display: block; }
+.sw { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.pill { display: inline-block; font-family: var(--mono); font-size: 11.5px; font-weight: 600; padding: 2px 7px; border-radius: 10px; border: 1px solid var(--ink-2); color: var(--ink); }
+.pill.hot { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+
+/* ---------- readings ---------- */
+.readings { display: grid; gap: 1px; grid-template-columns: minmax(0, 1fr); background: var(--rule); border: 1px solid var(--rule); border-radius: var(--r); overflow: hidden; }
+.reading { background: var(--panel); padding: 12px 14px; display: grid; gap: 4px; align-content: start; min-width: 0; }
+.reading .k { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.reading p { margin: 0; font-size: 13.5px; color: var(--ink); }
+.reading b { font-family: var(--mono); font-weight: 600; font-size: 13px; }
+
+@media (min-width: 560px) { .readings { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------- chart toolbar + grid ---------- */
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between; padding: 12px 14px; }
+.toolbar .grp { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
+.toolbar .grp > span { font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px; }
+.lg { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule); background: var(--panel); border-radius: 4px; padding: 5px 9px 5px 7px; font: 600 12px/1 var(--mono); color: var(--ink); cursor: pointer; }
+.lg[aria-pressed="false"] { color: var(--muted); background: var(--inset); }
+.lg[aria-pressed="false"] .sw { background: transparent !important; box-shadow: inset 0 0 0 1.5px var(--muted); }
+
+.grid2 { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 760px) { .grid2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.chart { display: grid; grid-template-rows: auto 1fr auto; min-width: 0; }
+.chart-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 10px; padding: 12px 14px 4px; }
+.chart-head h3 { margin: 0; font-size: 13.5px; font-weight: 600; }
+.chart-head h3 span { font-family: var(--mono); font-weight: 400; font-size: 11.5px; color: var(--muted); margin-left: 4px; }
+.plot { position: relative; height: 270px; margin: 0 6px; touch-action: pan-y; }
+@media (max-width: 520px) { .plot { height: 236px; } }
+.plot canvas { display: block; width: 100%; height: 100%; }
+.cap { margin: 0; padding: 4px 14px 12px; font-size: 12px; color: var(--muted); }
+.tip { position: absolute; top: 8px; left: 0; pointer-events: none; background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 7px 9px; font: 500 11.5px/1.45 var(--mono); color: var(--ink); box-shadow: 0 4px 14px rgba(0,0,0,0.12); white-space: nowrap; z-index: 2; font-variant-numeric: tabular-nums; }
+.tip .th { color: var(--muted); margin-bottom: 2px; }
+.tip .row { display: flex; align-items: center; gap: 6px; }
+.tip .row .sw { width: 8px; height: 8px; }
+.tip .row b { margin-left: auto; padding-left: 12px; font-weight: 600; }
+
+/* ---------- Vt mix ---------- */
+.mix { display: grid; gap: 18px; padding: 4px 16px 18px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .mix { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 28px; } }
+.mix-rows { display: grid; gap: 10px; }
+.mix-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) 46px; gap: 10px; align-items: center; }
+.mix-row .flv b { font-size: 13px; }
+.mix-row output { font-family: var(--mono); font-size: 12.5px; text-align: right; font-variant-numeric: tabular-nums; }
+.mix-in { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 4px; }
+.field { display: grid; gap: 5px; }
+.field label { font-size: 12.5px; font-weight: 600; }
+.field input { font: 500 13px var(--mono); color: var(--ink); background: var(--inset); border: 1px solid var(--rule); border-radius: 4px; padding: 8px 9px; width: 100%; min-width: 0; }
+.big { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.big .num { font-family: var(--display); font-variation-settings: "wdth" 116; font-weight: 760; font-size: clamp(30px, 4vw, 40px); line-height: 1; font-variant-numeric: tabular-nums; }
+.big .what { font-size: 12.5px; color: var(--muted); }
+.bars { display: grid; gap: 12px; margin-top: 14px; }
+.bar-lbl { font-size: 12px; font-weight: 600; color: var(--ink-2); margin-bottom: 5px; }
+.bar { display: flex; gap: 2px; height: 22px; border-radius: 4px; overflow: hidden; background: var(--inset); }
+.bar div { min-width: 0; transition: flex-basis 120ms ease; }
+.bar-keys { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 5px; font: 500 11.5px var(--mono); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.bar-keys span { display: inline-flex; align-items: center; gap: 5px; }
+.compare { margin-top: 14px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+.compare div { background: var(--panel); padding: 8px 10px; font-size: 11.5px; color: var(--muted); min-width: 0; }
+.compare b { display: block; font: 600 13.5px var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* ---------- notes ---------- */
+details.notes { padding: 0; }
+details.notes summary { cursor: pointer; padding: 14px 16px; font-weight: 600; list-style-position: inside; }
+details.notes summary .sec-title { display: inline; }
+.notes-body { padding: 0 16px 18px; display: grid; gap: 14px; max-width: 900px; }
+.notes-body p { margin: 0; color: var(--ink-2); max-width: 75ch; }
+.eq { font-family: var(--mono); font-size: 12.5px; background: var(--inset); border: 1px solid var(--rule); border-radius: 4px; padding: 10px 12px; overflow-x: auto; white-space: pre; line-height: 1.7; color: var(--ink); }
+.ptab-wrap { overflow-x: auto; }
+table.ptab { border-collapse: collapse; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 520px; }
+.ptab th, .ptab td { padding: 5px 12px 5px 0; text-align: left; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+.ptab th { color: var(--muted); font-weight: 500; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="corner-tag"><span>PVT corner</span><code id="cornerTag">tt_0p80v_25c</code><span id="techTag">FinFET 16 nm · NMOS · Lg 20 nm</span></div>
+    <h1>Multi-Vt Cell Explorer</h1>
+    <p class="lede">The same NMOS transistor in four threshold flavors, side by side. Change temperature, supply, process corner, body bias or gate length and watch threshold voltage, leakage and switching speed trade against each other.</p>
+  </header>
+
+  <div class="bench">
+    <!-- ================= control rack ================= -->
+    <aside class="panel rack" aria-label="Operating conditions">
+      <h2>Operating point</h2>
+
+      <div class="ctl">
+        <div class="ctl-head"><span class="lbl" id="techLbl">Technology</span></div>
+        <div class="seg" role="group" aria-labelledby="techLbl" id="techSeg">
+          <button type="button" id="tech-planar28" data-tech="planar28" aria-pressed="false">Planar 28</button>
+          <button type="button" id="tech-finfet16" data-tech="finfet16" aria-pressed="true">FinFET 16</button>
+          <button type="button" id="tech-fdsoi22" data-tech="fdsoi22" aria-pressed="false">FD-SOI 22</button>
+        </div>
+      </div>
+
+      <div class="ctl">
+        <div class="ctl-head"><span class="lbl" id="cornerLbl">Process corner</span><output id="cornerOut">typical</output></div>
+        <div class="seg" role="group" aria-labelledby="cornerLbl" id="cornerSeg">
+          <button type="button" id="corner-SS" data-corner="SS" aria-pressed="false">SS</button>
+          <button type="button" id="corner-TT" data-corner="TT" aria-pressed="true">TT</button>
+          <button type="button" id="corner-FF" data-corner="FF" aria-pressed="false">FF</button>
+        </div>
+      </div>
+
+      <div class="ctl">
+        <div class="ctl-head"><label for="temp">Temperature</label><output id="tempOut" for="temp">25 °C</output></div>
+        <input type="range" id="temp" min="-40" max="150" step="1" value="25">
+        <div class="chips" id="tempChips">
+          <button type="button" class="chip" data-t="-40">−40</button>
+          <button type="button" class="chip" data-t="0">0</button>
+          <button type="button" class="chip" data-t="25">25</button>
+          <button type="button" class="chip" data-t="85">85</button>
+          <button type="button" class="chip" data-t="125">125</button>
+          <button type="button" class="btn" id="playT" aria-pressed="false" style="margin-left:auto;padding:5px 10px"><svg viewBox="0 0 12 12" aria-hidden="true"><path id="playIcon" d="M2 1l9 5-9 5z"/></svg><span id="playTxt">Sweep</span></button>
+        </div>
+      </div>
+
+      <div class="ctl">
+        <div class="ctl-head"><label for="vdd">Supply V<sub>DD</sub></label><output id="vddOut" for="vdd">0.80 V</output></div>
+        <input type="range" id="vdd" min="0.4" max="1.0" step="0.01" value="0.8">
+        <div class="chips" id="vddChips">
+          <button type="button" class="chip" data-v="0.9">0.9 × nom</button>
+          <button type="button" class="chip" data-v="1">nominal</button>
+          <button type="button" class="chip" data-v="1.1">1.1 × nom</button>
+        </div>
+      </div>
+
+      <div class="ctl">
+        <div class="ctl-head"><label for="vbs">Body bias V<sub>BS</sub></label><output id="vbsOut" for="vbs">0.00 V</output></div>
+        <input type="range" id="vbs" min="-0.4" max="0.4" step="0.02" value="0">
+        <div class="scale"><span>← reverse (RBB)</span><span>forward (FBB) →</span></div>
+        <p class="hint" id="vbsHint">FinFET body effect is weak: the fin is mostly gated from three sides.</p>
+      </div>
+
+      <div class="ctl">
+        <div class="ctl-head"><label for="dl">Gate-length bias ΔL</label><output id="dlOut" for="dl">+0.0 nm</output></div>
+        <input type="range" id="dl" min="-2" max="10" step="0.5" value="0">
+        <p class="hint" id="dlHint">Drawn Lg = 20 nm. Longer gates cut short-channel leakage and cost drive.</p>
+      </div>
+
+      <div class="rack-foot">
+        <button type="button" class="btn" id="reset">Reset to nominal</button>
+      </div>
+    </aside>
+
+    <!-- ================= results ================= -->
+    <div class="results">
+      <section class="panel" aria-labelledby="tblTitle">
+        <div class="card-head">
+          <h2 class="sec-title" id="tblTitle">Characterization</h2>
+          <span class="sub">NMOS, per µm of width, at <code id="tblCorner">tt_0p80v_25c</code></span>
+        </div>
+        <div class="table-scroll">
+          <table class="readout">
+            <thead>
+              <tr>
+                <th scope="col">Flavor</th>
+                <th scope="col">V<sub>th,sat</sub><span>mV</span></th>
+                <th scope="col">Subthreshold swing<span>mV/dec</span></th>
+                <th scope="col">I<sub>on</sub><span>µA/µm</span></th>
+                <th scope="col">I<sub>off</sub> total<span>per µm · vs SVT</span></th>
+                <th scope="col">I<sub>on</sub>/I<sub>off</sub><span>ratio</span></th>
+                <th scope="col">FO4 delay<span>ps · vs SVT</span></th>
+                <th scope="col">Leakage doubles<span>every °C</span></th>
+                <th scope="col">ZTC supply<span>V</span></th>
+                <th scope="col">Slow corner<span>at this V<sub>DD</sub></span></th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="readings" id="readings" aria-label="Readings at this operating point"></section>
+
+      <section class="panel" aria-label="Sweep plots">
+        <div class="toolbar">
+          <div class="grp">
+            <span id="sweepLbl">Sweep plots against</span>
+            <div class="seg small" role="group" aria-labelledby="sweepLbl" id="sweepSeg">
+              <button type="button" id="sweep-T" data-sweep="T" aria-pressed="true">Temperature</button>
+              <button type="button" id="sweep-VDD" data-sweep="VDD" aria-pressed="false">V<sub>DD</sub></button>
+              <button type="button" id="sweep-Vbs" data-sweep="Vbs" aria-pressed="false">Body bias</button>
+              <button type="button" id="sweep-dL" data-sweep="dL" aria-pressed="false">Gate length</button>
+            </div>
+          </div>
+          <div class="grp">
+            <span id="showLbl">Show</span>
+            <div class="legend" role="group" aria-labelledby="showLbl" id="legend"></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="grid2">
+        <section class="panel chart">
+          <div class="chart-head">
+            <h3>Transfer curve I<sub>D</sub>–V<sub>GS</sub><span id="ivSub">at V<sub>DS</sub> = V<sub>DD</sub></span></h3>
+            <div class="seg small" role="group" aria-label="Current axis scale" id="ivSeg">
+              <button type="button" id="iv-log" data-scale="log" aria-pressed="true">log</button>
+              <button type="button" id="iv-lin" data-scale="lin" aria-pressed="false">linear</button>
+            </div>
+          </div>
+          <div class="plot" id="pIV"><canvas role="img" aria-label="Drain current versus gate voltage for each Vt flavor"></canvas><div class="tip" hidden></div></div>
+          <p class="cap">Dots mark the extracted threshold, where I<sub>D</sub> = 100 nA × W/L (dashed line). The current at V<sub>GS</sub> = 0 is the subthreshold leakage.</p>
+        </section>
+
+        <section class="panel chart">
+          <div class="chart-head"><h3>Off-state leakage<span id="ioffSub">I<sub>off</sub> per µm vs temperature</span></h3></div>
+          <div class="plot" id="pIoff"><canvas role="img" aria-label="Off-state leakage versus the sweep variable"></canvas><div class="tip" hidden></div></div>
+          <p class="cap">Total off current (subthreshold + gate + junction/GIDL) at V<sub>GS</sub> = 0, V<sub>DS</sub> = V<sub>DD</sub>. Log scale: each gridline is 10×.</p>
+        </section>
+
+        <section class="panel chart">
+          <div class="chart-head"><h3>Threshold voltage<span id="vthSub">V<sub>th,sat</sub> vs temperature</span></h3></div>
+          <div class="plot" id="pVth"><canvas role="img" aria-label="Threshold voltage versus the sweep variable"></canvas><div class="tip" hidden></div></div>
+          <p class="cap">Constant-current threshold at V<sub>DS</sub> = V<sub>DD</sub>, so DIBL is included. V<sub>th</sub> falls as temperature rises.</p>
+        </section>
+
+        <section class="panel chart">
+          <div class="chart-head"><h3>FO4 inverter delay<span id="dlySub">vs temperature</span></h3></div>
+          <div class="plot" id="pDly"><canvas role="img" aria-label="FO4 delay versus the sweep variable"></canvas><div class="tip" hidden></div></div>
+          <p class="cap" id="dlyCap">Mobility loss makes gates slower when hot; falling V<sub>th</sub> makes them faster. Which wins depends on V<sub>DD</sub> − V<sub>th</sub>.</p>
+        </section>
+
+        <section class="panel chart">
+          <div class="chart-head">
+            <h3>Leakage components<span id="bdSub">vs temperature</span></h3>
+            <div class="seg small" role="group" aria-label="Flavor to break down" id="focusSeg">
+              <button type="button" id="focus-0" data-focus="0" aria-pressed="false">ULVT</button>
+              <button type="button" id="focus-1" data-focus="1" aria-pressed="false">LVT</button>
+              <button type="button" id="focus-2" data-focus="2" aria-pressed="false">SVT</button>
+              <button type="button" id="focus-3" data-focus="3" aria-pressed="true">HVT</button>
+            </div>
+          </div>
+          <div class="plot" id="pBd"><canvas role="img" aria-label="Leakage components for one flavor versus the sweep variable"></canvas><div class="tip" hidden></div></div>
+          <p class="cap">Subthreshold leakage is exponential in V<sub>th</sub> and T. Gate tunneling barely moves with temperature, so it sets a floor for high-Vt cells when cold.</p>
+        </section>
+
+        <section class="panel chart">
+          <div class="chart-head"><h3>Speed vs leakage<span id="toSub">path across temperature</span></h3></div>
+          <div class="plot" id="pTo"><canvas role="img" aria-label="Leakage versus delay for each flavor"></canvas><div class="tip" hidden></div></div>
+          <p class="cap" id="toCap">Filled dots are the current operating point. Each line traces the sweep; the open circle marks its low end.</p>
+        </section>
+      </div>
+
+      <section class="panel" aria-labelledby="mixTitle">
+        <div class="card-head">
+          <h2 class="sec-title" id="mixTitle">Vt mix leakage budget</h2>
+          <span class="sub">A block's standby power at <code id="mixCorner">tt_0p80v_25c</code></span>
+        </div>
+        <div class="mix">
+          <div>
+            <div class="mix-rows" id="mixRows"></div>
+            <div class="mix-in">
+              <div class="field"><label for="ncells">Cells in block</label><input id="ncells" type="number" min="1000" step="1000" value="2000000"></div>
+              <div class="field"><label for="wcell">Leaking width per cell (µm)</label><input id="wcell" type="number" min="0.05" step="0.05" value="0.3"></div>
+            </div>
+            <p class="hint" style="margin-top:8px">Shares are normalized to 100%. Swapping a few critical-path cells to ULVT is cheap in count and expensive in leakage.</p>
+          </div>
+          <div>
+            <div class="big"><span class="num" id="mixTotal">—</span><span class="what">total leakage power</span></div>
+            <div class="bars">
+              <div><div class="bar-lbl">Share of cells</div><div class="bar" id="barCount"></div><div class="bar-keys" id="keyCount"></div></div>
+              <div><div class="bar-lbl">Share of leakage power</div><div class="bar" id="barLeak"></div><div class="bar-keys" id="keyLeak"></div></div>
+            </div>
+            <div class="compare">
+              <div>Same block, all HVT<b id="cmpH">—</b></div>
+              <div>All SVT<b id="cmpS">—</b></div>
+              <div>All ULVT<b id="cmpU">—</b></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <details class="panel notes">
+        <summary><span class="sec-title">Model and assumptions</span></summary>
+        <div class="notes-body">
+          <p>Each flavor is the same NMOS with a different threshold set by work function (FinFET, FD-SOI) or channel doping (planar). Parameters are representative values chosen to reproduce published trends for each technology class. They are not foundry PDK data. PMOS is assumed to track NMOS.</p>
+          <div class="eq">V<sub>th</sub>  = V<sub>th0</sub>(flavor) + ΔV<sub>corner</sub> + κ·(T − 25 °C) − η·V<sub>DS</sub> − k<sub>b</sub>·V<sub>BS</sub> + ΔV<sub>roll-off</sub>(ΔL)
+I<sub>D</sub>   = K(T)·[α·n·v<sub>T</sub>·ln(1 + e<sup>(V<sub>GS</sub> − V<sub>th</sub>)/(α·n·v<sub>T</sub>)</sup>)]<sup>α</sup>·(1 − e<sup>−V<sub>DS</sub>/v<sub>T</sub></sup>)     v<sub>T</sub> = kT/q
+K(T) ∝ (T/298 K)<sup>−θ</sup>·(L<sub>g</sub>/L)<sup>0.4</sup>        alpha-power law above threshold, exponential below
+I<sub>off</sub> = I<sub>sub</sub>(V<sub>GS</sub> = 0) + I<sub>gate</sub> ∝ V<sub>DD</sub><sup>4</sup> + I<sub>junction/GIDL</sub> ∝ e<sup>(V<sub>DD</sub> − V<sub>BS</sub>)/V<sub>j</sub></sup>·e<sup>−E<sub>a</sub>/kT</sup>
+SS   = n·v<sub>T</sub>·ln 10
+t<sub>FO4</sub> ∝ C·V<sub>DD</sub> / I<sub>eff</sub>,   I<sub>eff</sub> = ½·[I<sub>D</sub>(V<sub>DD</sub>) + I<sub>D</sub>(V<sub>DD</sub>/2)] at V<sub>DS</sub> = V<sub>DD</sub></div>
+          <p>V<sub>th,sat</sub> in the table is extracted from the curve at I<sub>D</sub> = 100 nA × W/L, the usual constant-current definition. The FO4 delay is scaled so SVT at TT, 25 °C and nominal V<sub>DD</sub> matches a typical value for the node. The zero-temperature-coefficient (ZTC) supply is where FO4 delay at −40 °C equals delay at 125 °C; below it, cold is the slow corner (temperature inversion). In FD-SOI the back gate sits under the buried oxide, so back bias does not stress any junction.</p>
+          <div class="ptab-wrap"><table class="ptab" id="ptab"></table></div>
+        </div>
+      </details>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+/* ====================== device model ====================== */
+const KB = 8.617333e-5; // eV/K
+const TECH = {
+  planar28: {
+    name: 'Planar bulk 28 nm', short: 'Planar 28 nm', Lg: 30, Vnom: 0.9, Vmin: 0.5, Vmax: 1.1, bbMin: -0.6, bbMax: 0.4, bbStep: 0.02,
+    n: 1.30, nsc: 0.9, alpha: 1.35, eta: 0.100, ell: 9, R: 1.4, kb: 0.120, theta: 1.30, lexp: 0.4,
+    K: 1.55e-3, Ig0: 0.25e-9, gp: 4, Ij0: 0.12e-9, Vj: 0.22, Ea: 0.40, jbb: 1, Dref: 14.0,
+    vbsHint: 'Bulk body effect is moderate. Reverse bias raises Vₜₕ but also stresses the drain junction, so junction leakage climbs.',
+    fl: [ { vth0: 0.300, kT: -0.80, jf: 0.6 }, { vth0: 0.355, kT: -0.88, jf: 0.8 },
+          { vth0: 0.410, kT: -0.96, jf: 1.0 }, { vth0: 0.470, kT: -1.05, jf: 1.35 } ]
+  },
+  finfet16: {
+    name: 'FinFET 16 nm', short: 'FinFET 16 nm', Lg: 20, Vnom: 0.8, Vmin: 0.4, Vmax: 1.0, bbMin: -0.4, bbMax: 0.4, bbStep: 0.02,
+    n: 1.08, nsc: 0.6, alpha: 1.25, eta: 0.035, ell: 6, R: 1.5, kb: 0.020, theta: 1.00, lexp: 0.4,
+    K: 2.10e-3, Ig0: 0.02e-9, gp: 4, Ij0: 0.025e-9, Vj: 0.20, Ea: 0.40, jbb: 1, Dref: 8.0,
+    vbsHint: 'FinFET body effect is weak: the gate wraps the fin on three sides, so the substrate has little say.',
+    fl: [ { vth0: 0.255, kT: -0.65, jf: 1 }, { vth0: 0.300, kT: -0.70, jf: 1 },
+          { vth0: 0.345, kT: -0.75, jf: 1 }, { vth0: 0.395, kT: -0.80, jf: 1 } ]
+  },
+  fdsoi22: {
+    name: 'FD-SOI 22 nm', short: 'FD-SOI 22 nm', Lg: 20, Vnom: 0.8, Vmin: 0.4, Vmax: 1.0, bbMin: -1.8, bbMax: 1.8, bbStep: 0.05,
+    n: 1.12, nsc: 0.7, alpha: 1.30, eta: 0.050, ell: 6.5, R: 1.3, kb: 0.085, theta: 1.20, lexp: 0.4,
+    K: 1.60e-3, Ig0: 0.05e-9, gp: 4, Ij0: 0.002e-9, Vj: 0.25, Ea: 0.45, jbb: 0, Dref: 11.0,
+    vbsHint: 'FD-SOI back-gate biasing is strong (about 85 mV/V) and spans ±1.8 V, a real knob for trading speed and leakage after tape-out.',
+    fl: [ { vth0: 0.250, kT: -0.60, jf: 1 }, { vth0: 0.300, kT: -0.66, jf: 1 },
+          { vth0: 0.350, kT: -0.72, jf: 1 }, { vth0: 0.405, kT: -0.78, jf: 1 } ]
+  }
+};
+const CORNER = { SS: { dv: 0.035, kf: 0.92, name: 'slow' }, TT: { dv: 0, kf: 1, name: 'typical' }, FF: { dv: -0.035, kf: 1.08, name: 'fast' } };
+const FL = [
+  { key: 'ULVT', long: 'Ultra-low Vt' }, { key: 'LVT', long: 'Low Vt' },
+  { key: 'SVT', long: 'Standard Vt' }, { key: 'HVT', long: 'High Vt' }
+];
+
+function softplus(x) { return x > 30 ? x : Math.log1p(Math.exp(x)); }
+
+function device(tech, fi, c) {
+  const f = tech.fl[fi];
+  const Tk = c.T + 273.15, vt = KB * Tk;
+  const Lg = tech.Lg + c.dL;
+  const roll = tech.R * (Math.exp(-tech.Lg / tech.ell) - Math.exp(-Lg / tech.ell));
+  const eta = tech.eta * Math.exp(-c.dL / tech.ell);
+  const n = tech.n * (1 + tech.nsc * Math.exp(-Lg / tech.ell)) / (1 + tech.nsc * Math.exp(-tech.Lg / tech.ell));
+  const cr = CORNER[c.corner];
+  const vth0 = f.vth0 + cr.dv + f.kT * 1e-3 * (c.T - 25) + roll - tech.kb * c.Vbs;
+  const K = tech.K * cr.kf * Math.pow(Tk / 298.15, -tech.theta) * Math.pow(tech.Lg / Lg, tech.lexp);
+  const a = tech.alpha, s = a * n * vt;
+  const Id = (Vgs, Vds) => {
+    const vth = vth0 - eta * Vds;
+    const veff = s * softplus((Vgs - vth) / s);
+    return K * Math.pow(veff, a) * (1 - Math.exp(-Vds / vt));
+  };
+  const thermJ = Math.exp(tech.Ea / KB * (1 / 298.15 - 1 / Tk));
+  const Isub = Id(0, c.VDD);
+  const Igate = tech.Ig0 * Math.pow(c.VDD / tech.Vnom, tech.gp) * (1 + 0.0015 * (c.T - 25));
+  const Ijn = tech.Ij0 * f.jf * Math.exp((c.VDD - tech.jbb * c.Vbs - tech.Vnom) / tech.Vj) * thermJ;
+  const Ion = Id(c.VDD, c.VDD);
+  const Ieff = 0.5 * (Ion + Id(c.VDD / 2, c.VDD));
+  const Icc = 100e-9 / (Lg * 1e-3);
+  let lo = -1, hi = 2;
+  for (let i = 0; i < 40; i++) { const m = 0.5 * (lo + hi); if (Id(m, c.VDD) > Icc) hi = m; else lo = m; }
+  const cfac = 0.7 + 0.3 * Lg / tech.Lg;
+  return { Id, Isub, Igate, Ijn, Ioff: Isub + Igate + Ijn, Ion, Ieff, vth: 0.5 * (lo + hi), SS: n * vt * Math.LN10 * 1000, cfac, Icc };
+}
+const refCache = {};
+function ieffRef(tk) {
+  if (!refCache[tk]) refCache[tk] = device(TECH[tk], 2, { T: 25, VDD: TECH[tk].Vnom, Vbs: 0, dL: 0, corner: 'TT' }).Ieff;
+  return refCache[tk];
+}
+function delayPs(tk, d, VDD) { const t = TECH[tk]; return t.Dref * d.cfac * (VDD / t.Vnom) * (ieffRef(tk) / d.Ieff); }
+
+/* ====================== state ====================== */
+const DEFAULT = { tech: 'finfet16', corner: 'TT', T: 25, VDD: 0.8, Vbs: 0, dL: 0, sweep: 'T', show: [true, true, true, true], focus: 3, ivLog: true,
+  mix: [4, 16, 50, 30], ncells: 2000000, wcell: 0.3 };
+const S = JSON.parse(JSON.stringify(DEFAULT));
+const $ = id => document.getElementById(id);
+
+const SWEEPS = {
+  T:   { name: 'temperature', min: () => -40, max: () => 150, fmt: v => `${Math.round(v)} °C`, axis: 'Temperature (°C)', xt: () => [-40, 0, 25, 50, 85, 125, 150] },
+  VDD: { name: 'VDD', min: t => t.Vmin, max: t => t.Vmax, fmt: v => `${v.toFixed(2)} V`, axis: 'Supply VDD (V)' },
+  Vbs: { name: 'body bias', min: t => t.bbMin, max: t => t.bbMax, fmt: v => `${v > 0 ? '+' : ''}${v.toFixed(2)} V`, axis: 'Body bias VBS (V)' },
+  dL:  { name: 'gate-length bias', min: () => -2, max: () => 10, fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(1)} nm`, axis: 'Gate-length bias ΔL (nm)' }
+};
+const SWEEP_WORD = { T: 'temperature', VDD: 'V<sub>DD</sub>', Vbs: 'body bias', dL: 'gate length' };
+
+/* ====================== formatting ====================== */
+const PRE = [[1e-15, 'f'], [1e-12, 'p'], [1e-9, 'n'], [1e-6, 'µ'], [1e-3, 'm'], [1, '']];
+function sig3(x) { const a = Math.abs(x); return a >= 100 ? x.toFixed(0) : a >= 10 ? x.toFixed(1) : x.toFixed(2); }
+function si(v, unit, compact) {
+  if (!isFinite(v)) return '—';
+  if (v === 0) return '0 ' + unit;
+  let p = PRE[0];
+  for (const q of PRE) if (Math.abs(v) >= q[0] * 0.9995) p = q;
+  const x = v / p[0];
+  return (compact ? String(+x.toPrecision(3)) : sig3(x)) + ' ' + p[1] + unit;
+}
+function sci(v) {
+  const e = Math.floor(Math.log10(v)); const m = v / Math.pow(10, e);
+  return `${m.toFixed(1)}×10<sup>${e}</sup>`;
+}
+function tagFor(c) {
+  const v = c.VDD.toFixed(2).replace('.', 'p');
+  const t = c.T < 0 ? 'm' + Math.abs(Math.round(c.T)) : String(Math.round(c.T));
+  return `${c.corner.toLowerCase()}_${v}v_${t}c`;
+}
+function cond() { return { T: S.T, VDD: S.VDD, Vbs: S.Vbs, dL: S.dL, corner: S.corner }; }
+
+/* ====================== plotting ====================== */
+let COL = {};
+function readColors() {
+  const cs = getComputedStyle(document.documentElement);
+  const g = k => cs.getPropertyValue(k).trim();
+  COL = { ink: g('--ink'), ink2: g('--ink-2'), muted: g('--muted'), rule: g('--rule'), grid: g('--grid'), panel: g('--panel'),
+    f: [g('--f0'), g('--f1'), g('--f2'), g('--f3')] };
+}
+const MONO = '"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace';
+
+function niceStep(range, count) {
+  const raw = range / count, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+}
+function linTicks(lo, hi, count) {
+  const st = niceStep(hi - lo || 1, count), out = [];
+  for (let v = Math.ceil(lo / st - 1e-9) * st; v <= hi + st * 1e-6; v += st) out.push(+v.toFixed(10));
+  return out;
+}
+function linDomain(mn, mx, count) {
+  if (mx - mn < 1e-12) { mn -= 1; mx += 1; }
+  const pad = (mx - mn) * 0.06;
+  const st = niceStep(mx - mn + 2 * pad, count);
+  return [Math.floor((mn - pad) / st) * st, Math.ceil((mx + pad) / st) * st];
+}
+function logDomain(mn, mx) {
+  const a = Math.log10(mn), b = Math.log10(mx);
+  if (b - a < 2) {
+    const snapDown = v => { const e = Math.floor(Math.log10(v)); const m = v / Math.pow(10, e); return (m >= 5 ? 5 : m >= 2 ? 2 : 1) * Math.pow(10, e); };
+    const snapUp = v => { const e = Math.floor(Math.log10(v)); const m = v / Math.pow(10, e); return m <= 1.0001 ? Math.pow(10, e) : (m <= 2 ? 2 : m <= 5 ? 5 : 10) * Math.pow(10, e); };
+    let lo = snapDown(mn), hi = snapUp(mx);
+    if (hi <= lo) hi = lo * 2;
+    return [lo, hi];
+  }
+  return [Math.pow(10, Math.floor(a)), Math.pow(10, Math.ceil(b))];
+}
+function logTicks(lo, hi) {
+  const a = Math.round(Math.log10(lo) * 1e6) / 1e6, b = Math.round(Math.log10(hi) * 1e6) / 1e6;
+  const out = [];
+  if (b - a < 2.0001) {
+    for (let e = Math.floor(a); e <= Math.ceil(b); e++) for (const m of [1, 2, 5]) { const v = m * Math.pow(10, e); if (v >= lo * 0.999 && v <= hi * 1.001) out.push(v); }
+    return out;
+  }
+  const step = b - a > 8 ? 2 : 1;
+  for (let e = Math.ceil(a); e <= Math.floor(b); e += step) out.push(Math.pow(10, e));
+  return out;
+}
+function scale(lo, hi, log, p0, p1) {
+  if (log) { const a = Math.log10(lo), b = Math.log10(hi); return v => p0 + (Math.log10(v) - a) / (b - a) * (p1 - p0); }
+  return v => p0 + (v - lo) / (hi - lo) * (p1 - p0);
+}
+function invScale(lo, hi, log, p0, p1) {
+  if (log) { const a = Math.log10(lo), b = Math.log10(hi); return p => Math.pow(10, a + (p - p0) / (p1 - p0) * (b - a)); }
+  return p => lo + (p - p0) / (p1 - p0) * (hi - lo);
+}
+
+class Plot {
+  constructor(id) {
+    this.host = $(id); this.cv = this.host.querySelector('canvas'); this.tip = this.host.querySelector('.tip');
+    this.ctx = this.cv.getContext('2d'); this.spec = null; this.hx = null; this.hy = null;
+    new ResizeObserver(() => this.draw()).observe(this.host);
+    const move = e => { const r = this.cv.getBoundingClientRect(); this.hx = e.clientX - r.left; this.hy = e.clientY - r.top; this.draw(); };
+    this.host.addEventListener('pointermove', move);
+    this.host.addEventListener('pointerdown', move);
+    this.host.addEventListener('pointerleave', () => { this.hx = null; this.draw(); });
+  }
+  set(spec) { this.spec = spec; this.draw(); }
+  draw() {
+    const s = this.spec; if (!s) return;
+    const W = this.cv.clientWidth, H = this.cv.clientHeight; if (!W || !H) return;
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    if (this.cv.width !== Math.round(W * dpr) || this.cv.height !== Math.round(H * dpr)) { this.cv.width = Math.round(W * dpr); this.cv.height = Math.round(H * dpr); }
+    const ctx = this.ctx; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+    const narrow = W < 420;
+
+    // ---- domains
+    const okY = v => isFinite(v) && (!s.yLog || v > 0);
+    const okX = v => isFinite(v) && (!s.xLog || v > 0);
+    let ymn = Infinity, ymx = -Infinity, xmn = Infinity, xmx = -Infinity;
+    for (const se of s.series) for (let i = 0; i < se.ys.length; i++) {
+      const y = se.ys[i], x = se.xs[i];
+      if (okY(y) && okX(x)) { ymn = Math.min(ymn, y); ymx = Math.max(ymx, y); xmn = Math.min(xmn, x); xmx = Math.max(xmx, x); }
+    }
+    for (const d of (s.dots || [])) if (okY(d.y) && okX(d.x)) { ymn = Math.min(ymn, d.y); ymx = Math.max(ymx, d.y); xmn = Math.min(xmn, d.x); xmx = Math.max(xmx, d.x); }
+    if (!isFinite(ymn)) { ymn = s.yLog ? 1e-12 : 0; ymx = s.yLog ? 1e-9 : 1; }
+    if (s.yFloor != null && s.yLog) ymn = Math.max(ymn, s.yFloor);
+    let ylo, yhi, yt;
+    if (s.yLog) { [ylo, yhi] = logDomain(ymn, ymx); yt = logTicks(ylo, yhi); }
+    else { [ylo, yhi] = linDomain(s.yZero ? Math.min(0, ymn) : ymn, ymx, narrow ? 4 : 5); yt = linTicks(ylo, yhi, narrow ? 4 : 5); }
+    let xlo = s.xMin != null ? s.xMin : xmn, xhi = s.xMax != null ? s.xMax : xmx, xt;
+    if (s.xLog) { if (s.xMin == null) [xlo, xhi] = logDomain(xmn, xmx); xt = logTicks(xlo, xhi); }
+    else { if (s.xMin == null) [xlo, xhi] = linDomain(xmn, xmx, narrow ? 4 : 6); xt = s.xTicks ? s.xTicks.filter(v => v >= xlo - 1e-9 && v <= xhi + 1e-9) : linTicks(xlo, xhi, narrow ? 4 : 6); }
+
+    // ---- margins (thin x ticks so labels never collide)
+
+    ctx.font = `500 10.5px ${MONO}`;
+    const ylab = yt.map(v => s.yFmt(v));
+    const ml = Math.ceil(Math.max(...ylab.map(t => ctx.measureText(t).width), 10)) + 12;
+    let mr = 12;
+    const ends = (s.series.filter(se => se.end));
+    if (ends.length) { ctx.font = `600 10.5px ${MONO}`; mr = Math.ceil(Math.max(...ends.map(se => ctx.measureText(se.end).width))) + 22; }
+    const mt = 16, mb = 38;
+    const x0 = ml, x1 = W - mr, y0 = mt, y1 = H - mb;
+    const X = scale(xlo, xhi, s.xLog, x0, x1), Y = scale(ylo, yhi, s.yLog, y1, y0);
+    { const kept = []; for (const v of xt) { if (!kept.length || X(v) - X(kept[kept.length - 1]) >= 30) kept.push(v); } xt = kept; }
+    this.geom = { x0, x1, y0, y1, X, Y, xlo, xhi, ylo, yhi };
+
+    // ---- grid + ticks
+    ctx.lineWidth = 1; ctx.strokeStyle = COL.grid; ctx.fillStyle = COL.muted;
+    ctx.font = `500 10.5px ${MONO}`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    yt.forEach((v, i) => { const y = Math.round(Y(v)) + 0.5; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke(); ctx.fillText(ylab[i], x0 - 7, y); });
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    xt.forEach(v => { const x = Math.round(X(v)) + 0.5; ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke(); ctx.fillText(s.xFmt(v), x, y1 + 6); });
+    ctx.strokeStyle = COL.rule; ctx.beginPath(); ctx.moveTo(x0, Math.round(y1) + 0.5); ctx.lineTo(x1, Math.round(y1) + 0.5); ctx.stroke();
+    ctx.fillStyle = COL.muted; ctx.font = `500 11px ${MONO}`; ctx.textBaseline = 'bottom';
+    ctx.fillText(s.xLabel, (x0 + x1) / 2, H - 2);
+
+    ctx.save(); ctx.beginPath(); ctx.rect(x0, y0 - 2, x1 - x0, y1 - y0 + 4); ctx.clip();
+    // ---- reference lines
+    if (s.hline && okY(s.hline.y) && s.hline.y >= ylo && s.hline.y <= yhi) {
+      const y = Math.round(Y(s.hline.y)) + 0.5; ctx.strokeStyle = COL.muted; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = COL.muted; ctx.font = `500 10px ${MONO}`; ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.fillText(s.hline.label, x1 - 5, y + 4);
+    }
+    if (s.vline && s.vline.x >= xlo && s.vline.x <= xhi) {
+      const x = Math.round(X(s.vline.x)) + 0.5; ctx.strokeStyle = COL.ink2; ctx.lineWidth = 1; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke(); ctx.setLineDash([]);
+    }
+    // ---- series
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    for (const se of s.series) {
+      ctx.strokeStyle = se.color; ctx.lineWidth = se.width || 2; ctx.globalAlpha = se.alpha == null ? 1 : se.alpha;
+      ctx.setLineDash(se.dash || []);
+      ctx.beginPath(); let pen = false;
+      for (let i = 0; i < se.xs.length; i++) {
+        const x = se.xs[i], y = se.ys[i];
+        if (!okY(y) || !okX(x)) { pen = false; continue; }
+        const px = X(x), py = Y(y);
+        if (!pen) { ctx.moveTo(px, py); pen = true; } else ctx.lineTo(px, py);
+      }
+      ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
+    // ---- dots
+    for (const d of (s.dots || [])) {
+      if (!okY(d.y) || !okX(d.x)) continue;
+      const px = X(d.x), py = Y(d.y);
+      ctx.beginPath(); ctx.arc(px, py, d.r || 4, 0, Math.PI * 2);
+      if (d.hollow) { ctx.fillStyle = COL.panel; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = d.color; ctx.stroke(); }
+      else { ctx.fillStyle = d.color; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = COL.panel; ctx.stroke(); }
+    }
+    ctx.restore();
+    // ---- vline label (outside clip)
+    if (s.vline && s.vline.x >= xlo && s.vline.x <= xhi) {
+      const x = X(s.vline.x); ctx.font = `600 10px ${MONO}`; ctx.fillStyle = COL.ink2; ctx.textBaseline = 'bottom';
+      const tw = ctx.measureText(s.vline.label).width;
+      ctx.textAlign = x + tw / 2 > x1 ? 'right' : x - tw / 2 < x0 ? 'left' : 'center';
+      ctx.fillText(s.vline.label, x, y0 - 3);
+    }
+    // ---- dot labels
+    ctx.font = `600 10.5px ${MONO}`; ctx.textBaseline = 'middle';
+    for (const d of (s.dots || [])) {
+      if (!d.label || !okY(d.y) || !okX(d.x)) continue;
+      const px = X(d.x), py = Y(d.y); const tw = ctx.measureText(d.label).width;
+      const right = px + 8 + tw < x1; ctx.textAlign = right ? 'left' : 'right';
+      ctx.fillStyle = COL.ink; ctx.fillText(d.label, right ? px + 8 : px - 8, py - 9);
+    }
+    // ---- end labels with collision avoidance
+    if (ends.length) {
+      const items = [];
+      for (const se of ends) {
+        let i = se.ys.length - 1; while (i >= 0 && !(okY(se.ys[i]) && okX(se.xs[i]))) i--;
+        if (i < 0) continue;
+        const yy = Math.min(Math.max(Y(se.ys[i]), y0), y1);
+        items.push({ y: yy, t: se.end, c: se.color, dash: se.dash });
+      }
+      items.sort((a, b) => a.y - b.y);
+      const gap = 13;
+      for (let k = 1; k < items.length; k++) if (items[k].y - items[k - 1].y < gap) items[k].y = items[k - 1].y + gap;
+      const over = items.length ? items[items.length - 1].y - y1 : 0;
+      if (over > 0) { for (const it of items) it.y -= over; for (let k = items.length - 2; k >= 0; k--) if (items[k + 1].y - items[k].y < gap) items[k].y = items[k + 1].y - gap; }
+      ctx.font = `600 10.5px ${MONO}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      for (const it of items) {
+        ctx.strokeStyle = it.c; ctx.lineWidth = 2; ctx.setLineDash(it.dash ? [3, 2] : []);
+        ctx.beginPath(); ctx.moveTo(x1 + 4, it.y); ctx.lineTo(x1 + 12, it.y); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = COL.ink2; ctx.fillText(it.t, x1 + 16, it.y);
+      }
+    }
+    // ---- hover
+    this.tip.hidden = true;
+    if (this.hx == null || s.hover === false) return;
+    if (this.hx < x0 - 6 || this.hx > x1 + 6) return;
+    if (s.hover === 'dots') {
+      let best = null, bd = 28;
+      for (const d of (s.dots || [])) { if (!d.tip || !okY(d.y) || !okX(d.x)) continue; const dd = Math.hypot(X(d.x) - this.hx, Y(d.y) - this.hy); if (dd < bd) { bd = dd; best = d; } }
+      if (!best) return;
+      ctx.beginPath(); ctx.arc(X(best.x), Y(best.y), 8, 0, Math.PI * 2); ctx.strokeStyle = COL.ink; ctx.lineWidth = 1.5; ctx.stroke();
+      this.showTip(best.tip, X(best.x), W);
+      return;
+    }
+    const inv = invScale(xlo, xhi, s.xLog, x0, x1);
+    const xv = inv(Math.min(Math.max(this.hx, x0), x1));
+    const ref = s.series.find(se => se.hover !== false);
+    if (!ref) return;
+    let bi = 0, bdist = Infinity;
+    for (let i = 0; i < ref.xs.length; i++) { const dd = Math.abs(ref.xs[i] - xv); if (dd < bdist) { bdist = dd; bi = i; } }
+    const hxPx = X(ref.xs[bi]);
+    ctx.strokeStyle = COL.muted; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(Math.round(hxPx) + 0.5, y0); ctx.lineTo(Math.round(hxPx) + 0.5, y1); ctx.stroke();
+    const rows = [];
+    for (const se of s.series) {
+      if (se.hover === false) continue;
+      const y = se.ys[bi]; if (!okY(y)) continue;
+      if (y >= ylo && y <= yhi) { ctx.beginPath(); ctx.arc(hxPx, Y(y), 4, 0, Math.PI * 2); ctx.fillStyle = se.color; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = COL.panel; ctx.stroke(); }
+      rows.push(`<div class="row"><span class="sw" style="background:${se.color}"></span>${se.name}<b>${s.tipFmt(y)}</b></div>`);
+    }
+    this.showTip(`<div class="th">${s.tipX(ref.xs[bi])}</div>${rows.join('')}`, hxPx, W);
+  }
+  showTip(html, px, W) {
+    this.tip.innerHTML = html; this.tip.hidden = false;
+    const tw = this.tip.offsetWidth;
+    let left = px + 14; if (left + tw > W - 4) left = px - 14 - tw; if (left < 4) left = 4;
+    this.tip.style.left = left + 'px';
+  }
+}
+
+/* ====================== computations ====================== */
+function sweepGrid(tech, key, n) {
+  const sw = SWEEPS[key], lo = sw.min(tech), hi = sw.max(tech), out = [];
+  for (let i = 0; i < n; i++) out.push(lo + (hi - lo) * i / (n - 1));
+  return out;
+}
+const ztcCache = new Map();
+function ztc(tk, fi, c) {
+  const key = [tk, fi, c.corner, c.Vbs, c.dL].join('|');
+  if (ztcCache.has(key)) return ztcCache.get(key);
+  const t = TECH[tk];
+  const f = V => { const a = { ...c, VDD: V }; return Math.log(delayPs(tk, device(t, fi, { ...a, T: -40 }), V) / delayPs(tk, device(t, fi, { ...a, T: 125 }), V)); };
+  let lo = t.Vmin, hi = t.Vmax, flo = f(lo), fhi = f(hi), res;
+  if (flo <= 0) res = { below: lo };
+  else if (fhi >= 0) res = { above: hi };
+  else { for (let i = 0; i < 26; i++) { const m = 0.5 * (lo + hi), fm = f(m); if (fm > 0) lo = m; else hi = m; } res = { v: 0.5 * (lo + hi) }; }
+  if (ztcCache.size > 400) ztcCache.clear();
+  ztcCache.set(key, res);
+  return res;
+}
+function doubling(tech, fi, c) {
+  const a = device(tech, fi, { ...c, T: c.T - 2.5 }).Ioff, b = device(tech, fi, { ...c, T: c.T + 2.5 }).Ioff;
+  const k = (Math.log(b) - Math.log(a)) / 5;
+  return k > 0 ? Math.LN2 / k : Infinity;
+}
+
+/* ====================== UI building ====================== */
+const plots = { iv: new Plot('pIV'), ioff: new Plot('pIoff'), vth: new Plot('pVth'), dly: new Plot('pDly'), bd: new Plot('pBd'), to: new Plot('pTo') };
+
+function buildLegend() {
+  $('legend').innerHTML = FL.map((f, i) => `<button type="button" class="lg" id="show-${i}" data-show="${i}" aria-pressed="${S.show[i]}"><span class="sw" style="background:var(--f${i})"></span>${f.key}</button>`).join('');
+}
+function buildMix() {
+  $('mixRows').innerHTML = FL.map((f, i) => `<div class="mix-row"><span class="flv"><span class="sw" style="background:var(--f${i})"></span><b>${f.key}</b></span><input type="range" id="mix-${i}" min="0" max="100" step="1" value="${S.mix[i]}" aria-label="${f.key} share of cells"><output id="mixOut-${i}" for="mix-${i}">0%</output></div>`).join('');
+}
+buildLegend(); buildMix();
+
+function setPressed(groupId, attr, val) {
+  $(groupId).querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset[attr] === String(val))));
+}
+
+function syncControls() {
+  const t = TECH[S.tech];
+  setPressed('techSeg', 'tech', S.tech); setPressed('cornerSeg', 'corner', S.corner); setPressed('sweepSeg', 'sweep', S.sweep);
+  setPressed('focusSeg', 'focus', S.focus); setPressed('ivSeg', 'scale', S.ivLog ? 'log' : 'lin');
+  const vdd = $('vdd'); vdd.min = t.Vmin; vdd.max = t.Vmax; vdd.value = S.VDD;
+  const vbs = $('vbs'); vbs.min = t.bbMin; vbs.max = t.bbMax; vbs.step = t.bbStep; vbs.value = S.Vbs;
+  $('temp').value = S.T; $('dl').value = S.dL;
+  $('tempOut').textContent = `${S.T} °C`;
+  $('vddOut').textContent = `${S.VDD.toFixed(2)} V`;
+  $('vbsOut').textContent = `${S.Vbs > 0 ? '+' : ''}${S.Vbs.toFixed(2)} V`;
+  $('dlOut').textContent = `${S.dL >= 0 ? '+' : ''}${S.dL.toFixed(1)} nm`;
+  $('cornerOut').textContent = CORNER[S.corner].name;
+  $('vbsHint').textContent = t.vbsHint;
+  $('dlHint').textContent = `Drawn Lg = ${t.Lg} nm, now ${(t.Lg + S.dL).toFixed(1)} nm. Longer gates cut short-channel leakage and cost drive.`;
+  FL.forEach((f, i) => { $('mix-' + i).value = S.mix[i]; });
+  $('ncells').value = S.ncells; $('wcell').value = S.wcell;
+}
+
+/* ====================== render ====================== */
+function render() {
+  const t = TECH[S.tech], tk = S.tech, c = cond(), tag = tagFor(c);
+  $('cornerTag').textContent = tag; $('tblCorner').textContent = tag; $('mixCorner').textContent = tag;
+  $('techTag').textContent = `${t.name} · NMOS · Lg ${(t.Lg + S.dL).toFixed(1).replace(/\.0$/, '')} nm`;
+
+  const devs = FL.map((_, i) => device(t, i, c));
+  const dly = devs.map(d => delayPs(tk, d, S.VDD));
+  const ref = 2;
+
+  // ---- table
+  const rows = devs.map((d, i) => {
+    const z = ztc(tk, i, c);
+    const zs = z.v != null ? z.v.toFixed(2) : z.below != null ? `< ${t.Vmin.toFixed(2)}` : `> ${t.Vmax.toFixed(2)}`;
+    const cold = delayPs(tk, device(t, i, { ...c, T: -40 }), S.VDD), hot = delayPs(tk, device(t, i, { ...c, T: 125 }), S.VDD);
+    const slowHot = hot >= cold;
+    const rI = d.Ioff / devs[ref].Ioff, rD = dly[i] / dly[ref];
+    const dbl = doubling(t, i, c);
+    return `<tr${S.show[i] ? '' : ' style="opacity:.45"'}>
+      <th scope="row"><span class="flv"><span class="sw" style="background:var(--f${i})"></span><span><b>${FL[i].key}</b><i>${FL[i].long}</i></span></span></th>
+      <td>${(d.vth * 1000).toFixed(0)}</td>
+      <td>${d.SS.toFixed(1)}</td>
+      <td>${(d.Ion * 1e6).toFixed(0)}</td>
+      <td>${si(d.Ioff, 'A')}<small>${i === ref ? 'reference' : (rI >= 1 ? sig3(rI) + '×' : '1/' + sig3(1 / rI))}</small></td>
+      <td>${sci(d.Ion / d.Ioff)}</td>
+      <td>${dly[i].toFixed(2)}<small>${i === ref ? 'reference' : sig3(rD) + '×'}</small></td>
+      <td>${isFinite(dbl) ? dbl.toFixed(1) : '—'}</td>
+      <td>${zs}</td>
+      <td><span class="pill${slowHot ? ' hot' : ''}">${slowHot ? 'hot 125 °C' : 'cold −40 °C'}</span></td>
+    </tr>`;
+  });
+  $('tbody').innerHTML = rows.join('');
+
+  // ---- readings
+  const r0 = devs[0].Ioff / devs[3].Ioff, d0 = dly[3] / dly[0];
+  const svtDbl = doubling(t, 2, c);
+  const m25_125 = device(t, 2, { ...c, T: 125 }).Ioff / device(t, 2, { ...c, T: 25 }).Ioff;
+  const zH = ztc(tk, 3, c), zS = ztc(tk, 2, c);
+  const hCold = delayPs(tk, device(t, 3, { ...c, T: -40 }), S.VDD), hHot = delayPs(tk, device(t, 3, { ...c, T: 125 }), S.VDD);
+  const floor = (devs[3].Igate + devs[3].Ijn) / devs[3].Ioff;
+  let invTxt;
+  if (zH.v != null) invTxt = `HVT's zero-temperature point is <b>${zH.v.toFixed(2)} V</b>${zS.v != null ? ` (SVT <b>${zS.v.toFixed(2)} V</b>)` : ''}. At ${S.VDD.toFixed(2)} V, HVT is ${hHot >= hCold ? 'slowest hot, the classic case' : 'slowest <b>cold</b>, so −40 °C must be signed off (temperature inversion)'}.`;
+  else if (zH.below != null) invTxt = `HVT gets slower when hot across the whole supply range, so 125 °C is its timing corner.`;
+  else invTxt = `HVT is slowest <b>cold</b> across the whole supply range: temperature inversion everywhere, so −40 °C is its timing corner.`;
+  const floorTxt = floor > 0.15
+    ? `Gate and junction leakage make up <b>${(floor * 100).toFixed(0)}%</b> of HVT off-current here. A higher V<sub>th</sub> would barely help, since those components ignore it.`
+    : `Subthreshold conduction is <b>${((1 - floor) * 100).toFixed(0)}%</b> of HVT off-current here, so V<sub>th</sub> still controls leakage almost entirely.`;
+  $('readings').innerHTML = `
+    <div class="reading"><span class="k">Vt spread</span><p>ULVT leaks <b>${sig3(r0)}×</b> more than HVT and switches <b>${d0.toFixed(2)}×</b> faster (${dly[0].toFixed(1)} ps vs ${dly[3].toFixed(1)} ps).</p></div>
+    <div class="reading"><span class="k">Temperature</span><p>SVT leakage doubles every <b>${svtDbl.toFixed(1)} °C</b> near ${Math.round(S.T)} °C. Going from 25 °C to 125 °C multiplies it by <b>${sig3(m25_125)}×</b>.</p></div>
+    <div class="reading"><span class="k">Timing corner</span><p>${invTxt}</p></div>
+    <div class="reading"><span class="k">Leakage floor</span><p>${floorTxt}</p></div>`;
+
+  // ---- transfer curve
+  const vg = []; for (let i = 0; i <= 140; i++) vg.push(t.Vmax * i / 140);
+  const ivSeries = [], ivDots = [];
+  devs.forEach((d, i) => {
+    if (!S.show[i]) return;
+    ivSeries.push({ name: FL[i].key, color: COL.f[i], xs: vg, ys: vg.map(v => d.Id(v, S.VDD)), width: 2, end: FL[i].key });
+    ivDots.push({ x: d.vth, y: d.Icc, color: COL.f[i], r: 4 });
+  });
+  plots.iv.set({
+    series: ivSeries, dots: ivDots, yLog: S.ivLog, yZero: true, xMin: 0, xMax: t.Vmax,
+    xLabel: 'Gate voltage VGS (V)', xFmt: v => v.toFixed(1), yFmt: v => S.ivLog ? si(v, 'A', true) : (v * 1e6).toFixed(0) + ' µA',
+    hline: S.ivLog ? { y: devs[2].Icc, label: 'Icc = 100 nA·W/L' } : null,
+    vline: { x: S.VDD, label: `VDD ${S.VDD.toFixed(2)} V` },
+    tipX: v => `VGS = ${v.toFixed(3)} V`, tipFmt: v => si(v, 'A/µm')
+  });
+  $('ivSub').innerHTML = `at V<sub>DS</sub> = ${S.VDD.toFixed(2)} V`;
+
+  // ---- sweeps
+  const key = S.sweep, sw = SWEEPS[key];
+  const xs = sweepGrid(t, key, key === 'T' ? 96 : 81);
+  const res = FL.map((_, i) => xs.map(x => {
+    const cc = { ...c, [key]: x }; const d = device(t, i, cc);
+    return { d, delay: delayPs(tk, d, cc.VDD) };
+  }));
+  const cur = c[key];
+  const vline = { x: cur, label: sw.fmt(cur) };
+  const word = SWEEP_WORD[key];
+  $('ioffSub').innerHTML = `I<sub>off</sub> per µm vs ${word}`; $('vthSub').innerHTML = `V<sub>th,sat</sub> vs ${word}`;
+  $('dlySub').innerHTML = `vs ${word}`; $('bdSub').innerHTML = `${FL[S.focus].key} vs ${word}`; $('toSub').innerHTML = `path across ${word}`;
+  const xBase = { xMin: xs[0], xMax: xs[xs.length - 1], xLabel: sw.axis, xTicks: sw.xt ? sw.xt() : null,
+    xFmt: key === 'T' ? (v => String(v)) : key === 'dL' ? (v => (v > 0 ? '+' : '') + v) : (v => String(+v.toFixed(2))),
+    vline, tipX: v => `${sw.fmt(v)}` };
+  const mk = (getter, extra) => FL.map((f, i) => S.show[i] ? { name: f.key, color: COL.f[i], xs, ys: res[i].map(getter), width: 2, end: f.key, ...(extra || {}) } : null).filter(Boolean);
+
+  plots.ioff.set({ ...xBase, series: mk(r => r.d.Ioff), yLog: true, yFmt: v => si(v, 'A', true), tipFmt: v => si(v, 'A/µm') });
+  plots.vth.set({ ...xBase, series: mk(r => r.d.vth * 1000), yLog: false, yFmt: v => String(Math.round(v)), tipFmt: v => `${v.toFixed(0)} mV` });
+  const dSeries = mk(r => r.delay);
+  let dmn = Infinity, dmx = 0; dSeries.forEach(se => se.ys.forEach(v => { dmn = Math.min(dmn, v); dmx = Math.max(dmx, v); }));
+  const dLog = dmx / dmn > 6;
+  plots.dly.set({ ...xBase, series: dSeries, yLog: dLog, yFmt: v => (dLog ? String(+v.toPrecision(3)) : (Math.abs(v) < 10 ? v.toFixed(1) : v.toFixed(0))) + ' ps', tipFmt: v => `${v.toFixed(2)} ps` });
+  $('dlyCap').innerHTML = key === 'VDD'
+    ? 'Delay climbs steeply as V<sub>DD</sub> approaches V<sub>th</sub>; high-Vt cells hit the wall first.'
+    : key === 'T' ? 'Mobility loss makes gates slower when hot; falling V<sub>th</sub> makes them faster. Which wins depends on V<sub>DD</sub> − V<sub>th</sub>.'
+    : key === 'Vbs' ? 'Forward bias lowers V<sub>th</sub> and speeds the cell up; reverse bias does the opposite.'
+    : 'Longer gates raise V<sub>th</sub>, lower drive current and add gate capacitance, so delay grows.';
+
+  // breakdown
+  const fi = S.focus, fc = COL.f[fi];
+  plots.bd.set({ ...xBase,
+    series: [
+      { name: 'Total', color: fc, xs, ys: res[fi].map(r => r.d.Ioff), width: 2.4, end: 'Total' },
+      { name: 'Subthreshold', color: fc, xs, ys: res[fi].map(r => r.d.Isub), width: 1.5, dash: [5, 4], end: 'Sub-Vt' },
+      { name: 'Gate', color: COL.ink2, xs, ys: res[fi].map(r => r.d.Igate), width: 1.5, dash: [1.5, 3.5], end: 'Gate' },
+      { name: 'Junction/GIDL', color: COL.muted, xs, ys: res[fi].map(r => r.d.Ijn), width: 1.5, dash: [8, 3, 2, 3], end: 'Junction' }
+    ], yLog: true, yFloor: Math.max(1e-15, Math.min(...res[fi].map(r => r.d.Ioff)) / 1e4), yFmt: v => si(v, 'A', true), tipFmt: v => si(v, 'A/µm') });
+
+  // trade-off
+  const toSeries = [], toDots = [];
+  FL.forEach((f, i) => {
+    if (!S.show[i]) return;
+    toSeries.push({ name: f.key, color: COL.f[i], xs: res[i].map(r => r.delay), ys: res[i].map(r => r.d.Ioff), width: 1.6, alpha: 0.55, hover: false });
+    toDots.push({ x: res[i][0].delay, y: res[i][0].d.Ioff, color: COL.f[i], r: 3.5, hollow: true,
+      tip: `<div class="th">${f.key} at ${sw.fmt(xs[0])}</div><div class="row">delay<b>${res[i][0].delay.toFixed(2)} ps</b></div><div class="row">I<sub>off</sub><b>${si(res[i][0].d.Ioff, 'A/µm')}</b></div>` });
+    toDots.push({ x: dly[i], y: devs[i].Ioff, color: COL.f[i], r: 5.5, label: f.key,
+      tip: `<div class="th">${f.key} at ${sw.fmt(cur)}</div><div class="row">delay<b>${dly[i].toFixed(2)} ps</b></div><div class="row">I<sub>off</sub><b>${si(devs[i].Ioff, 'A/µm')}</b></div>` });
+  });
+  let tmn = Infinity, tmx = 0; toSeries.forEach(se => se.xs.forEach(v => { tmn = Math.min(tmn, v); tmx = Math.max(tmx, v); }));
+  const toXLog = tmx / tmn > 6;
+  plots.to.set({ series: toSeries, dots: toDots, yLog: true, xLog: toXLog, hover: 'dots',
+    xLabel: 'FO4 delay (ps)', xFmt: v => String(+v.toPrecision(3)), yFmt: v => si(v, 'A', true) });
+  $('toCap').innerHTML = `Filled dots are the current operating point. Each line traces ${word} from ${sw.fmt(xs[0])} (open circle) to ${sw.fmt(xs[xs.length - 1])}. Down and to the left is better.`;
+
+  // ---- mix budget
+  const tot = S.mix.reduce((a, b) => a + b, 0);
+  const share = S.mix.map(m => tot > 0 ? m / tot : 0.25);
+  FL.forEach((f, i) => { $('mixOut-' + i).textContent = (share[i] * 100).toFixed(0) + '%'; });
+  const per = devs.map(d => d.Ioff * S.wcell * S.VDD * S.ncells); // W if the whole block were this flavor
+  const parts = per.map((p, i) => p * share[i]);
+  const P = parts.reduce((a, b) => a + b, 0);
+  $('mixTotal').textContent = si(P, 'W');
+  $('cmpH').textContent = si(per[3], 'W'); $('cmpS').textContent = si(per[2], 'W'); $('cmpU').textContent = si(per[0], 'W');
+  const seg = arr => arr.map((v, i) => v > 0.0005 ? `<div style="flex:0 0 calc(${(v * 100).toFixed(3)}% - 2px);background:var(--f${i})" title="${FL[i].key} ${(v * 100).toFixed(1)}%"></div>` : '').join('');
+  const keys = arr => arr.map((v, i) => `<span><span class="sw" style="background:var(--f${i})"></span>${FL[i].key} ${(v * 100) < 0.95 && v > 0 ? '<1' : (v * 100).toFixed(0)}%</span>`).join('');
+  const lshare = parts.map(p => P > 0 ? p / P : 0);
+  $('barCount').innerHTML = seg(share); $('keyCount').innerHTML = keys(share);
+  $('barLeak').innerHTML = seg(lshare); $('keyLeak').innerHTML = keys(lshare);
+
+  // ---- parameter table
+  $('ptab').innerHTML = `<tr><th>${t.name}</th>${FL.map(f => `<th>${f.key}</th>`).join('')}</tr>
+    <tr><td>V<sub>th0</sub> (V<sub>DS</sub>≈0, 25 °C, TT)</td>${t.fl.map(f => `<td>${f.vth0.toFixed(3)} V</td>`).join('')}</tr>
+    <tr><td>κ = dV<sub>th</sub>/dT</td>${t.fl.map(f => `<td>${f.kT.toFixed(2)} mV/K</td>`).join('')}</tr>
+    <tr><td colspan="5">n = ${t.n} · α = ${t.alpha} · DIBL η = ${(t.eta * 1000).toFixed(0)} mV/V · body coefficient k<sub>b</sub> = ${(t.kb * 1000).toFixed(0)} mV/V · θ = ${t.theta} · L<sub>g</sub> = ${t.Lg} nm · V<sub>DD,nom</sub> = ${t.Vnom} V · corners ±35 mV</td></tr>`;
+}
+
+let queued = false;
+function schedule() { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; render(); }); }
+
+/* ====================== events ====================== */
+$('techSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  S.tech = b.dataset.tech; const t = TECH[S.tech];
+  S.VDD = t.Vnom; S.Vbs = 0;
+  syncControls(); schedule();
+});
+$('cornerSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.corner = b.dataset.corner; syncControls(); schedule(); });
+$('sweepSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.sweep = b.dataset.sweep; syncControls(); schedule(); });
+$('focusSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.focus = +b.dataset.focus; syncControls(); schedule(); });
+$('ivSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.ivLog = b.dataset.scale === 'log'; syncControls(); schedule(); });
+$('legend').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const i = +b.dataset.show; const on = S.show.filter(Boolean).length;
+  if (S.show[i] && on === 1) return; // keep at least one visible
+  S.show[i] = !S.show[i]; b.setAttribute('aria-pressed', String(S.show[i])); schedule();
+});
+$('temp').addEventListener('input', e => { S.T = +e.target.value; $('tempOut').textContent = `${S.T} °C`; schedule(); });
+$('vdd').addEventListener('input', e => { S.VDD = +e.target.value; $('vddOut').textContent = `${S.VDD.toFixed(2)} V`; schedule(); });
+$('vbs').addEventListener('input', e => { S.Vbs = +e.target.value; syncControls(); schedule(); });
+$('dl').addEventListener('input', e => { S.dL = +e.target.value; syncControls(); schedule(); });
+$('tempChips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return; stopAnim(); S.T = +b.dataset.t; syncControls(); schedule(); });
+$('vddChips').addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if (!b) return; const t = TECH[S.tech];
+  S.VDD = Math.min(Math.max(Math.round(t.Vnom * +b.dataset.v * 100) / 100, t.Vmin), t.Vmax); syncControls(); schedule();
+});
+$('reset').addEventListener('click', () => {
+  stopAnim(); const keep = S.tech; Object.assign(S, JSON.parse(JSON.stringify(DEFAULT)));
+  S.tech = keep; S.VDD = TECH[keep].Vnom; buildLegend(); syncControls(); schedule();
+});
+$('mixRows').addEventListener('input', e => { const m = e.target.id.match(/^mix-(\d)$/); if (!m) return; S.mix[+m[1]] = +e.target.value; schedule(); });
+$('ncells').addEventListener('input', e => { const v = +e.target.value; if (v > 0) { S.ncells = v; schedule(); } });
+$('wcell').addEventListener('input', e => { const v = +e.target.value; if (v > 0) { S.wcell = v; schedule(); } });
+
+// temperature sweep animation
+let anim = null, dir = 1, last = 0;
+function stopAnim() {
+  if (anim) cancelAnimationFrame(anim); anim = null;
+  $('playT').setAttribute('aria-pressed', 'false'); $('playTxt').textContent = 'Sweep'; $('playIcon').setAttribute('d', 'M2 1l9 5-9 5z');
+}
+function stepAnim(ts) {
+  const dt = last ? Math.min(ts - last, 50) : 16; last = ts;
+  let T = S.T + dir * dt * 0.06; // 60 °C per second
+  if (T >= 150) { T = 150; dir = -1; } else if (T <= -40) { T = -40; dir = 1; }
+  S.T = Math.round(T * 10) / 10;
+  $('temp').value = S.T; $('tempOut').textContent = `${Math.round(S.T)} °C`;
+  render();
+  anim = requestAnimationFrame(stepAnim);
+}
+$('playT').addEventListener('click', () => {
+  if (anim) { S.T = Math.round(S.T); syncControls(); stopAnim(); schedule(); return; }
+  last = 0; if (S.T >= 150) dir = -1; else if (S.T <= -40) dir = 1;
+  $('playT').setAttribute('aria-pressed', 'true'); $('playTxt').textContent = 'Stop'; $('playIcon').setAttribute('d', 'M2 1h3v10H2zM7 1h3v10H7z');
+  anim = requestAnimationFrame(stepAnim);
+});
+$('temp').addEventListener('pointerdown', stopAnim);
+
+// theme changes
+function rethemeAll() { readColors(); render(); }
+try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rethemeAll); } catch (e) {}
+new MutationObserver(rethemeAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
+
+readColors(); syncControls(); render();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { Object.values(plots).forEach(p => p.draw()); });
+})();
+</script>
+</body>
+</html>
