@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Multi-Vt Cell Explorer</title>
-<meta name="description" content="Interactive compact-model simulator comparing ULVT, LVT, SVT and HVT transistors across temperature, VDD, process corner, body bias and gate length.">
+<meta name="description" content="Interactive compact-model simulator for ULVT, LVT, SVT and HVT NMOS and PMOS transistors and a 6T SRAM bitcell across temperature, VDD, process corner, body bias and gate length.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
@@ -15,8 +15,8 @@ body { margin: 0; }
 img { max-width: 100%; }
 [hidden] { display: none !important; }
 
-/* Layout: characterization bench. A monochrome control rack (sticky, left) drives a live readout table and a 2-up grid of sweep plots.
-   Colour is reserved for the four Vt flavors, ordered hot (leaky ULVT) to cool (HVT). */
+/* Layout: characterization bench. A monochrome control rack (sticky, left) sets PVT for three device sections
+   (NMOS, PMOS, 6T SRAM bitcell) and a block leakage budget. Colour is reserved for the four Vt flavors, hot (ULVT) to cool (HVT). */
 :root {
   --bg: #eef1f4;
   --panel: #fbfcfd;
@@ -59,13 +59,14 @@ header.top { display: grid; gap: 10px; margin-bottom: 22px; }
 .corner-tag { display: inline-flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-family: var(--mono); font-size: 12px; color: var(--muted); }
 .corner-tag code { font-family: var(--mono); font-weight: 600; color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 2px 8px; letter-spacing: 0.02em; }
 h1 { font-family: var(--display); font-variation-settings: "wdth" 120; font-weight: 780; font-size: clamp(28px, 4.2vw, 42px); line-height: 1.05; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
-.lede { margin: 0; max-width: 68ch; color: var(--ink-2); font-size: 15px; }
+.lede { margin: 0; max-width: 70ch; color: var(--ink-2); font-size: 15px; }
 
 /* ---------- layout ---------- */
 .bench { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 980px) { .bench { grid-template-columns: 296px minmax(0, 1fr); align-items: start; } }
 .results { display: grid; gap: 20px; min-width: 0; grid-template-columns: minmax(0, 1fr); }
-.results > * { min-width: 0; }
+.results > *, .tabpanel > * { min-width: 0; }
+.tabpanel { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); }
 
 .panel { background: var(--panel); border: 1px solid var(--rule); border-radius: var(--r); }
 
@@ -76,8 +77,9 @@ h1 { font-family: var(--display); font-variation-settings: "wdth" 120; font-weig
 .ctl { display: grid; gap: 7px; }
 .ctl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .ctl-head label, .ctl-head .lbl { font-weight: 600; font-size: 13px; }
-.ctl-head output { font-family: var(--mono); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ctl-head output { font-family: var(--mono); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
 .hint { font-size: 12px; color: var(--muted); margin: 0; }
+.hint b { font-family: var(--mono); font-weight: 600; color: var(--ink-2); }
 .scale { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .rack-foot { display: flex; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--rule); padding-block: 14px 0; }
 
@@ -86,14 +88,15 @@ h1 { font-family: var(--display); font-variation-settings: "wdth" 120; font-weig
 .seg button:hover { color: var(--ink); background: var(--panel); }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); font-weight: 600; }
 .seg.small button { font-size: 12px; padding: 6px 8px; }
+.seg.mono button { font-family: var(--mono); font-size: 12px; }
 
-.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .chip { border: 1px solid var(--rule); background: var(--panel); color: var(--ink-2); font: 500 11.5px/1 var(--mono); padding: 5px 7px; border-radius: 3px; cursor: pointer; }
 .chip:hover { border-color: var(--ink-2); color: var(--ink); }
+.chip[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
 
 .btn { border: 1px solid var(--ink); background: var(--panel); color: var(--ink); font: 600 12.5px/1 var(--body); padding: 8px 12px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .btn:hover { background: var(--inset); }
-.btn.solid { background: var(--ink); color: var(--on-ink); }
 .btn svg { width: 12px; height: 12px; fill: currentColor; }
 
 input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; background: transparent; margin: 0; cursor: pointer; }
@@ -104,33 +107,54 @@ input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border-radius
 :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 input[type="range"]:focus-visible { outline-offset: 0; }
 
+/* ---------- device tabs ---------- */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--rule); overflow-x: auto; }
+.tabs button { border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 10px 18px 11px; border-bottom: 3px solid transparent; margin-bottom: -1px; display: grid; gap: 1px; text-align: left; white-space: nowrap; }
+.tabs button b { font-family: var(--display); font-variation-settings: "wdth" 116; font-weight: 760; font-size: 18px; letter-spacing: 0.01em; color: inherit; }
+.tabs button span { font-size: 11.5px; }
+.tabs button:hover { color: var(--ink-2); }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+@media (max-width: 520px) { .tabs button { padding: 8px 12px 9px; } .tabs button b { font-size: 16px; } .tabs button span { display: none; } }
+
 /* ---------- readout table ---------- */
 .card-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 14px; padding: 14px 16px 10px; }
 .card-head .sub { font-size: 12.5px; color: var(--muted); }
 .card-head .sub code { font-family: var(--mono); color: var(--ink-2); }
 .table-scroll { overflow-x: auto; padding: 0 0 6px; }
-table.readout { border-collapse: collapse; width: 100%; min-width: 860px; font-variant-numeric: tabular-nums; }
-.readout th, .readout td { padding: 9px 12px; text-align: right; border-top: 1px solid var(--rule); white-space: nowrap; vertical-align: top; }
-.readout thead th { border-top: 0; font-weight: 600; font-size: 11.5px; color: var(--muted); line-height: 1.25; vertical-align: bottom; }
-.readout thead th span { display: block; font-family: var(--mono); font-weight: 400; font-size: 10.5px; letter-spacing: 0; text-transform: none; }
+table.readout { border-collapse: collapse; width: 100%; min-width: 800px; font-variant-numeric: tabular-nums; }
+.readout th, .readout td { padding: 9px 10px; text-align: right; border-top: 1px solid var(--rule); white-space: nowrap; vertical-align: top; }
+.readout thead th { border-top: 0; font-weight: 600; font-size: 11.5px; color: var(--muted); line-height: 1.25; vertical-align: bottom; white-space: normal; }
+.readout thead th span { display: block; font-family: var(--mono); font-weight: 400; font-size: 10.5px; }
 .readout th:first-child, .readout td:first-child { text-align: left; padding-left: 16px; }
 .readout td { font-family: var(--mono); font-size: 13px; }
 .readout td small { display: block; font-size: 11px; color: var(--muted); }
 .flv { display: inline-flex; align-items: center; gap: 8px; font-family: var(--body); }
 .flv b { font-family: var(--display); font-variation-settings: "wdth" 112; font-weight: 750; font-size: 14px; letter-spacing: 0.02em; }
 .flv i { font-style: normal; font-size: 11.5px; color: var(--muted); display: block; }
-.sw { width: 10px; height: 10px; border-radius: 2px; flex: none; }
-.pill { display: inline-block; font-family: var(--mono); font-size: 11.5px; font-weight: 600; padding: 2px 7px; border-radius: 10px; border: 1px solid var(--ink-2); color: var(--ink); }
-.pill.hot { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+.sw { width: 10px; height: 10px; border-radius: 2px; flex: none; display: inline-block; }
+.pill { display: inline-block; font-family: var(--mono); font-size: 11.5px; font-weight: 600; padding: 2px 7px; border-radius: 10px; border: 1px solid var(--ink-2); color: var(--ink); white-space: nowrap; }
+.pill.solid { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
 
 /* ---------- readings ---------- */
 .readings { display: grid; gap: 1px; grid-template-columns: minmax(0, 1fr); background: var(--rule); border: 1px solid var(--rule); border-radius: var(--r); overflow: hidden; }
+@media (min-width: 560px) { .readings { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .reading { background: var(--panel); padding: 12px 14px; display: grid; gap: 4px; align-content: start; min-width: 0; }
 .reading .k { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .reading p { margin: 0; font-size: 13.5px; color: var(--ink); }
 .reading b { font-family: var(--mono); font-weight: 600; font-size: 13px; }
 
-@media (min-width: 560px) { .readings { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* ---------- SRAM controls + tiles ---------- */
+.cellctl { display: grid; gap: 16px 24px; padding: 4px 16px 16px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 760px) { .cellctl { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.sizes { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
+.sizes .field { width: 74px; }
+.tiles { display: grid; gap: 1px; grid-template-columns: repeat(2, minmax(0, 1fr)); background: var(--rule); border-top: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r); overflow: hidden; }
+@media (min-width: 760px) { .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.tile { background: var(--panel); padding: 12px 14px 13px; display: grid; gap: 3px; align-content: start; min-width: 0; }
+.tile .k { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.tile .v { font-family: var(--display); font-variation-settings: "wdth" 112; font-weight: 720; font-size: 24px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.tile .v small { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--ink-2); margin-left: 3px; }
+.tile .n { font-size: 12px; color: var(--muted); }
 
 /* ---------- chart toolbar + grid ---------- */
 .toolbar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between; padding: 12px 14px; }
@@ -147,25 +171,31 @@ table.readout { border-collapse: collapse; width: 100%; min-width: 860px; font-v
 .chart-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 10px; padding: 12px 14px 4px; }
 .chart-head h3 { margin: 0; font-size: 13.5px; font-weight: 600; }
 .chart-head h3 span { font-family: var(--mono); font-weight: 400; font-size: 11.5px; color: var(--muted); margin-left: 4px; }
+.keys { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 500 11.5px var(--mono); color: var(--ink-2); }
+.keys span { display: inline-flex; align-items: center; gap: 6px; }
+.keys i { display: inline-block; width: 18px; border-top: 2px solid; }
 .plot { position: relative; height: 270px; margin: 0 6px; touch-action: pan-y; }
-@media (max-width: 520px) { .plot { height: 236px; } }
+.plot.tall { height: 330px; }
+@media (max-width: 520px) { .plot { height: 236px; } .plot.tall { height: 300px; } }
 .plot canvas { display: block; width: 100%; height: 100%; }
 .cap { margin: 0; padding: 4px 14px 12px; font-size: 12px; color: var(--muted); }
+.cap b { font-family: var(--mono); font-weight: 600; color: var(--ink-2); }
 .tip { position: absolute; top: 8px; left: 0; pointer-events: none; background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 7px 9px; font: 500 11.5px/1.45 var(--mono); color: var(--ink); box-shadow: 0 4px 14px rgba(0,0,0,0.12); white-space: nowrap; z-index: 2; font-variant-numeric: tabular-nums; }
 .tip .th { color: var(--muted); margin-bottom: 2px; }
 .tip .row { display: flex; align-items: center; gap: 6px; }
 .tip .row .sw { width: 8px; height: 8px; }
 .tip .row b { margin-left: auto; padding-left: 12px; font-weight: 600; }
 
-/* ---------- Vt mix ---------- */
+/* ---------- block budget ---------- */
 .mix { display: grid; gap: 18px; padding: 4px 16px 18px; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 900px) { .mix { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 28px; } }
 .mix-rows { display: grid; gap: 10px; }
 .mix-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) 46px; gap: 10px; align-items: center; }
 .mix-row .flv b { font-size: 13px; }
 .mix-row output { font-family: var(--mono); font-size: 12.5px; text-align: right; font-variant-numeric: tabular-nums; }
-.mix-in { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 4px; }
-.field { display: grid; gap: 5px; }
+.mix-in { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 4px; }
+@media (max-width: 520px) { .mix-in { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.field { display: grid; gap: 5px; align-content: start; }
 .field label { font-size: 12.5px; font-weight: 600; }
 .field input { font: 500 13px var(--mono); color: var(--ink); background: var(--inset); border: 1px solid var(--rule); border-radius: 4px; padding: 8px 9px; width: 100%; min-width: 0; }
 .big { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
@@ -177,19 +207,21 @@ table.readout { border-collapse: collapse; width: 100%; min-width: 860px; font-v
 .bar div { min-width: 0; transition: flex-basis 120ms ease; }
 .bar-keys { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 5px; font: 500 11.5px var(--mono); color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .bar-keys span { display: inline-flex; align-items: center; gap: 5px; }
-.compare { margin-top: 14px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+.hatch { background: repeating-linear-gradient(135deg, var(--ink-2) 0 2px, transparent 2px 6px); box-shadow: inset 0 0 0 1px var(--ink-2); }
+.compare { margin-top: 14px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+@media (min-width: 560px) { .compare { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .compare div { background: var(--panel); padding: 8px 10px; font-size: 11.5px; color: var(--muted); min-width: 0; }
 .compare b { display: block; font: 600 13.5px var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
 
 /* ---------- notes ---------- */
-details.notes { padding: 0; }
 details.notes summary { cursor: pointer; padding: 14px 16px; font-weight: 600; list-style-position: inside; }
 details.notes summary .sec-title { display: inline; }
-.notes-body { padding: 0 16px 18px; display: grid; gap: 14px; max-width: 900px; }
+.notes-body { padding: 0 16px 18px; display: grid; gap: 14px; max-width: 920px; }
+.notes-body h4 { margin: 6px 0 0; font-size: 13px; }
 .notes-body p { margin: 0; color: var(--ink-2); max-width: 75ch; }
 .eq { font-family: var(--mono); font-size: 12.5px; background: var(--inset); border: 1px solid var(--rule); border-radius: 4px; padding: 10px 12px; overflow-x: auto; white-space: pre; line-height: 1.7; color: var(--ink); }
 .ptab-wrap { overflow-x: auto; }
-table.ptab { border-collapse: collapse; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 520px; }
+table.ptab { border-collapse: collapse; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 560px; }
 .ptab th, .ptab td { padding: 5px 12px 5px 0; text-align: left; border-bottom: 1px solid var(--rule); white-space: nowrap; }
 .ptab th { color: var(--muted); font-weight: 500; }
 
@@ -200,9 +232,9 @@ table.ptab { border-collapse: collapse; font-family: var(--mono); font-size: 12p
 
 <div class="wrap">
   <header class="top">
-    <div class="corner-tag"><span>PVT corner</span><code id="cornerTag">tt_0p80v_25c</code><span id="techTag">FinFET 16 nm · NMOS · Lg 20 nm</span></div>
+    <div class="corner-tag"><span>PVT corner</span><code id="cornerTag">tt_0p80v_25c</code><span id="techTag">FinFET 16 nm · Lg 20 nm</span></div>
     <h1>Multi-Vt Cell Explorer</h1>
-    <p class="lede">The same NMOS transistor in four threshold flavors, side by side. Change temperature, supply, process corner, body bias or gate length and watch threshold voltage, leakage and switching speed trade against each other.</p>
+    <p class="lede">NMOS and PMOS transistors in four threshold flavors, plus the 6T SRAM bitcell built from them. Change temperature, supply, process corner, body bias or gate length and watch threshold voltage, leakage, switching speed and SRAM stability trade against each other.</p>
   </header>
 
   <div class="bench">
@@ -221,11 +253,14 @@ table.ptab { border-collapse: collapse; font-family: var(--mono); font-size: 12p
 
       <div class="ctl">
         <div class="ctl-head"><span class="lbl" id="cornerLbl">Process corner</span><output id="cornerOut">typical</output></div>
-        <div class="seg" role="group" aria-labelledby="cornerLbl" id="cornerSeg">
+        <div class="seg mono" role="group" aria-labelledby="cornerLbl" id="cornerSeg">
           <button type="button" id="corner-SS" data-corner="SS" aria-pressed="false">SS</button>
+          <button type="button" id="corner-SF" data-corner="SF" aria-pressed="false">SF</button>
           <button type="button" id="corner-TT" data-corner="TT" aria-pressed="true">TT</button>
+          <button type="button" id="corner-FS" data-corner="FS" aria-pressed="false">FS</button>
           <button type="button" id="corner-FF" data-corner="FF" aria-pressed="false">FF</button>
         </div>
+        <p class="hint">First letter is NMOS, second is PMOS.</p>
       </div>
 
       <div class="ctl">
@@ -252,10 +287,11 @@ table.ptab { border-collapse: collapse; font-family: var(--mono); font-size: 12p
       </div>
 
       <div class="ctl">
-        <div class="ctl-head"><label for="vbs">Body bias V<sub>BS</sub></label><output id="vbsOut" for="vbs">0.00 V</output></div>
+        <div class="ctl-head"><label for="vbs">Body bias</label><output id="vbsOut" for="vbs">0.00 V</output></div>
         <input type="range" id="vbs" min="-0.4" max="0.4" step="0.02" value="0">
         <div class="scale"><span>← reverse (RBB)</span><span>forward (FBB) →</span></div>
-        <p class="hint" id="vbsHint">FinFET body effect is weak: the fin is mostly gated from three sides.</p>
+        <p class="hint" id="vbsMap">NMOS V<sub>BS</sub> = <b>0.00 V</b>, PMOS V<sub>BS</sub> = <b>0.00 V</b></p>
+        <p class="hint" id="vbsHint"></p>
       </div>
 
       <div class="ctl">
@@ -271,128 +307,231 @@ table.ptab { border-collapse: collapse; font-family: var(--mono); font-size: 12p
 
     <!-- ================= results ================= -->
     <div class="results">
-      <section class="panel" aria-labelledby="tblTitle">
-        <div class="card-head">
-          <h2 class="sec-title" id="tblTitle">Characterization</h2>
-          <span class="sub">NMOS, per µm of width, at <code id="tblCorner">tt_0p80v_25c</code></span>
-        </div>
-        <div class="table-scroll">
-          <table class="readout">
-            <thead>
-              <tr>
-                <th scope="col">Flavor</th>
-                <th scope="col">V<sub>th,sat</sub><span>mV</span></th>
-                <th scope="col">Subthreshold swing<span>mV/dec</span></th>
-                <th scope="col">I<sub>on</sub><span>µA/µm</span></th>
-                <th scope="col">I<sub>off</sub> total<span>per µm · vs SVT</span></th>
-                <th scope="col">I<sub>on</sub>/I<sub>off</sub><span>ratio</span></th>
-                <th scope="col">FO4 delay<span>ps · vs SVT</span></th>
-                <th scope="col">Leakage doubles<span>every °C</span></th>
-                <th scope="col">ZTC supply<span>V</span></th>
-                <th scope="col">Slow corner<span>at this V<sub>DD</sub></span></th>
-              </tr>
-            </thead>
-            <tbody id="tbody"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="readings" id="readings" aria-label="Readings at this operating point"></section>
-
-      <section class="panel" aria-label="Sweep plots">
-        <div class="toolbar">
-          <div class="grp">
-            <span id="sweepLbl">Sweep plots against</span>
-            <div class="seg small" role="group" aria-labelledby="sweepLbl" id="sweepSeg">
-              <button type="button" id="sweep-T" data-sweep="T" aria-pressed="true">Temperature</button>
-              <button type="button" id="sweep-VDD" data-sweep="VDD" aria-pressed="false">V<sub>DD</sub></button>
-              <button type="button" id="sweep-Vbs" data-sweep="Vbs" aria-pressed="false">Body bias</button>
-              <button type="button" id="sweep-dL" data-sweep="dL" aria-pressed="false">Gate length</button>
-            </div>
-          </div>
-          <div class="grp">
-            <span id="showLbl">Show</span>
-            <div class="legend" role="group" aria-labelledby="showLbl" id="legend"></div>
-          </div>
-        </div>
-      </section>
-
-      <div class="grid2">
-        <section class="panel chart">
-          <div class="chart-head">
-            <h3>Transfer curve I<sub>D</sub>–V<sub>GS</sub><span id="ivSub">at V<sub>DS</sub> = V<sub>DD</sub></span></h3>
-            <div class="seg small" role="group" aria-label="Current axis scale" id="ivSeg">
-              <button type="button" id="iv-log" data-scale="log" aria-pressed="true">log</button>
-              <button type="button" id="iv-lin" data-scale="lin" aria-pressed="false">linear</button>
-            </div>
-          </div>
-          <div class="plot" id="pIV"><canvas role="img" aria-label="Drain current versus gate voltage for each Vt flavor"></canvas><div class="tip" hidden></div></div>
-          <p class="cap">Dots mark the extracted threshold, where I<sub>D</sub> = 100 nA × W/L (dashed line). The current at V<sub>GS</sub> = 0 is the subthreshold leakage.</p>
-        </section>
-
-        <section class="panel chart">
-          <div class="chart-head"><h3>Off-state leakage<span id="ioffSub">I<sub>off</sub> per µm vs temperature</span></h3></div>
-          <div class="plot" id="pIoff"><canvas role="img" aria-label="Off-state leakage versus the sweep variable"></canvas><div class="tip" hidden></div></div>
-          <p class="cap">Total off current (subthreshold + gate + junction/GIDL) at V<sub>GS</sub> = 0, V<sub>DS</sub> = V<sub>DD</sub>. Log scale: each gridline is 10×.</p>
-        </section>
-
-        <section class="panel chart">
-          <div class="chart-head"><h3>Threshold voltage<span id="vthSub">V<sub>th,sat</sub> vs temperature</span></h3></div>
-          <div class="plot" id="pVth"><canvas role="img" aria-label="Threshold voltage versus the sweep variable"></canvas><div class="tip" hidden></div></div>
-          <p class="cap">Constant-current threshold at V<sub>DS</sub> = V<sub>DD</sub>, so DIBL is included. V<sub>th</sub> falls as temperature rises.</p>
-        </section>
-
-        <section class="panel chart">
-          <div class="chart-head"><h3>FO4 inverter delay<span id="dlySub">vs temperature</span></h3></div>
-          <div class="plot" id="pDly"><canvas role="img" aria-label="FO4 delay versus the sweep variable"></canvas><div class="tip" hidden></div></div>
-          <p class="cap" id="dlyCap">Mobility loss makes gates slower when hot; falling V<sub>th</sub> makes them faster. Which wins depends on V<sub>DD</sub> − V<sub>th</sub>.</p>
-        </section>
-
-        <section class="panel chart">
-          <div class="chart-head">
-            <h3>Leakage components<span id="bdSub">vs temperature</span></h3>
-            <div class="seg small" role="group" aria-label="Flavor to break down" id="focusSeg">
-              <button type="button" id="focus-0" data-focus="0" aria-pressed="false">ULVT</button>
-              <button type="button" id="focus-1" data-focus="1" aria-pressed="false">LVT</button>
-              <button type="button" id="focus-2" data-focus="2" aria-pressed="false">SVT</button>
-              <button type="button" id="focus-3" data-focus="3" aria-pressed="true">HVT</button>
-            </div>
-          </div>
-          <div class="plot" id="pBd"><canvas role="img" aria-label="Leakage components for one flavor versus the sweep variable"></canvas><div class="tip" hidden></div></div>
-          <p class="cap">Subthreshold leakage is exponential in V<sub>th</sub> and T. Gate tunneling barely moves with temperature, so it sets a floor for high-Vt cells when cold.</p>
-        </section>
-
-        <section class="panel chart">
-          <div class="chart-head"><h3>Speed vs leakage<span id="toSub">path across temperature</span></h3></div>
-          <div class="plot" id="pTo"><canvas role="img" aria-label="Leakage versus delay for each flavor"></canvas><div class="tip" hidden></div></div>
-          <p class="cap" id="toCap">Filled dots are the current operating point. Each line traces the sweep; the open circle marks its low end.</p>
-        </section>
+      <div class="tabs" role="tablist" aria-label="Device">
+        <button type="button" role="tab" id="tab-n" data-dev="n" aria-selected="true" aria-controls="panel-dev"><b>NMOS</b><span>Pull-down transistor</span></button>
+        <button type="button" role="tab" id="tab-p" data-dev="p" aria-selected="false" aria-controls="panel-dev"><b>PMOS</b><span>Pull-up transistor</span></button>
+        <button type="button" role="tab" id="tab-sram" data-dev="sram" aria-selected="false" aria-controls="panel-sram"><b>6T SRAM</b><span>Bitcell stability</span></button>
       </div>
 
+      <!-- ======== NMOS / PMOS panel ======== -->
+      <div class="tabpanel" id="panel-dev" role="tabpanel" aria-labelledby="tab-n">
+        <section class="panel" aria-labelledby="tblTitle">
+          <div class="card-head">
+            <h2 class="sec-title" id="tblTitle">NMOS characterization</h2>
+            <span class="sub" id="tblSub">per µm of width, at <code>tt_0p80v_25c</code></span>
+          </div>
+          <div class="table-scroll">
+            <table class="readout"><thead id="thead"></thead><tbody id="tbody"></tbody></table>
+          </div>
+        </section>
+
+        <section class="readings" id="readings" aria-label="Readings at this operating point"></section>
+
+        <section class="panel" aria-label="Plot options">
+          <div class="toolbar">
+            <div class="grp">
+              <span id="sweepLbl">Sweep plots against</span>
+              <div class="seg small" role="group" aria-labelledby="sweepLbl" id="sweepSeg">
+                <button type="button" id="sweep-T" data-sweep="T" aria-pressed="true">Temperature</button>
+                <button type="button" id="sweep-VDD" data-sweep="VDD" aria-pressed="false">V<sub>DD</sub></button>
+                <button type="button" id="sweep-Vbs" data-sweep="Vbs" aria-pressed="false">Body bias</button>
+                <button type="button" id="sweep-dL" data-sweep="dL" aria-pressed="false">Gate length</button>
+              </div>
+            </div>
+            <div class="grp">
+              <span id="showLbl">Show</span>
+              <div class="legend" role="group" aria-labelledby="showLbl" id="legend"></div>
+            </div>
+          </div>
+        </section>
+
+        <div class="grid2">
+          <section class="panel chart">
+            <div class="chart-head">
+              <h3 id="ivTitle">Transfer curve<span id="ivSub"></span></h3>
+              <div class="seg small" role="group" aria-label="Current axis scale" id="ivSeg">
+                <button type="button" id="iv-log" data-scale="log" aria-pressed="true">log</button>
+                <button type="button" id="iv-lin" data-scale="lin" aria-pressed="false">linear</button>
+              </div>
+            </div>
+            <div class="plot" id="pIV"><canvas role="img" aria-label="Drain current versus gate voltage for each Vt flavor"></canvas><div class="tip" hidden></div></div>
+            <p class="cap" id="ivCap"></p>
+          </section>
+
+          <section class="panel chart">
+            <div class="chart-head"><h3>Off-state leakage<span id="ioffSub"></span></h3></div>
+            <div class="plot" id="pIoff"><canvas role="img" aria-label="Off-state leakage versus the sweep variable"></canvas><div class="tip" hidden></div></div>
+            <p class="cap">Total off current (subthreshold + gate + junction/GIDL) with the gate off and full V<sub>DD</sub> across the device. Log scale: each gridline is 10×.</p>
+          </section>
+
+          <section class="panel chart">
+            <div class="chart-head"><h3>Threshold voltage<span id="vthSub"></span></h3></div>
+            <div class="plot" id="pVth"><canvas role="img" aria-label="Threshold voltage versus the sweep variable"></canvas><div class="tip" hidden></div></div>
+            <p class="cap" id="vthCap"></p>
+          </section>
+
+          <section class="panel chart">
+            <div class="chart-head"><h3 id="dlyTitle">FO4 delay<span id="dlySub"></span></h3></div>
+            <div class="plot" id="pDly"><canvas role="img" aria-label="FO4 delay versus the sweep variable"></canvas><div class="tip" hidden></div></div>
+            <p class="cap" id="dlyCap"></p>
+          </section>
+
+          <section class="panel chart">
+            <div class="chart-head">
+              <h3>Leakage components<span id="bdSub"></span></h3>
+              <div class="seg small" role="group" aria-label="Flavor to break down" id="focusSeg">
+                <button type="button" id="focus-0" data-focus="0" aria-pressed="false">ULVT</button>
+                <button type="button" id="focus-1" data-focus="1" aria-pressed="false">LVT</button>
+                <button type="button" id="focus-2" data-focus="2" aria-pressed="false">SVT</button>
+                <button type="button" id="focus-3" data-focus="3" aria-pressed="true">HVT</button>
+              </div>
+            </div>
+            <div class="plot" id="pBd"><canvas role="img" aria-label="Leakage components for one flavor versus the sweep variable"></canvas><div class="tip" hidden></div></div>
+            <p class="cap">Subthreshold leakage is exponential in V<sub>th</sub> and T. Gate tunneling barely moves with temperature, so it sets a floor for high-Vt devices when cold.</p>
+          </section>
+
+          <section class="panel chart">
+            <div class="chart-head"><h3>Speed vs leakage<span id="toSub"></span></h3></div>
+            <div class="plot" id="pTo"><canvas role="img" aria-label="Leakage versus delay for each flavor"></canvas><div class="tip" hidden></div></div>
+            <p class="cap" id="toCap"></p>
+          </section>
+        </div>
+      </div>
+
+      <!-- ======== SRAM panel ======== -->
+      <div class="tabpanel" id="panel-sram" role="tabpanel" aria-labelledby="tab-sram" hidden>
+        <section class="panel" aria-labelledby="cellTitle">
+          <div class="card-head">
+            <h2 class="sec-title" id="cellTitle">6T bitcell</h2>
+            <span class="sub" id="cellSub">at <code>tt_0p80v_25c</code></span>
+          </div>
+          <div class="cellctl">
+            <div class="ctl">
+              <div class="ctl-head"><span class="lbl" id="cellFlLbl">Cell transistors</span></div>
+              <div class="seg small" role="group" aria-labelledby="cellFlLbl" id="cellFlSeg">
+                <button type="button" id="cfl-0" data-cfl="0" aria-pressed="false">ULVT</button>
+                <button type="button" id="cfl-1" data-cfl="1" aria-pressed="false">LVT</button>
+                <button type="button" id="cfl-2" data-cfl="2" aria-pressed="false">SVT</button>
+                <button type="button" id="cfl-3" data-cfl="3" aria-pressed="true">HVT</button>
+              </div>
+              <p class="hint">All six transistors use this flavor. Real arrays use dedicated SRAM devices; HVT is the closest logic flavor.</p>
+            </div>
+            <div class="ctl">
+              <div class="ctl-head"><span class="lbl">Sizing PU : PG : PD</span><output id="ratioOut">β 1.00 · γ 0.50</output></div>
+              <div class="sizes">
+                <div class="field"><label for="szPU">Pull-up</label><input id="szPU" type="number" min="0.5" max="4" step="1" value="1"></div>
+                <div class="field"><label for="szPG">Access</label><input id="szPG" type="number" min="0.5" max="4" step="1" value="2"></div>
+                <div class="field"><label for="szPD">Pull-down</label><input id="szPD" type="number" min="0.5" max="4" step="1" value="2"></div>
+              </div>
+              <div class="chips" id="sizeChips">
+                <button type="button" class="chip" data-size="1,1,1">1:1:1 dense</button>
+                <button type="button" class="chip" data-size="1,2,2">1:2:2 fast</button>
+                <button type="button" class="chip" data-size="1,1,2">1:1:2 stable</button>
+              </div>
+              <p class="hint" id="sizeHint">In units of one fin. β = PD/PG sets read stability; γ = PU/PG sets how hard the cell fights a write.</p>
+            </div>
+            <div class="ctl">
+              <div class="ctl-head"><label for="wl">Word-line level</label><output id="wlOut" for="wl">100% V<sub>DD</sub></output></div>
+              <input type="range" id="wl" min="0.8" max="1.1" step="0.01" value="1">
+              <div class="scale"><span>← underdrive (read assist)</span><span>boost (write assist) →</span></div>
+            </div>
+            <div class="ctl">
+              <div class="ctl-head"><span class="lbl" id="arrLbl">Array size</span><output id="arrOut">4 Mbit</output></div>
+              <div class="seg small mono" role="group" aria-labelledby="arrLbl" id="arrSeg">
+                <button type="button" id="arr-1" data-mb="1" aria-pressed="false">1 Mb</button>
+                <button type="button" id="arr-4" data-mb="4" aria-pressed="true">4 Mb</button>
+                <button type="button" id="arr-16" data-mb="16" aria-pressed="false">16 Mb</button>
+                <button type="button" id="arr-64" data-mb="64" aria-pressed="false">64 Mb</button>
+              </div>
+              <p class="hint" id="arrHint">Sets the sigma target for 99% array yield and the array's standby leakage.</p>
+            </div>
+          </div>
+          <div class="tiles" id="tiles"></div>
+        </section>
+
+        <section class="readings" id="sReadings" aria-label="SRAM readings"></section>
+
+        <section class="panel" aria-label="SRAM plot options">
+          <div class="toolbar">
+            <div class="grp">
+              <span id="sSweepLbl">Sweep plots against</span>
+              <div class="seg small" role="group" aria-labelledby="sSweepLbl" id="sSweepSeg">
+                <button type="button" id="ssweep-T" data-sweep="T" aria-pressed="true">Temperature</button>
+                <button type="button" id="ssweep-VDD" data-sweep="VDD" aria-pressed="false">V<sub>DD</sub></button>
+                <button type="button" id="ssweep-Vbs" data-sweep="Vbs" aria-pressed="false">Body bias</button>
+                <button type="button" id="ssweep-dL" data-sweep="dL" aria-pressed="false">Gate length</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="grid2">
+          <section class="panel chart">
+            <div class="chart-head"><h3>Butterfly curves<span>V<sub>QB</sub> vs V<sub>Q</sub></span></h3>
+              <div class="keys"><span><i id="kRead"></i>read</span><span><i style="border-top-style:dashed;border-color:var(--ink-2)"></i>hold</span></div></div>
+            <div class="plot tall" id="pBf"><canvas role="img" aria-label="Hold and read butterfly curves with the largest embedded squares"></canvas><div class="tip" hidden></div></div>
+            <p class="cap" id="bfCap"></p>
+          </section>
+
+          <section class="panel chart">
+            <div class="chart-head"><h3>Write<span>node Q as the bitline is pulled down</span></h3></div>
+            <div class="plot tall" id="pWr"><canvas role="img" aria-label="Node Q voltage versus bitline voltage during a write"></canvas><div class="tip" hidden></div></div>
+            <p class="cap" id="wrCap"></p>
+          </section>
+
+          <section class="panel chart">
+            <div class="chart-head"><h3>Read SNM spread<span>Monte Carlo, 200 cells</span></h3></div>
+            <div class="plot" id="pMc"><canvas role="img" aria-label="Histogram of read static noise margin across 200 mismatched cells"></canvas><div class="tip" hidden></div></div>
+            <p class="cap" id="mcCap"></p>
+          </section>
+
+          <section class="panel chart">
+            <div class="chart-head"><h3>Margins<span id="mgSub"></span></h3></div>
+            <div class="plot" id="pMg"><canvas role="img" aria-label="Hold SNM, read SNM and write trip versus the sweep variable"></canvas><div class="tip" hidden></div></div>
+            <p class="cap">Read SNM and write trip pull in opposite directions: whatever makes the access transistor stronger helps writes and hurts reads.</p>
+          </section>
+
+          <section class="panel chart">
+            <div class="chart-head"><h3>Read current<span id="irSub"></span></h3></div>
+            <div class="plot" id="pIr"><canvas role="img" aria-label="Cell read current versus the sweep variable"></canvas><div class="tip" hidden></div></div>
+            <p class="cap">Current the cell sinks from the precharged bitline through the access and pull-down transistors. It sets how fast the bitline develops a sensing signal.</p>
+          </section>
+
+          <section class="panel chart">
+            <div class="chart-head"><h3>Cell standby leakage<span id="lkSub"></span></h3></div>
+            <div class="plot" id="pLk"><canvas role="img" aria-label="Bitcell standby leakage versus the sweep variable"></canvas><div class="tip" hidden></div></div>
+            <p class="cap">Word line off, both bitlines at V<sub>DD</sub>: one off pull-up, one off pull-down and one off access transistor leak in every cell.</p>
+          </section>
+        </div>
+      </div>
+
+      <!-- ======== block budget ======== -->
       <section class="panel" aria-labelledby="mixTitle">
         <div class="card-head">
-          <h2 class="sec-title" id="mixTitle">Vt mix leakage budget</h2>
-          <span class="sub">A block's standby power at <code id="mixCorner">tt_0p80v_25c</code></span>
+          <h2 class="sec-title" id="mixTitle">Block standby budget</h2>
+          <span class="sub" id="mixSub">Logic Vt mix plus SRAM array at <code>tt_0p80v_25c</code></span>
         </div>
         <div class="mix">
           <div>
             <div class="mix-rows" id="mixRows"></div>
             <div class="mix-in">
-              <div class="field"><label for="ncells">Cells in block</label><input id="ncells" type="number" min="1000" step="1000" value="2000000"></div>
-              <div class="field"><label for="wcell">Leaking width per cell (µm)</label><input id="wcell" type="number" min="0.05" step="0.05" value="0.3"></div>
+              <div class="field"><label for="ncells">Logic cells</label><input id="ncells" type="number" min="1000" step="1000" value="2000000"></div>
+              <div class="field"><label for="wcell">Off width per cell (µm)</label><input id="wcell" type="number" min="0.05" step="0.05" value="0.3"></div>
+              <div class="field"><label for="mbits">SRAM (Mbit)</label><input id="mbits" type="number" min="0" step="1" value="4"></div>
             </div>
-            <p class="hint" style="margin-top:8px">Shares are normalized to 100%. Swapping a few critical-path cells to ULVT is cheap in count and expensive in leakage.</p>
+            <p class="hint" style="margin-top:8px">Logic shares are normalized to 100%. Half of each cell's off width is NMOS, half PMOS. The SRAM array uses the cell from the 6T SRAM tab.</p>
           </div>
           <div>
-            <div class="big"><span class="num" id="mixTotal">—</span><span class="what">total leakage power</span></div>
+            <div class="big"><span class="num" id="mixTotal">—</span><span class="what">total standby power</span></div>
             <div class="bars">
-              <div><div class="bar-lbl">Share of cells</div><div class="bar" id="barCount"></div><div class="bar-keys" id="keyCount"></div></div>
-              <div><div class="bar-lbl">Share of leakage power</div><div class="bar" id="barLeak"></div><div class="bar-keys" id="keyLeak"></div></div>
+              <div><div class="bar-lbl">Logic cells by flavor</div><div class="bar" id="barCount"></div><div class="bar-keys" id="keyCount"></div></div>
+              <div><div class="bar-lbl">Share of standby power</div><div class="bar" id="barLeak"></div><div class="bar-keys" id="keyLeak"></div></div>
             </div>
             <div class="compare">
-              <div>Same block, all HVT<b id="cmpH">—</b></div>
-              <div>All SVT<b id="cmpS">—</b></div>
-              <div>All ULVT<b id="cmpU">—</b></div>
+              <div>SRAM array<b id="cmpA">—</b></div>
+              <div>Logic, all HVT<b id="cmpH">—</b></div>
+              <div>Logic, all SVT<b id="cmpS">—</b></div>
+              <div>Logic, all ULVT<b id="cmpU">—</b></div>
             </div>
           </div>
         </div>
@@ -401,14 +540,24 @@ table.ptab { border-collapse: collapse; font-family: var(--mono); font-size: 12p
       <details class="panel notes">
         <summary><span class="sec-title">Model and assumptions</span></summary>
         <div class="notes-body">
-          <p>Each flavor is the same NMOS with a different threshold set by work function (FinFET, FD-SOI) or channel doping (planar). Parameters are representative values chosen to reproduce published trends for each technology class. They are not foundry PDK data. PMOS is assumed to track NMOS.</p>
-          <div class="eq">V<sub>th</sub>  = V<sub>th0</sub>(flavor) + ΔV<sub>corner</sub> + κ·(T − 25 °C) − η·V<sub>DS</sub> − k<sub>b</sub>·V<sub>BS</sub> + ΔV<sub>roll-off</sub>(ΔL)
-I<sub>D</sub>   = K(T)·[α·n·v<sub>T</sub>·ln(1 + e<sup>(V<sub>GS</sub> − V<sub>th</sub>)/(α·n·v<sub>T</sub>)</sup>)]<sup>α</sup>·(1 − e<sup>−V<sub>DS</sub>/v<sub>T</sub></sup>)     v<sub>T</sub> = kT/q
+          <p>Each flavor is the same transistor with a different threshold set by work function (FinFET, FD-SOI) or channel doping (planar). Parameters are representative values chosen to reproduce published trends for each technology class. They are not foundry PDK data. PMOS uses its own parameters (lower hole mobility, its own threshold and temperature coefficients) and is described with magnitudes: |V<sub>GS</sub>|, |V<sub>DS</sub>|, |I<sub>D</sub>|.</p>
+          <h4>Transistor</h4>
+          <div class="eq">|V<sub>th</sub>| = V<sub>th0</sub>(flavor) + ΔV<sub>corner</sub> + κ·(T − 25 °C) − η·|V<sub>DS</sub>| − k<sub>b</sub>·V<sub>fwd</sub> + ΔV<sub>roll-off</sub>(ΔL)
+I<sub>D</sub>   = K(T)·V<sub>eff</sub><sup>α</sup>·tanh(|V<sub>DS</sub>| / V<sub>Dsat</sub>)
+V<sub>eff</sub> = α·n·v<sub>T</sub>·ln(1 + e<sup>(|V<sub>GS</sub>| − |V<sub>th</sub>|)/(α·n·v<sub>T</sub>)</sup>)      V<sub>Dsat</sub> = √[(P<sub>v</sub>·V<sub>eff</sub><sup>α/2</sup>)² + v<sub>T</sub>²]      v<sub>T</sub> = kT/q
 K(T) ∝ (T/298 K)<sup>−θ</sup>·(L<sub>g</sub>/L)<sup>0.4</sup>        alpha-power law above threshold, exponential below
-I<sub>off</sub> = I<sub>sub</sub>(V<sub>GS</sub> = 0) + I<sub>gate</sub> ∝ V<sub>DD</sub><sup>4</sup> + I<sub>junction/GIDL</sub> ∝ e<sup>(V<sub>DD</sub> − V<sub>BS</sub>)/V<sub>j</sub></sup>·e<sup>−E<sub>a</sub>/kT</sup>
+I<sub>off</sub> = I<sub>sub</sub> + I<sub>gate</sub> ∝ V<sub>DD</sub><sup>4</sup> + I<sub>junction/GIDL</sub> ∝ e<sup>(V<sub>DD</sub> − V<sub>fwd</sub>)/V<sub>j</sub></sup>·e<sup>−E<sub>a</sub>/kT</sup>
 SS   = n·v<sub>T</sub>·ln 10
-t<sub>FO4</sub> ∝ C·V<sub>DD</sub> / I<sub>eff</sub>,   I<sub>eff</sub> = ½·[I<sub>D</sub>(V<sub>DD</sub>) + I<sub>D</sub>(V<sub>DD</sub>/2)] at V<sub>DS</sub> = V<sub>DD</sub></div>
-          <p>V<sub>th,sat</sub> in the table is extracted from the curve at I<sub>D</sub> = 100 nA × W/L, the usual constant-current definition. The FO4 delay is scaled so SVT at TT, 25 °C and nominal V<sub>DD</sub> matches a typical value for the node. The zero-temperature-coefficient (ZTC) supply is where FO4 delay at −40 °C equals delay at 125 °C; below it, cold is the slow corner (temperature inversion). In FD-SOI the back gate sits under the buried oxide, so back bias does not stress any junction.</p>
+t<sub>pHL</sub> ∝ C·V<sub>DD</sub> / I<sub>eff,N</sub>     t<sub>pLH</sub> ∝ C·V<sub>DD</sub> / (W<sub>P</sub>/W<sub>N</sub>·I<sub>eff,P</sub>)     I<sub>eff</sub> = ½·[I<sub>D</sub>(V<sub>DD</sub>) + I<sub>D</sub>(V<sub>DD</sub>/2)]</div>
+          <p>V<sub>th,sat</sub> is extracted at I<sub>D</sub> = 100 nA × W/L with full V<sub>DD</sub> on the drain. The inverter's PMOS is sized so that rise and fall delays match for SVT at TT, 25 °C and nominal V<sub>DD</sub>, and that delay is scaled to a typical FO4 value for the node. Skewed corners (SF, FS) then split rise and fall. The ZTC supply is where delay at −40 °C equals delay at 125 °C; below it, cold is the slow corner. V<sub>fwd</sub> is the body-bias slider: forward bias is positive for both devices, so NMOS V<sub>BS</sub> = V<sub>fwd</sub> and PMOS V<sub>BS</sub> = −V<sub>fwd</sub>. In FD-SOI the back gate sits under the buried oxide, so back bias does not stress any junction.</p>
+          <h4>6T SRAM bitcell</h4>
+          <p>The butterfly curves are the DC transfer curves of the two cross-coupled inverters, solved node by node with the transistor model above. In read mode the access transistors connect both nodes to bitlines held at V<sub>DD</sub>, with the word line at the chosen level. The static noise margin (SNM) is the side of the largest square that fits inside each lobe, found by rotating the axes 45° and taking the largest vertical gap between the curves (Seevinck's method); the cell's SNM is the smaller lobe.</p>
+          <div class="eq">Read current  I<sub>read</sub> = I<sub>PD</sub>(V<sub>GS</sub> = V<sub>QB</sub>, V<sub>DS</sub> = V<sub>bump</sub>) = I<sub>PG</sub>, solved for the read bump V<sub>bump</sub> on the '0' node
+Write trip    largest V<sub>BL</sub> that pulls Q below the trip point V<sub>M</sub> of the opposite inverter (QB still low)
+Standby       I<sub>cell</sub> = W<sub>PU</sub>·I<sub>off,P</sub> + (W<sub>PD</sub> + W<sub>PG</sub>)·I<sub>off,N</sub>
+Mismatch      σV<sub>th</sub> = A<sub>Vt</sub> / √(W·L)   (Pelgrom), independent for all six transistors
+Yield target  k such that ½·erfc(k/√2) = 1 − 0.99<sup>1/N<sub>bits</sub></sup></div>
+          <p>The Monte Carlo draws the same 200 sets of random numbers every time, scaled by each transistor's σV<sub>th</sub>, so the histogram moves smoothly as you change conditions. μ/σ from 200 samples carries roughly ±5% sampling error. The write trip uses the standard pull-up versus access-transistor approximation; a full transient write would flip slightly earlier.</p>
           <div class="ptab-wrap"><table class="ptab" id="ptab"></table></div>
         </div>
       </details>
@@ -419,35 +568,45 @@ t<sub>FO4</sub> ∝ C·V<sub>DD</sub> / I<sub>eff</sub>,   I<sub>eff</sub> = ½�
 <script>
 (() => {
 'use strict';
-/* ====================== device model ====================== */
+/* ====================== device model (NMOS + PMOS, magnitudes) ====================== */
 const KB = 8.617333e-5; // eV/K
 const TECH = {
   planar28: {
-    name: 'Planar bulk 28 nm', short: 'Planar 28 nm', Lg: 30, Vnom: 0.9, Vmin: 0.5, Vmax: 1.1, bbMin: -0.6, bbMax: 0.4, bbStep: 0.02,
-    n: 1.30, nsc: 0.9, alpha: 1.35, eta: 0.100, ell: 9, R: 1.4, kb: 0.120, theta: 1.30, lexp: 0.4,
-    K: 1.55e-3, Ig0: 0.25e-9, gp: 4, Ij0: 0.12e-9, Vj: 0.22, Ea: 0.40, jbb: 1, Dref: 14.0,
-    vbsHint: 'Bulk body effect is moderate. Reverse bias raises Vₜₕ but also stresses the drain junction, so junction leakage climbs.',
-    fl: [ { vth0: 0.300, kT: -0.80, jf: 0.6 }, { vth0: 0.355, kT: -0.88, jf: 0.8 },
-          { vth0: 0.410, kT: -0.96, jf: 1.0 }, { vth0: 0.470, kT: -1.05, jf: 1.35 } ]
+    name: 'Planar bulk 28 nm', Lg: 30, Vnom: 0.9, Vmin: 0.5, Vmax: 1.1, bbMin: -0.6, bbMax: 0.4, bbStep: 0.02,
+    ell: 9, R: 1.4, nsc: 0.9, lexp: 0.4, Dref: 14.0, Avt: 2.5, w0: 0.09, finStep: 0.25,
+    vbsHint: 'Bulk body effect is moderate. Reverse bias raises |Vth| but also stresses the drain junction, so junction leakage climbs.',
+    n: { n: 1.30, alpha: 1.35, eta: 0.100, kb: 0.120, theta: 1.30, K: 1.55e-3, Pv: 0.55, Ig0: 0.25e-9, gp: 4, Ij0: 0.12e-9, Vj: 0.22, Ea: 0.40, jbb: 1,
+      fl: [ { vth0: 0.300, kT: -0.80, jf: 0.6 }, { vth0: 0.355, kT: -0.88, jf: 0.8 }, { vth0: 0.410, kT: -0.96, jf: 1.0 }, { vth0: 0.470, kT: -1.05, jf: 1.35 } ] },
+    p: { n: 1.32, alpha: 1.45, eta: 0.090, kb: 0.110, theta: 1.20, K: 0.92e-3, Pv: 0.62, Ig0: 0.08e-9, gp: 4, Ij0: 0.10e-9, Vj: 0.22, Ea: 0.40, jbb: 1,
+      fl: [ { vth0: 0.310, kT: -0.78, jf: 0.6 }, { vth0: 0.365, kT: -0.86, jf: 0.8 }, { vth0: 0.420, kT: -0.94, jf: 1.0 }, { vth0: 0.480, kT: -1.02, jf: 1.35 } ] }
   },
   finfet16: {
-    name: 'FinFET 16 nm', short: 'FinFET 16 nm', Lg: 20, Vnom: 0.8, Vmin: 0.4, Vmax: 1.0, bbMin: -0.4, bbMax: 0.4, bbStep: 0.02,
-    n: 1.08, nsc: 0.6, alpha: 1.25, eta: 0.035, ell: 6, R: 1.5, kb: 0.020, theta: 1.00, lexp: 0.4,
-    K: 2.10e-3, Ig0: 0.02e-9, gp: 4, Ij0: 0.025e-9, Vj: 0.20, Ea: 0.40, jbb: 1, Dref: 8.0,
+    name: 'FinFET 16 nm', Lg: 20, Vnom: 0.8, Vmin: 0.4, Vmax: 1.0, bbMin: -0.4, bbMax: 0.4, bbStep: 0.02,
+    ell: 6, R: 1.5, nsc: 0.6, lexp: 0.4, Dref: 8.0, Avt: 1.8, w0: 0.10, finStep: 1,
     vbsHint: 'FinFET body effect is weak: the gate wraps the fin on three sides, so the substrate has little say.',
-    fl: [ { vth0: 0.255, kT: -0.65, jf: 1 }, { vth0: 0.300, kT: -0.70, jf: 1 },
-          { vth0: 0.345, kT: -0.75, jf: 1 }, { vth0: 0.395, kT: -0.80, jf: 1 } ]
+    n: { n: 1.08, alpha: 1.25, eta: 0.035, kb: 0.020, theta: 1.00, K: 2.10e-3, Pv: 0.50, Ig0: 0.02e-9, gp: 4, Ij0: 0.025e-9, Vj: 0.20, Ea: 0.40, jbb: 1,
+      fl: [ { vth0: 0.255, kT: -0.65, jf: 1 }, { vth0: 0.300, kT: -0.70, jf: 1 }, { vth0: 0.345, kT: -0.75, jf: 1 }, { vth0: 0.395, kT: -0.80, jf: 1 } ] },
+    p: { n: 1.10, alpha: 1.30, eta: 0.040, kb: 0.020, theta: 0.90, K: 1.85e-3, Pv: 0.55, Ig0: 0.008e-9, gp: 4, Ij0: 0.020e-9, Vj: 0.20, Ea: 0.40, jbb: 1,
+      fl: [ { vth0: 0.265, kT: -0.62, jf: 1 }, { vth0: 0.310, kT: -0.67, jf: 1 }, { vth0: 0.355, kT: -0.72, jf: 1 }, { vth0: 0.405, kT: -0.77, jf: 1 } ] }
   },
   fdsoi22: {
-    name: 'FD-SOI 22 nm', short: 'FD-SOI 22 nm', Lg: 20, Vnom: 0.8, Vmin: 0.4, Vmax: 1.0, bbMin: -1.8, bbMax: 1.8, bbStep: 0.05,
-    n: 1.12, nsc: 0.7, alpha: 1.30, eta: 0.050, ell: 6.5, R: 1.3, kb: 0.085, theta: 1.20, lexp: 0.4,
-    K: 1.60e-3, Ig0: 0.05e-9, gp: 4, Ij0: 0.002e-9, Vj: 0.25, Ea: 0.45, jbb: 0, Dref: 11.0,
+    name: 'FD-SOI 22 nm', Lg: 20, Vnom: 0.8, Vmin: 0.4, Vmax: 1.0, bbMin: -1.8, bbMax: 1.8, bbStep: 0.05,
+    ell: 6.5, R: 1.3, nsc: 0.7, lexp: 0.4, Dref: 11.0, Avt: 1.5, w0: 0.08, finStep: 0.25,
     vbsHint: 'FD-SOI back-gate biasing is strong (about 85 mV/V) and spans ±1.8 V, a real knob for trading speed and leakage after tape-out.',
-    fl: [ { vth0: 0.250, kT: -0.60, jf: 1 }, { vth0: 0.300, kT: -0.66, jf: 1 },
-          { vth0: 0.350, kT: -0.72, jf: 1 }, { vth0: 0.405, kT: -0.78, jf: 1 } ]
+    n: { n: 1.12, alpha: 1.30, eta: 0.050, kb: 0.085, theta: 1.20, K: 1.60e-3, Pv: 0.52, Ig0: 0.05e-9, gp: 4, Ij0: 0.002e-9, Vj: 0.25, Ea: 0.45, jbb: 0,
+      fl: [ { vth0: 0.250, kT: -0.60, jf: 1 }, { vth0: 0.300, kT: -0.66, jf: 1 }, { vth0: 0.350, kT: -0.72, jf: 1 }, { vth0: 0.405, kT: -0.78, jf: 1 } ] },
+    p: { n: 1.14, alpha: 1.38, eta: 0.050, kb: 0.080, theta: 1.10, K: 1.15e-3, Pv: 0.58, Ig0: 0.02e-9, gp: 4, Ij0: 0.002e-9, Vj: 0.25, Ea: 0.45, jbb: 0,
+      fl: [ { vth0: 0.260, kT: -0.58, jf: 1 }, { vth0: 0.310, kT: -0.64, jf: 1 }, { vth0: 0.360, kT: -0.70, jf: 1 }, { vth0: 0.415, kT: -0.76, jf: 1 } ] }
   }
 };
-const CORNER = { SS: { dv: 0.035, kf: 0.92, name: 'slow' }, TT: { dv: 0, kf: 1, name: 'typical' }, FF: { dv: -0.035, kf: 1.08, name: 'fast' } };
+// Corner letters: first = NMOS, second = PMOS
+const CORNER = {
+  SS: { name: 'slow N, slow P', n: { dv: 0.035, kf: 0.92 }, p: { dv: 0.035, kf: 0.92 } },
+  SF: { name: 'slow N, fast P', n: { dv: 0.035, kf: 0.92 }, p: { dv: -0.035, kf: 1.08 } },
+  TT: { name: 'typical', n: { dv: 0, kf: 1 }, p: { dv: 0, kf: 1 } },
+  FS: { name: 'fast N, slow P', n: { dv: -0.035, kf: 1.08 }, p: { dv: 0.035, kf: 0.92 } },
+  FF: { name: 'fast N, fast P', n: { dv: -0.035, kf: 1.08 }, p: { dv: -0.035, kf: 1.08 } }
+};
 const FL = [
   { key: 'ULVT', long: 'Ultra-low Vt' }, { key: 'LVT', long: 'Low Vt' },
   { key: 'SVT', long: 'Standard Vt' }, { key: 'HVT', long: 'High Vt' }
@@ -455,52 +614,181 @@ const FL = [
 
 function softplus(x) { return x > 30 ? x : Math.log1p(Math.exp(x)); }
 
-function device(tech, fi, c) {
-  const f = tech.fl[fi];
+// type 'n' or 'p'. All voltages are magnitudes; c.Vbs is the forward-bias amount (negative = reverse bias) for either type.
+function device(tk, type, fi, c) {
+  const tech = TECH[tk], P = tech[type], f = P.fl[fi];
   const Tk = c.T + 273.15, vt = KB * Tk;
   const Lg = tech.Lg + c.dL;
   const roll = tech.R * (Math.exp(-tech.Lg / tech.ell) - Math.exp(-Lg / tech.ell));
-  const eta = tech.eta * Math.exp(-c.dL / tech.ell);
-  const n = tech.n * (1 + tech.nsc * Math.exp(-Lg / tech.ell)) / (1 + tech.nsc * Math.exp(-tech.Lg / tech.ell));
-  const cr = CORNER[c.corner];
-  const vth0 = f.vth0 + cr.dv + f.kT * 1e-3 * (c.T - 25) + roll - tech.kb * c.Vbs;
-  const K = tech.K * cr.kf * Math.pow(Tk / 298.15, -tech.theta) * Math.pow(tech.Lg / Lg, tech.lexp);
-  const a = tech.alpha, s = a * n * vt;
-  const Id = (Vgs, Vds) => {
-    const vth = vth0 - eta * Vds;
+  const eta = P.eta * Math.exp(-c.dL / tech.ell);
+  const n = P.n * (1 + tech.nsc * Math.exp(-Lg / tech.ell)) / (1 + tech.nsc * Math.exp(-tech.Lg / tech.ell));
+  const cr = CORNER[c.corner][type];
+  const vth0 = f.vth0 + cr.dv + f.kT * 1e-3 * (c.T - 25) + roll - P.kb * c.Vbs;
+  const K = P.K * cr.kf * Math.pow(Tk / 298.15, -P.theta) * Math.pow(tech.Lg / Lg, tech.lexp);
+  const a = P.alpha, s = a * n * vt, h = a / 2, Pv = P.Pv;
+  // dvt: extra threshold shift (mismatch, source-body bias); Vds >= 0
+  const Id = (Vgs, Vds, dvt) => {
+    const vth = vth0 - eta * Vds + (dvt || 0);
     const veff = s * softplus((Vgs - vth) / s);
-    return K * Math.pow(veff, a) * (1 - Math.exp(-Vds / vt));
+    const vs = Pv * Math.pow(veff, h);
+    const vdsat = Math.sqrt(vs * vs + vt * vt);
+    return K * Math.pow(veff, a) * Math.tanh(Vds / vdsat);
   };
-  const thermJ = Math.exp(tech.Ea / KB * (1 / 298.15 - 1 / Tk));
+  const thermJ = Math.exp(P.Ea / KB * (1 / 298.15 - 1 / Tk));
   const Isub = Id(0, c.VDD);
-  const Igate = tech.Ig0 * Math.pow(c.VDD / tech.Vnom, tech.gp) * (1 + 0.0015 * (c.T - 25));
-  const Ijn = tech.Ij0 * f.jf * Math.exp((c.VDD - tech.jbb * c.Vbs - tech.Vnom) / tech.Vj) * thermJ;
+  const Igate = P.Ig0 * Math.pow(c.VDD / tech.Vnom, P.gp) * (1 + 0.0015 * (c.T - 25));
+  const Ijn = P.Ij0 * f.jf * Math.exp((c.VDD - P.jbb * c.Vbs - tech.Vnom) / P.Vj) * thermJ;
   const Ion = Id(c.VDD, c.VDD);
   const Ieff = 0.5 * (Ion + Id(c.VDD / 2, c.VDD));
   const Icc = 100e-9 / (Lg * 1e-3);
   let lo = -1, hi = 2;
   for (let i = 0; i < 40; i++) { const m = 0.5 * (lo + hi); if (Id(m, c.VDD) > Icc) hi = m; else lo = m; }
   const cfac = 0.7 + 0.3 * Lg / tech.Lg;
-  return { Id, Isub, Igate, Ijn, Ioff: Isub + Igate + Ijn, Ion, Ieff, vth: 0.5 * (lo + hi), SS: n * vt * Math.LN10 * 1000, cfac, Icc };
+  return { Id, Isub, Igate, Ijn, Ioff: Isub + Igate + Ijn, Ion, Ieff, vth: 0.5 * (lo + hi), SS: n * vt * Math.LN10 * 1000, cfac, Icc, kb: P.kb, Lg };
 }
 const refCache = {};
-function ieffRef(tk) {
-  if (!refCache[tk]) refCache[tk] = device(TECH[tk], 2, { T: 25, VDD: TECH[tk].Vnom, Vbs: 0, dL: 0, corner: 'TT' }).Ieff;
-  return refCache[tk];
+function ieffRef(tk, type) {
+  const k = tk + type;
+  if (!refCache[k]) refCache[k] = device(tk, type, 2, { T: 25, VDD: TECH[tk].Vnom, Vbs: 0, dL: 0, corner: 'TT' }).Ieff;
+  return refCache[k];
 }
-function delayPs(tk, d, VDD) { const t = TECH[tk]; return t.Dref * d.cfac * (VDD / t.Vnom) * (ieffRef(tk) / d.Ieff); }
+// NMOS -> FO4 fall delay (tpHL); PMOS -> FO4 rise delay (tpLH). The inverter's PMOS is sized so both equal Dref at SVT/TT/25 °C/nominal VDD.
+function delayPs(tk, type, d, VDD) { const t = TECH[tk]; return t.Dref * d.cfac * (VDD / t.Vnom) * (ieffRef(tk, type) / d.Ieff); }
+function wpRatio(tk) { return ieffRef(tk, 'n') / ieffRef(tk, 'p'); }
+
+/* ====================== 6T SRAM bitcell ====================== */
+// mm: threshold offsets in V for [PU_L, PD_L, PG_L, PU_R, PD_R, PG_R]; null = no mismatch.
+// Left inverter drives Q (input QB), right inverter drives QB (input Q). BL on the Q side, BLB on the QB side.
+function sramCell(tk, fi, c, cfg) {
+  const tech = TECH[tk];
+  const dn = device(tk, 'n', fi, c), dp = device(tk, 'p', fi, c);
+  const VDD = c.VDD, VWL = cfg.wl * VDD, kbn = dn.kb;
+  const wPG = cfg.pg * tech.w0, wPD = cfg.pd * tech.w0, wPU = cfg.pu * tech.w0;
+  const Ipu = (vin, vout, d) => wPU * dp.Id(VDD - vin, VDD - vout, d);
+  const Ipd = (vin, vout, d) => wPD * dn.Id(vin, vout, d);
+  // current flowing from the bitline into the node through the access device (negative if node > bitline)
+  const Ipg = (vnode, vbl, d) => vbl >= vnode
+    ? wPG * dn.Id(VWL - vnode, vbl - vnode, d + kbn * vnode)
+    : -wPG * dn.Id(VWL - vbl, vnode - vbl, d + kbn * Math.max(vbl, 0));
+  // Inverter output for a given input. side 0 = left (drives Q), 1 = right (drives QB). vbl = null for hold (WL off).
+  function inv(vin, side, vbl, mm, iters) {
+    const o = side * 3, dpu = mm ? mm[o] : 0, dpd = mm ? mm[o + 1] : 0, dpg = mm ? mm[o + 2] : 0;
+    let lo = vbl != null ? Math.min(0, vbl) : 0, hi = VDD;
+    for (let i = 0; i < (iters || 26); i++) {
+      const m = 0.5 * (lo + hi);
+      let f = Ipu(vin, m, dpu) - Ipd(vin, m, dpd);
+      if (vbl != null) f += Ipg(m, vbl, dpg);
+      if (f > 0) lo = m; else hi = m;
+    }
+    return 0.5 * (lo + hi);
+  }
+  return { tech, dn, dp, VDD, VWL, wPG, wPD, wPU, Ipu, Ipd, Ipg, inv };
+}
+function linspace(a, b, n) { const o = []; for (let i = 0; i < n; i++) o.push(a + (b - a) * i / (n - 1)); return o; }
+// Butterfly: curve A = right inverter (x = Q in, y = QB out); curve B = left inverter (y = QB in, x = Q out)
+function butterfly(cell, mode, mm, npts, iters) {
+  const vbl = mode === 'read' ? cell.VDD : null;
+  const g = linspace(0, cell.VDD, npts || 61);
+  const A = g.map(x => [x, cell.inv(x, 1, vbl, mm, iters)]);
+  const B = (mm ? g.map(y => [cell.inv(y, 0, vbl, mm, iters), y]) : A.map(p => [p[1], p[0]]));
+  return { A, B };
+}
+// Static noise margin of each lobe (Seevinck rotation). Returns { q1, q0, snm } in volts; q1 = lobe holding Q=1.
+function snmOf(bf) {
+  const R2 = Math.SQRT1_2;
+  const ua = bf.A.map(p => (p[0] - p[1]) * R2), va = bf.A.map(p => (p[0] + p[1]) * R2);
+  const ub = bf.B.map(p => (p[0] - p[1]) * R2).reverse(), vb = bf.B.map(p => (p[0] + p[1]) * R2).reverse();
+  const interp = (us, vs, u) => {
+    let lo = 0, hi = us.length - 1;
+    if (u <= us[0]) return vs[0]; if (u >= us[hi]) return vs[hi];
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (us[m] <= u) lo = m; else hi = m; }
+    const t = (u - us[lo]) / ((us[hi] - us[lo]) || 1e-12); return vs[lo] + t * (vs[hi] - vs[lo]);
+  };
+  const u0 = Math.max(ua[0], ub[0]), u1 = Math.min(ua[ua.length - 1], ub[ub.length - 1]);
+  let pos = 0, neg = 0, upos = 0, uneg = 0;
+  const N = 240;
+  for (let i = 0; i <= N; i++) {
+    const u = u0 + (u1 - u0) * i / N;
+    const d = interp(ua, va, u) - interp(ub, vb, u);
+    if (d > pos) { pos = d; upos = u; } if (-d > neg) { neg = -d; uneg = u; }
+  }
+  // Q=1 lobe lies at u > 0 (Q > QB)
+  const q1IsPos = upos > uneg;
+  const q1 = (q1IsPos ? pos : neg) * R2, q0 = (q1IsPos ? neg : pos) * R2;
+  const best = (lobeD, uc) => ({ u: uc, d: lobeD });
+  return { q1, q0, snm: Math.min(q1, q0), lobes: [best(pos, upos), best(neg, uneg)], interp, ua, va, ub, vb };
+}
+// Largest square in a lobe, as data-space corners for drawing
+function lobeSquare(sn, which) {
+  const R2 = Math.SQRT1_2;
+  const L = sn.lobes[which]; if (L.d <= 0) return null;
+  const vA = sn.interp(sn.ua, sn.va, L.u), vB = sn.interp(sn.ub, sn.vb, L.u);
+  const p1 = [(L.u + vA) * R2, (vA - L.u) * R2], p2 = [(L.u + vB) * R2, (vB - L.u) * R2];
+  return { x0: Math.min(p1[0], p2[0]), y0: Math.min(p1[1], p2[1]), x1: Math.max(p1[0], p2[0]), y1: Math.max(p1[1], p2[1]), side: L.d * R2 };
+}
+function sramMetrics(tk, fi, c, cfg, opts) {
+  const cell = sramCell(tk, fi, c, cfg), VDD = c.VDD;
+  const npts = (opts && opts.npts) || 49;
+  const holdBf = butterfly(cell, 'hold', null, npts), readBf = butterfly(cell, 'read', null, npts);
+  const hold = snmOf(holdBf), read = snmOf(readBf);
+  // read: Q = 0 side, QB ~ high; node bump and cell read current
+  const qbHigh = cell.inv(0, 1, VDD, null);
+  const bump = cell.inv(qbHigh, 0, VDD, null);
+  const Iread = cell.Ipd(qbHigh, bump, 0);
+  // write: cell holds Q = 1; BL pulled low, BLB stays at VDD
+  const qbLow = cell.inv(VDD, 1, VDD, null);
+  let a = 0, b = VDD; for (let i = 0; i < 26; i++) { const m = 0.5 * (a + b); if (cell.inv(m, 1, VDD, null) - m > 0) a = m; else b = m; }
+  const vm = 0.5 * (a + b); // trip point of the right inverter in read mode
+  const qAt = vbl => cell.inv(qbLow, 0, vbl, null);
+  let lo = -0.4 * VDD, hi = VDD, trip;
+  if (qAt(lo) > vm) trip = -Infinity; else if (qAt(hi) < vm) trip = VDD;
+  else { for (let i = 0; i < 26; i++) { const m = 0.5 * (lo + hi); if (qAt(m) > vm) hi = m; else lo = m; } trip = 0.5 * (lo + hi); }
+  // hold leakage (WL off, BL = BLB = VDD): off PU on the Q=0 side, off PD on the QB=1 side, off PG on the Q=0 side
+  const Icell = cell.wPU * cell.dp.Ioff + (cell.wPD + cell.wPG) * cell.dn.Ioff;
+  return { cell, hold, read, holdBf, readBf, bump, Iread, vm, trip, qAt, qbLow, Icell };
+}
+// Pelgrom sigma (V) for each of the 6 devices
+function sramSigmas(tk, cfg, dL) {
+  const t = TECH[tk], L = (t.Lg + dL) * 1e-3;
+  const sg = w => t.Avt * 1e-3 / Math.sqrt(w * L);
+  const wPU = cfg.pu * t.w0, wPD = cfg.pd * t.w0, wPG = cfg.pg * t.w0;
+  return [sg(wPU), sg(wPD), sg(wPG), sg(wPU), sg(wPD), sg(wPG)];
+}
+function erfc(x) { // Numerical Recipes, fractional error < 1.2e-7
+  const z = Math.abs(x), t = 1 / (1 + 0.5 * z);
+  const r = t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 + t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 + t * (-0.82215223 + t * 0.17087277)))))))));
+  return x >= 0 ? r : 2 - r;
+}
+function sigmaFor(p) { let lo = 0, hi = 9; for (let i = 0; i < 60; i++) { const m = 0.5 * (lo + hi); if (0.5 * erfc(m / Math.SQRT2) > p) lo = m; else hi = m; } return 0.5 * (lo + hi); }
+function requiredSigma(bits, yieldTarget) { const p = -Math.expm1(Math.log(yieldTarget) / bits); return sigmaFor(p); }
+// deterministic normal samples
+function normals(n, seed) {
+  let s = seed >>> 0; const rnd = () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const out = []; while (out.length < n) { const u = 1 - rnd(), v = rnd(); const r = Math.sqrt(-2 * Math.log(u)); out.push(r * Math.cos(2 * Math.PI * v), r * Math.sin(2 * Math.PI * v)); }
+  return out.slice(0, n);
+}
+function sramMC(tk, fi, c, cfg, Z, nSamp) {
+  const cell = sramCell(tk, fi, c, cfg), sig = sramSigmas(tk, cfg, c.dL), out = [];
+  for (let k = 0; k < nSamp; k++) {
+    const mm = sig.map((s, j) => s * Z[k * 6 + j]);
+    out.push(snmOf(butterfly(cell, 'read', mm, 33, 20)).snm);
+  }
+  return out;
+}
 
 /* ====================== state ====================== */
 const DEFAULT = { tech: 'finfet16', corner: 'TT', T: 25, VDD: 0.8, Vbs: 0, dL: 0, sweep: 'T', show: [true, true, true, true], focus: 3, ivLog: true,
-  mix: [4, 16, 50, 30], ncells: 2000000, wcell: 0.3 };
+  dev: 'n', sram: { fi: 3, pu: 1, pg: 2, pd: 2, wl: 1, mbits: 4 }, mix: [4, 16, 50, 30], ncells: 2000000, wcell: 0.3 };
 const S = JSON.parse(JSON.stringify(DEFAULT));
 const $ = id => document.getElementById(id);
+const YIELD = 0.99, NMC = 200;
+const Z = normals(NMC * 6, 20261003);
 
 const SWEEPS = {
-  T:   { name: 'temperature', min: () => -40, max: () => 150, fmt: v => `${Math.round(v)} °C`, axis: 'Temperature (°C)', xt: () => [-40, 0, 25, 50, 85, 125, 150] },
-  VDD: { name: 'VDD', min: t => t.Vmin, max: t => t.Vmax, fmt: v => `${v.toFixed(2)} V`, axis: 'Supply VDD (V)' },
-  Vbs: { name: 'body bias', min: t => t.bbMin, max: t => t.bbMax, fmt: v => `${v > 0 ? '+' : ''}${v.toFixed(2)} V`, axis: 'Body bias VBS (V)' },
-  dL:  { name: 'gate-length bias', min: () => -2, max: () => 10, fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(1)} nm`, axis: 'Gate-length bias ΔL (nm)' }
+  T:   { min: () => -40, max: () => 150, fmt: v => `${Math.round(v)} °C`, axis: 'Temperature (°C)', xt: () => [-40, 0, 25, 50, 85, 125, 150] },
+  VDD: { min: t => t.Vmin, max: t => t.Vmax, fmt: v => `${v.toFixed(2)} V`, axis: 'Supply VDD (V)' },
+  Vbs: { min: t => t.bbMin, max: t => t.bbMax, fmt: v => `${v > 0 ? '+' : ''}${v.toFixed(2)} V`, axis: 'Body bias, forward + (V)' },
+  dL:  { min: () => -2, max: () => 10, fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(1)} nm`, axis: 'Gate-length bias ΔL (nm)' }
 };
 const SWEEP_WORD = { T: 'temperature', VDD: 'V<sub>DD</sub>', Vbs: 'body bias', dL: 'gate length' };
 
@@ -515,16 +803,16 @@ function si(v, unit, compact) {
   const x = v / p[0];
   return (compact ? String(+x.toPrecision(3)) : sig3(x)) + ' ' + p[1] + unit;
 }
-function sci(v) {
-  const e = Math.floor(Math.log10(v)); const m = v / Math.pow(10, e);
-  return `${m.toFixed(1)}×10<sup>${e}</sup>`;
-}
+function sci(v) { const e = Math.floor(Math.log10(v)); return `${(v / Math.pow(10, e)).toFixed(1)}×10<sup>${e}</sup>`; }
+const mV = v => `${(v * 1000).toFixed(0)}`;
 function tagFor(c) {
   const v = c.VDD.toFixed(2).replace('.', 'p');
   const t = c.T < 0 ? 'm' + Math.abs(Math.round(c.T)) : String(Math.round(c.T));
   return `${c.corner.toLowerCase()}_${v}v_${t}c`;
 }
+const signed = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(2)}`;
 function cond() { return { T: S.T, VDD: S.VDD, Vbs: S.Vbs, dL: S.dL, corner: S.corner }; }
+function cfgOf() { return { pu: S.sram.pu, pg: S.sram.pg, pd: S.sram.pd, wl: S.sram.wl }; }
 
 /* ====================== plotting ====================== */
 let COL = {};
@@ -546,10 +834,12 @@ function linTicks(lo, hi, count) {
   return out;
 }
 function linDomain(mn, mx, count) {
-  if (mx - mn < 1e-12) { mn -= 1; mx += 1; }
+  if (mx - mn < 1e-12) { mn -= Math.abs(mn) * 0.1 || 1; mx += Math.abs(mx) * 0.1 || 1; }
   const pad = (mx - mn) * 0.06;
   const st = niceStep(mx - mn + 2 * pad, count);
-  return [Math.floor((mn - pad) / st) * st, Math.ceil((mx + pad) / st) * st];
+  let lo = Math.floor((mn - pad) / st) * st;
+  if (mn >= 0 && lo < 0) lo = 0;
+  return [lo, Math.ceil((mx + pad) / st) * st];
 }
 function logDomain(mn, mx) {
   const a = Math.log10(mn), b = Math.log10(mx);
@@ -600,38 +890,43 @@ class Plot {
     if (this.cv.width !== Math.round(W * dpr) || this.cv.height !== Math.round(H * dpr)) { this.cv.width = Math.round(W * dpr); this.cv.height = Math.round(H * dpr); }
     const ctx = this.ctx; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
     const narrow = W < 420;
+    const series = s.series || [], dots = s.dots || [], rects = s.rects || [], bars = s.bars || [], texts = s.texts || [];
+    const vlines = (s.vlines || (s.vline ? [s.vline] : []));
 
     // ---- domains
     const okY = v => isFinite(v) && (!s.yLog || v > 0);
     const okX = v => isFinite(v) && (!s.xLog || v > 0);
     let ymn = Infinity, ymx = -Infinity, xmn = Infinity, xmx = -Infinity;
-    for (const se of s.series) for (let i = 0; i < se.ys.length; i++) {
-      const y = se.ys[i], x = se.xs[i];
-      if (okY(y) && okX(x)) { ymn = Math.min(ymn, y); ymx = Math.max(ymx, y); xmn = Math.min(xmn, x); xmx = Math.max(xmx, x); }
-    }
-    for (const d of (s.dots || [])) if (okY(d.y) && okX(d.x)) { ymn = Math.min(ymn, d.y); ymx = Math.max(ymx, d.y); xmn = Math.min(xmn, d.x); xmx = Math.max(xmx, d.x); }
+    const take = (x, y) => { if (okY(y) && okX(x)) { ymn = Math.min(ymn, y); ymx = Math.max(ymx, y); xmn = Math.min(xmn, x); xmx = Math.max(xmx, x); } };
+    for (const se of series) for (let i = 0; i < se.ys.length; i++) take(se.xs[i], se.ys[i]);
+    for (const d of dots) take(d.x, d.y);
+    for (const b of bars) { take(b.x0, b.y); take(b.x1, 0); }
     if (!isFinite(ymn)) { ymn = s.yLog ? 1e-12 : 0; ymx = s.yLog ? 1e-9 : 1; }
     if (s.yFloor != null && s.yLog) ymn = Math.max(ymn, s.yFloor);
     let ylo, yhi, yt;
-    if (s.yLog) { [ylo, yhi] = logDomain(ymn, ymx); yt = logTicks(ylo, yhi); }
-    else { [ylo, yhi] = linDomain(s.yZero ? Math.min(0, ymn) : ymn, ymx, narrow ? 4 : 5); yt = linTicks(ylo, yhi, narrow ? 4 : 5); }
+    if (s.yMin != null) { ylo = s.yMin; yhi = s.yMax; yt = s.yTicks || linTicks(ylo, yhi, narrow ? 4 : 5); }
+    else if (s.yLog) { [ylo, yhi] = logDomain(ymn, ymx); yt = logTicks(ylo, yhi); }
+    else { [ylo, yhi] = linDomain(s.yZero ? Math.min(0, ymn) : ymn, s.yZero ? Math.max(0, ymx) : ymx, narrow ? 4 : 5); yt = linTicks(ylo, yhi, narrow ? 4 : 5); }
     let xlo = s.xMin != null ? s.xMin : xmn, xhi = s.xMax != null ? s.xMax : xmx, xt;
     if (s.xLog) { if (s.xMin == null) [xlo, xhi] = logDomain(xmn, xmx); xt = logTicks(xlo, xhi); }
     else { if (s.xMin == null) [xlo, xhi] = linDomain(xmn, xmx, narrow ? 4 : 6); xt = s.xTicks ? s.xTicks.filter(v => v >= xlo - 1e-9 && v <= xhi + 1e-9) : linTicks(xlo, xhi, narrow ? 4 : 6); }
 
-    // ---- margins (thin x ticks so labels never collide)
-
+    // ---- margins
     ctx.font = `500 10.5px ${MONO}`;
     const ylab = yt.map(v => s.yFmt(v));
     const ml = Math.ceil(Math.max(...ylab.map(t => ctx.measureText(t).width), 10)) + 12;
     let mr = 12;
-    const ends = (s.series.filter(se => se.end));
+    const ends = series.filter(se => se.end);
     if (ends.length) { ctx.font = `600 10.5px ${MONO}`; mr = Math.ceil(Math.max(...ends.map(se => ctx.measureText(se.end).width))) + 22; }
     const mt = 16, mb = 38;
-    const x0 = ml, x1 = W - mr, y0 = mt, y1 = H - mb;
+    let x0 = ml, x1 = W - mr, y0 = mt, y1 = H - mb;
+    if (s.square) {
+      const k = Math.min((x1 - x0) / (xhi - xlo), (y1 - y0) / (yhi - ylo));
+      const w = k * (xhi - xlo), h = k * (yhi - ylo);
+      x0 += ((x1 - x0) - w) / 2; x1 = x0 + w; y0 += ((y1 - y0) - h) / 2; y1 = y0 + h;
+    }
     const X = scale(xlo, xhi, s.xLog, x0, x1), Y = scale(ylo, yhi, s.yLog, y1, y0);
     { const kept = []; for (const v of xt) { if (!kept.length || X(v) - X(kept[kept.length - 1]) >= 30) kept.push(v); } xt = kept; }
-    this.geom = { x0, x1, y0, y1, X, Y, xlo, xhi, ylo, yhi };
 
     // ---- grid + ticks
     ctx.lineWidth = 1; ctx.strokeStyle = COL.grid; ctx.fillStyle = COL.muted;
@@ -642,19 +937,36 @@ class Plot {
     ctx.strokeStyle = COL.rule; ctx.beginPath(); ctx.moveTo(x0, Math.round(y1) + 0.5); ctx.lineTo(x1, Math.round(y1) + 0.5); ctx.stroke();
     ctx.fillStyle = COL.muted; ctx.font = `500 11px ${MONO}`; ctx.textBaseline = 'bottom';
     ctx.fillText(s.xLabel, (x0 + x1) / 2, H - 2);
+    if (s.yLabel) { ctx.save(); ctx.translate(11, (y0 + y1) / 2); ctx.rotate(-Math.PI / 2); ctx.textBaseline = 'middle'; ctx.fillText(s.yLabel, 0, 0); ctx.restore(); }
 
     ctx.save(); ctx.beginPath(); ctx.rect(x0, y0 - 2, x1 - x0, y1 - y0 + 4); ctx.clip();
+    // ---- bars
+    for (const b of bars) {
+      const px0 = X(b.x0) + 1, px1 = X(b.x1) - 1, py = Y(Math.max(b.y, 0)), pb = Y(Math.max(ylo, 0));
+      if (px1 <= px0) continue;
+      ctx.fillStyle = b.color; ctx.globalAlpha = b.alpha == null ? 1 : b.alpha;
+      const r = Math.min(3, (px1 - px0) / 2, Math.abs(pb - py));
+      ctx.beginPath(); ctx.moveTo(px0, pb); ctx.lineTo(px0, py + r); ctx.quadraticCurveTo(px0, py, px0 + r, py); ctx.lineTo(px1 - r, py); ctx.quadraticCurveTo(px1, py, px1, py + r); ctx.lineTo(px1, pb); ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    // ---- rects (SNM squares)
+    for (const r of rects) {
+      const px0 = X(r.x0), px1 = X(r.x1), py0 = Y(r.y1), py1 = Y(r.y0);
+      if (r.fill) { ctx.fillStyle = r.fill; ctx.globalAlpha = r.alpha == null ? 0.16 : r.alpha; ctx.fillRect(px0, py0, px1 - px0, py1 - py0); ctx.globalAlpha = 1; }
+      ctx.strokeStyle = r.stroke || r.fill; ctx.lineWidth = 1.25; ctx.setLineDash(r.dash || []); ctx.strokeRect(px0, py0, px1 - px0, py1 - py0); ctx.setLineDash([]);
+    }
     // ---- reference lines
     if (s.hline && okY(s.hline.y) && s.hline.y >= ylo && s.hline.y <= yhi) {
-      const y = Math.round(Y(s.hline.y)) + 0.5; ctx.strokeStyle = COL.muted; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle = COL.muted; ctx.font = `500 10px ${MONO}`; ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.fillText(s.hline.label, x1 - 5, y + 4);
+      const y = Math.round(Y(s.hline.y)) + 0.5; ctx.strokeStyle = COL.muted; ctx.lineWidth = 1; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = COL.muted; ctx.font = `500 10px ${MONO}`; ctx.textAlign = 'right'; ctx.textBaseline = s.hline.below ? 'top' : 'bottom'; ctx.fillText(s.hline.label, x1 - 5, s.hline.below ? y + 4 : y - 3);
     }
-    if (s.vline && s.vline.x >= xlo && s.vline.x <= xhi) {
-      const x = Math.round(X(s.vline.x)) + 0.5; ctx.strokeStyle = COL.ink2; ctx.lineWidth = 1; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke(); ctx.setLineDash([]);
+    for (const vl of vlines) {
+      if (!(vl.x >= xlo && vl.x <= xhi)) continue;
+      const x = Math.round(X(vl.x)) + 0.5; ctx.strokeStyle = vl.color || COL.ink2; ctx.lineWidth = 1; ctx.setLineDash(vl.dash || [4, 3]); ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke(); ctx.setLineDash([]);
     }
     // ---- series
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    for (const se of s.series) {
+    for (const se of series) {
       ctx.strokeStyle = se.color; ctx.lineWidth = se.width || 2; ctx.globalAlpha = se.alpha == null ? 1 : se.alpha;
       ctx.setLineDash(se.dash || []);
       ctx.beginPath(); let pen = false;
@@ -667,7 +979,7 @@ class Plot {
       ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
     }
     // ---- dots
-    for (const d of (s.dots || [])) {
+    for (const d of dots) {
       if (!okY(d.y) || !okX(d.x)) continue;
       const px = X(d.x), py = Y(d.y);
       ctx.beginPath(); ctx.arc(px, py, d.r || 4, 0, Math.PI * 2);
@@ -675,20 +987,36 @@ class Plot {
       else { ctx.fillStyle = d.color; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = COL.panel; ctx.stroke(); }
     }
     ctx.restore();
-    // ---- vline label (outside clip)
-    if (s.vline && s.vline.x >= xlo && s.vline.x <= xhi) {
-      const x = X(s.vline.x); ctx.font = `600 10px ${MONO}`; ctx.fillStyle = COL.ink2; ctx.textBaseline = 'bottom';
-      const tw = ctx.measureText(s.vline.label).width;
-      ctx.textAlign = x + tw / 2 > x1 ? 'right' : x - tw / 2 < x0 ? 'left' : 'center';
-      ctx.fillText(s.vline.label, x, y0 - 3);
+    // ---- vline labels (outside clip), stacked if they collide
+    ctx.font = `600 10px ${MONO}`; ctx.textBaseline = 'bottom';
+    const placed = [];
+    for (const vl of vlines) {
+      if (!vl.label || !(vl.x >= xlo && vl.x <= xhi)) continue;
+      const x = X(vl.x), tw = ctx.measureText(vl.label).width;
+      let align = x + tw / 2 > x1 ? 'right' : x - tw / 2 < x0 ? 'left' : 'center';
+      const l = align === 'right' ? x - tw : align === 'left' ? x : x - tw / 2;
+      let row = 0; while (placed.some(p => p.row === row && !(l + tw + 6 < p.l || l > p.r + 6))) row++;
+      placed.push({ l, r: l + tw, row });
+      ctx.textAlign = align; ctx.fillStyle = vl.color || COL.ink2;
+      ctx.fillText(vl.label, x, row === 0 ? y0 - 3 : y0 + 9 + 12 * (row - 1));
     }
     // ---- dot labels
     ctx.font = `600 10.5px ${MONO}`; ctx.textBaseline = 'middle';
-    for (const d of (s.dots || [])) {
+    for (const d of dots) {
       if (!d.label || !okY(d.y) || !okX(d.x)) continue;
       const px = X(d.x), py = Y(d.y); const tw = ctx.measureText(d.label).width;
       const right = px + 8 + tw < x1; ctx.textAlign = right ? 'left' : 'right';
       ctx.fillStyle = COL.ink; ctx.fillText(d.label, right ? px + 8 : px - 8, py - 9);
+    }
+    // ---- free texts (with halo)
+    for (const t of texts) {
+      if (!isFinite(t.x) || !isFinite(t.y)) continue;
+      ctx.font = `${t.bold ? 600 : 500} ${t.size || 10.5}px ${MONO}`; ctx.textAlign = t.align || 'left'; ctx.textBaseline = t.base || 'middle';
+      let px = X(t.x) + (t.dx || 0); const py = Y(t.y) + (t.dy || 0);
+      const tw = ctx.measureText(t.text).width;
+      if (ctx.textAlign === 'left' && px + tw > W - 4) px = W - 4 - tw;
+      ctx.lineWidth = 3; ctx.strokeStyle = COL.panel; ctx.lineJoin = 'round'; ctx.strokeText(t.text, px, py);
+      ctx.fillStyle = t.color || COL.ink; ctx.fillText(t.text, px, py);
     }
     // ---- end labels with collision avoidance
     if (ends.length) {
@@ -696,8 +1024,7 @@ class Plot {
       for (const se of ends) {
         let i = se.ys.length - 1; while (i >= 0 && !(okY(se.ys[i]) && okX(se.xs[i]))) i--;
         if (i < 0) continue;
-        const yy = Math.min(Math.max(Y(se.ys[i]), y0), y1);
-        items.push({ y: yy, t: se.end, c: se.color, dash: se.dash });
+        items.push({ y: Math.min(Math.max(Y(se.ys[i]), y0), y1), t: se.end, c: se.color, dash: se.dash });
       }
       items.sort((a, b) => a.y - b.y);
       const gap = 13;
@@ -715,24 +1042,30 @@ class Plot {
     this.tip.hidden = true;
     if (this.hx == null || s.hover === false) return;
     if (this.hx < x0 - 6 || this.hx > x1 + 6) return;
+    const inv = invScale(xlo, xhi, s.xLog, x0, x1);
+    const xv = inv(Math.min(Math.max(this.hx, x0), x1));
     if (s.hover === 'dots') {
       let best = null, bd = 28;
-      for (const d of (s.dots || [])) { if (!d.tip || !okY(d.y) || !okX(d.x)) continue; const dd = Math.hypot(X(d.x) - this.hx, Y(d.y) - this.hy); if (dd < bd) { bd = dd; best = d; } }
+      for (const d of dots) { if (!d.tip || !okY(d.y) || !okX(d.x)) continue; const dd = Math.hypot(X(d.x) - this.hx, Y(d.y) - this.hy); if (dd < bd) { bd = dd; best = d; } }
       if (!best) return;
       ctx.beginPath(); ctx.arc(X(best.x), Y(best.y), 8, 0, Math.PI * 2); ctx.strokeStyle = COL.ink; ctx.lineWidth = 1.5; ctx.stroke();
       this.showTip(best.tip, X(best.x), W);
       return;
     }
-    const inv = invScale(xlo, xhi, s.xLog, x0, x1);
-    const xv = inv(Math.min(Math.max(this.hx, x0), x1));
-    const ref = s.series.find(se => se.hover !== false);
+    if (s.hover === 'bars') {
+      const b = bars.find(b => xv >= b.x0 && xv < b.x1); if (!b || !b.tip) return;
+      ctx.strokeStyle = COL.ink; ctx.lineWidth = 1.5; ctx.strokeRect(X(b.x0) + 1, Y(b.y), X(b.x1) - X(b.x0) - 2, Y(Math.max(ylo, 0)) - Y(b.y));
+      this.showTip(b.tip, X((b.x0 + b.x1) / 2), W);
+      return;
+    }
+    const ref = series.find(se => se.hover !== false);
     if (!ref) return;
     let bi = 0, bdist = Infinity;
     for (let i = 0; i < ref.xs.length; i++) { const dd = Math.abs(ref.xs[i] - xv); if (dd < bdist) { bdist = dd; bi = i; } }
     const hxPx = X(ref.xs[bi]);
     ctx.strokeStyle = COL.muted; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(Math.round(hxPx) + 0.5, y0); ctx.lineTo(Math.round(hxPx) + 0.5, y1); ctx.stroke();
     const rows = [];
-    for (const se of s.series) {
+    for (const se of series) {
       if (se.hover === false) continue;
       const y = se.ys[bi]; if (!okY(y)) continue;
       if (y >= ylo && y <= yhi) { ctx.beginPath(); ctx.arc(hxPx, Y(y), 4, 0, Math.PI * 2); ctx.fillStyle = se.color; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = COL.panel; ctx.stroke(); }
@@ -749,39 +1082,44 @@ class Plot {
 }
 
 /* ====================== computations ====================== */
-function sweepGrid(tech, key, n) {
-  const sw = SWEEPS[key], lo = sw.min(tech), hi = sw.max(tech), out = [];
+function sweepGrid(tk, key, n) {
+  const sw = SWEEPS[key], t = TECH[tk], lo = sw.min(t), hi = sw.max(t), out = [];
   for (let i = 0; i < n; i++) out.push(lo + (hi - lo) * i / (n - 1));
   return out;
 }
 const ztcCache = new Map();
-function ztc(tk, fi, c) {
-  const key = [tk, fi, c.corner, c.Vbs, c.dL].join('|');
+function ztc(tk, type, fi, c) {
+  const key = [tk, type, fi, c.corner, c.Vbs, c.dL].join('|');
   if (ztcCache.has(key)) return ztcCache.get(key);
   const t = TECH[tk];
-  const f = V => { const a = { ...c, VDD: V }; return Math.log(delayPs(tk, device(t, fi, { ...a, T: -40 }), V) / delayPs(tk, device(t, fi, { ...a, T: 125 }), V)); };
-  let lo = t.Vmin, hi = t.Vmax, flo = f(lo), fhi = f(hi), res;
-  if (flo <= 0) res = { below: lo };
-  else if (fhi >= 0) res = { above: hi };
-  else { for (let i = 0; i < 26; i++) { const m = 0.5 * (lo + hi), fm = f(m); if (fm > 0) lo = m; else hi = m; } res = { v: 0.5 * (lo + hi) }; }
-  if (ztcCache.size > 400) ztcCache.clear();
+  const f = V => { const a = { ...c, VDD: V }; return Math.log(delayPs(tk, type, device(tk, type, fi, { ...a, T: -40 }), V) / delayPs(tk, type, device(tk, type, fi, { ...a, T: 125 }), V)); };
+  let lo = t.Vmin, hi = t.Vmax, res;
+  if (f(lo) <= 0) res = { below: lo };
+  else if (f(hi) >= 0) res = { above: hi };
+  else { for (let i = 0; i < 26; i++) { const m = 0.5 * (lo + hi); if (f(m) > 0) lo = m; else hi = m; } res = { v: 0.5 * (lo + hi) }; }
+  if (ztcCache.size > 600) ztcCache.clear();
   ztcCache.set(key, res);
   return res;
 }
-function doubling(tech, fi, c) {
-  const a = device(tech, fi, { ...c, T: c.T - 2.5 }).Ioff, b = device(tech, fi, { ...c, T: c.T + 2.5 }).Ioff;
+function doubling(tk, type, fi, c) {
+  const a = device(tk, type, fi, { ...c, T: c.T - 2.5 }).Ioff, b = device(tk, type, fi, { ...c, T: c.T + 2.5 }).Ioff;
   const k = (Math.log(b) - Math.log(a)) / 5;
   return k > 0 ? Math.LN2 / k : Infinity;
 }
+function cellLeak(tk, fi, c, cfg) {
+  const t = TECH[tk];
+  return cfg.pu * t.w0 * device(tk, 'p', fi, c).Ioff + (cfg.pd + cfg.pg) * t.w0 * device(tk, 'n', fi, c).Ioff;
+}
 
 /* ====================== UI building ====================== */
-const plots = { iv: new Plot('pIV'), ioff: new Plot('pIoff'), vth: new Plot('pVth'), dly: new Plot('pDly'), bd: new Plot('pBd'), to: new Plot('pTo') };
+const plots = {};
+['pIV', 'pIoff', 'pVth', 'pDly', 'pBd', 'pTo', 'pBf', 'pWr', 'pMc', 'pMg', 'pIr', 'pLk'].forEach(id => { plots[id] = new Plot(id); });
 
 function buildLegend() {
   $('legend').innerHTML = FL.map((f, i) => `<button type="button" class="lg" id="show-${i}" data-show="${i}" aria-pressed="${S.show[i]}"><span class="sw" style="background:var(--f${i})"></span>${f.key}</button>`).join('');
 }
 function buildMix() {
-  $('mixRows').innerHTML = FL.map((f, i) => `<div class="mix-row"><span class="flv"><span class="sw" style="background:var(--f${i})"></span><b>${f.key}</b></span><input type="range" id="mix-${i}" min="0" max="100" step="1" value="${S.mix[i]}" aria-label="${f.key} share of cells"><output id="mixOut-${i}" for="mix-${i}">0%</output></div>`).join('');
+  $('mixRows').innerHTML = FL.map((f, i) => `<div class="mix-row"><span class="flv"><span class="sw" style="background:var(--f${i})"></span><b>${f.key}</b></span><input type="range" id="mix-${i}" min="0" max="100" step="1" value="${S.mix[i]}" aria-label="${f.key} share of logic cells"><output id="mixOut-${i}" for="mix-${i}">0%</output></div>`).join('');
 }
 buildLegend(); buildMix();
 
@@ -791,43 +1129,81 @@ function setPressed(groupId, attr, val) {
 
 function syncControls() {
   const t = TECH[S.tech];
-  setPressed('techSeg', 'tech', S.tech); setPressed('cornerSeg', 'corner', S.corner); setPressed('sweepSeg', 'sweep', S.sweep);
+  setPressed('techSeg', 'tech', S.tech); setPressed('cornerSeg', 'corner', S.corner);
+  setPressed('sweepSeg', 'sweep', S.sweep); setPressed('sSweepSeg', 'sweep', S.sweep);
   setPressed('focusSeg', 'focus', S.focus); setPressed('ivSeg', 'scale', S.ivLog ? 'log' : 'lin');
+  setPressed('cellFlSeg', 'cfl', S.sram.fi); setPressed('arrSeg', 'mb', S.sram.mbits);
+  document.querySelectorAll('.tabs [role="tab"]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.dev === S.dev)));
+  $('panel-dev').hidden = S.dev === 'sram'; $('panel-sram').hidden = S.dev !== 'sram';
+  $('panel-dev').setAttribute('aria-labelledby', S.dev === 'p' ? 'tab-p' : 'tab-n');
   const vdd = $('vdd'); vdd.min = t.Vmin; vdd.max = t.Vmax; vdd.value = S.VDD;
   const vbs = $('vbs'); vbs.min = t.bbMin; vbs.max = t.bbMax; vbs.step = t.bbStep; vbs.value = S.Vbs;
-  $('temp').value = S.T; $('dl').value = S.dL;
-  $('tempOut').textContent = `${S.T} °C`;
+  $('temp').value = S.T; $('dl').value = S.dL; $('wl').value = S.sram.wl;
+  $('tempOut').textContent = `${Math.round(S.T)} °C`;
   $('vddOut').textContent = `${S.VDD.toFixed(2)} V`;
-  $('vbsOut').textContent = `${S.Vbs > 0 ? '+' : ''}${S.Vbs.toFixed(2)} V`;
+  $('vbsOut').textContent = `${signed(S.Vbs)} V${S.Vbs < 0 ? ' reverse' : S.Vbs > 0 ? ' forward' : ''}`;
+  $('vbsMap').innerHTML = `NMOS V<sub>BS</sub> = <b>${signed(S.Vbs)} V</b>, PMOS V<sub>BS</sub> = <b>${signed(-S.Vbs)} V</b>`;
   $('dlOut').textContent = `${S.dL >= 0 ? '+' : ''}${S.dL.toFixed(1)} nm`;
   $('cornerOut').textContent = CORNER[S.corner].name;
   $('vbsHint').textContent = t.vbsHint;
   $('dlHint').textContent = `Drawn Lg = ${t.Lg} nm, now ${(t.Lg + S.dL).toFixed(1)} nm. Longer gates cut short-channel leakage and cost drive.`;
+  $('wlOut').innerHTML = `${Math.round(S.sram.wl * 100)}% V<sub>DD</sub>`;
+  $('arrOut').textContent = `${S.sram.mbits} Mbit`;
+  ['szPU', 'szPG', 'szPD'].forEach(id => { const el = $(id); el.step = t.finStep; el.min = t.finStep === 1 ? 1 : 0.5; });
+  if (document.activeElement !== $('szPU')) $('szPU').value = S.sram.pu;
+  if (document.activeElement !== $('szPG')) $('szPG').value = S.sram.pg;
+  if (document.activeElement !== $('szPD')) $('szPD').value = S.sram.pd;
+  $('ratioOut').textContent = `β ${(S.sram.pd / S.sram.pg).toFixed(2)} · γ ${(S.sram.pu / S.sram.pg).toFixed(2)}`;
+  $('sizeHint').textContent = (t.finStep === 1 ? 'In fins (whole numbers only in FinFET). ' : `In units of ${Math.round(t.w0 * 1000)} nm of width. `) + 'β = PD/PG sets read stability; γ = PU/PG sets how hard the cell fights a write.';
+  document.querySelectorAll('#sizeChips .chip').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.size === [S.sram.pu, S.sram.pg, S.sram.pd].join(','))));
   FL.forEach((f, i) => { $('mix-' + i).value = S.mix[i]; });
-  $('ncells').value = S.ncells; $('wcell').value = S.wcell;
+  if (document.activeElement !== $('ncells')) $('ncells').value = S.ncells;
+  if (document.activeElement !== $('wcell')) $('wcell').value = S.wcell;
+  if (document.activeElement !== $('mbits')) $('mbits').value = S.sram.mbits;
 }
 
-/* ====================== render ====================== */
+/* ====================== render: common ====================== */
 function render() {
   const t = TECH[S.tech], tk = S.tech, c = cond(), tag = tagFor(c);
-  $('cornerTag').textContent = tag; $('tblCorner').textContent = tag; $('mixCorner').textContent = tag;
-  $('techTag').textContent = `${t.name} · NMOS · Lg ${(t.Lg + S.dL).toFixed(1).replace(/\.0$/, '')} nm`;
+  $('cornerTag').textContent = tag;
+  $('techTag').textContent = `${t.name} · Lg ${(t.Lg + S.dL).toFixed(1).replace(/\.0$/, '')} nm`;
+  ['tblSub', 'cellSub', 'mixSub'].forEach(id => { const el = $(id).querySelector('code'); if (el) el.textContent = tag; });
+  if (S.dev === 'sram') renderSram(); else renderDev(S.dev);
+  renderBudget();
+  renderParams();
+}
 
-  const devs = FL.map((_, i) => device(t, i, c));
-  const dly = devs.map(d => delayPs(tk, d, S.VDD));
+/* ====================== render: NMOS / PMOS ====================== */
+function renderDev(type) {
+  const t = TECH[S.tech], tk = S.tech, c = cond(), isP = type === 'p';
+  const NAME = isP ? 'PMOS' : 'NMOS';
+  const devs = FL.map((_, i) => device(tk, type, i, c));
+  const dly = devs.map(d => delayPs(tk, type, d, S.VDD));
   const ref = 2;
-
-  // ---- table
-  const rows = devs.map((d, i) => {
-    const z = ztc(tk, i, c);
+  $('tblTitle').textContent = `${NAME} characterization`;
+  $('tblSub').innerHTML = `per µm of width, at <code>${tagFor(c)}</code>${isP ? ' · magnitudes, V<sub>th</sub> negative' : ''}`;
+  const dName = isP ? 'FO4 rise t<sub>pLH</sub>' : 'FO4 fall t<sub>pHL</sub>';
+  $('thead').innerHTML = `<tr>
+    <th scope="col">Flavor</th>
+    <th scope="col">V<sub>th,sat</sub><span>mV</span></th>
+    <th scope="col">Subthreshold swing<span>mV/dec</span></th>
+    <th scope="col">${isP ? '|I<sub>on</sub>|' : 'I<sub>on</sub>'}<span>µA/µm</span></th>
+    <th scope="col">${isP ? '|I<sub>off</sub>|' : 'I<sub>off</sub>'} total<span>per µm · vs SVT</span></th>
+    <th scope="col">I<sub>on</sub>/I<sub>off</sub><span>ratio</span></th>
+    <th scope="col">${dName}<span>ps · vs SVT</span></th>
+    <th scope="col">Leakage doubles<span>every °C</span></th>
+    <th scope="col">ZTC supply<span>V</span></th>
+    <th scope="col">Slow corner<span>at this V<sub>DD</sub></span></th></tr>`;
+  $('tbody').innerHTML = devs.map((d, i) => {
+    const z = ztc(tk, type, i, c);
     const zs = z.v != null ? z.v.toFixed(2) : z.below != null ? `< ${t.Vmin.toFixed(2)}` : `> ${t.Vmax.toFixed(2)}`;
-    const cold = delayPs(tk, device(t, i, { ...c, T: -40 }), S.VDD), hot = delayPs(tk, device(t, i, { ...c, T: 125 }), S.VDD);
+    const cold = delayPs(tk, type, device(tk, type, i, { ...c, T: -40 }), S.VDD), hot = delayPs(tk, type, device(tk, type, i, { ...c, T: 125 }), S.VDD);
     const slowHot = hot >= cold;
     const rI = d.Ioff / devs[ref].Ioff, rD = dly[i] / dly[ref];
-    const dbl = doubling(t, i, c);
+    const dbl = doubling(tk, type, i, c);
     return `<tr${S.show[i] ? '' : ' style="opacity:.45"'}>
       <th scope="row"><span class="flv"><span class="sw" style="background:var(--f${i})"></span><span><b>${FL[i].key}</b><i>${FL[i].long}</i></span></span></th>
-      <td>${(d.vth * 1000).toFixed(0)}</td>
+      <td>${isP ? '−' : ''}${(d.vth * 1000).toFixed(0)}</td>
       <td>${d.SS.toFixed(1)}</td>
       <td>${(d.Ion * 1e6).toFixed(0)}</td>
       <td>${si(d.Ioff, 'A')}<small>${i === ref ? 'reference' : (rI >= 1 ? sig3(rI) + '×' : '1/' + sig3(1 / rI))}</small></td>
@@ -835,30 +1211,36 @@ function render() {
       <td>${dly[i].toFixed(2)}<small>${i === ref ? 'reference' : sig3(rD) + '×'}</small></td>
       <td>${isFinite(dbl) ? dbl.toFixed(1) : '—'}</td>
       <td>${zs}</td>
-      <td><span class="pill${slowHot ? ' hot' : ''}">${slowHot ? 'hot 125 °C' : 'cold −40 °C'}</span></td>
+      <td><span class="pill${slowHot ? ' solid' : ''}">${slowHot ? 'hot 125 °C' : 'cold −40 °C'}</span></td>
     </tr>`;
-  });
-  $('tbody').innerHTML = rows.join('');
+  }).join('');
 
   // ---- readings
   const r0 = devs[0].Ioff / devs[3].Ioff, d0 = dly[3] / dly[0];
-  const svtDbl = doubling(t, 2, c);
-  const m25_125 = device(t, 2, { ...c, T: 125 }).Ioff / device(t, 2, { ...c, T: 25 }).Ioff;
-  const zH = ztc(tk, 3, c), zS = ztc(tk, 2, c);
-  const hCold = delayPs(tk, device(t, 3, { ...c, T: -40 }), S.VDD), hHot = delayPs(tk, device(t, 3, { ...c, T: 125 }), S.VDD);
-  const floor = (devs[3].Igate + devs[3].Ijn) / devs[3].Ioff;
+  const svtDbl = doubling(tk, type, 2, c);
+  const m25_125 = device(tk, type, 2, { ...c, T: 125 }).Ioff / device(tk, type, 2, { ...c, T: 25 }).Ioff;
+  const zH = ztc(tk, type, 3, c), zS = ztc(tk, type, 2, c);
+  const hCold = delayPs(tk, type, device(tk, type, 3, { ...c, T: -40 }), S.VDD), hHot = delayPs(tk, type, device(tk, type, 3, { ...c, T: 125 }), S.VDD);
   let invTxt;
-  if (zH.v != null) invTxt = `HVT's zero-temperature point is <b>${zH.v.toFixed(2)} V</b>${zS.v != null ? ` (SVT <b>${zS.v.toFixed(2)} V</b>)` : ''}. At ${S.VDD.toFixed(2)} V, HVT is ${hHot >= hCold ? 'slowest hot, the classic case' : 'slowest <b>cold</b>, so −40 °C must be signed off (temperature inversion)'}.`;
+  if (zH.v != null) invTxt = `HVT's zero-temperature point is <b>${zH.v.toFixed(2)} V</b>${zS.v != null ? ` (SVT <b>${zS.v.toFixed(2)} V</b>)` : ''}. At ${S.VDD.toFixed(2)} V, the HVT ${isP ? 'pull-up' : 'pull-down'} is ${hHot >= hCold ? 'slowest hot, the classic case' : 'slowest <b>cold</b>, so −40 °C must be signed off (temperature inversion)'}.`;
   else if (zH.below != null) invTxt = `HVT gets slower when hot across the whole supply range, so 125 °C is its timing corner.`;
   else invTxt = `HVT is slowest <b>cold</b> across the whole supply range: temperature inversion everywhere, so −40 °C is its timing corner.`;
-  const floorTxt = floor > 0.15
-    ? `Gate and junction leakage make up <b>${(floor * 100).toFixed(0)}%</b> of HVT off-current here. A higher V<sub>th</sub> would barely help, since those components ignore it.`
-    : `Subthreshold conduction is <b>${((1 - floor) * 100).toFixed(0)}%</b> of HVT off-current here, so V<sub>th</sub> still controls leakage almost entirely.`;
+  let fourth;
+  if (isP) {
+    const dn = delayPs(tk, 'n', device(tk, 'n', 2, c), S.VDD), dp = dly[2];
+    const skew = (dp / dn - 1) * 100;
+    fourth = `<span class="k">N/P balance</span><p>PMOS SVT drives <b>${(device(tk, 'p', 2, c).Ion / device(tk, 'n', 2, c).Ion).toFixed(2)}×</b> the NMOS current per µm, so a balanced SVT inverter uses W<sub>P</sub>/W<sub>N</sub> = <b>${wpRatio(tk).toFixed(2)}</b>. At ${S.corner} its rise is <b>${dp.toFixed(1)} ps</b> and fall <b>${dn.toFixed(1)} ps</b> (${Math.abs(skew) < 1 ? 'balanced' : `rise ${skew > 0 ? 'slower' : 'faster'} by ${Math.abs(skew).toFixed(0)}%`}).</p>`;
+  } else {
+    const floor = (devs[3].Igate + devs[3].Ijn) / devs[3].Ioff;
+    fourth = `<span class="k">Leakage floor</span><p>${floor > 0.15
+      ? `Gate and junction leakage make up <b>${(floor * 100).toFixed(0)}%</b> of HVT off-current here. A higher V<sub>th</sub> would barely help, since those components ignore it.`
+      : `Subthreshold conduction is <b>${((1 - floor) * 100).toFixed(0)}%</b> of HVT off-current here, so V<sub>th</sub> still controls leakage almost entirely.`}</p>`;
+  }
   $('readings').innerHTML = `
     <div class="reading"><span class="k">Vt spread</span><p>ULVT leaks <b>${sig3(r0)}×</b> more than HVT and switches <b>${d0.toFixed(2)}×</b> faster (${dly[0].toFixed(1)} ps vs ${dly[3].toFixed(1)} ps).</p></div>
-    <div class="reading"><span class="k">Temperature</span><p>SVT leakage doubles every <b>${svtDbl.toFixed(1)} °C</b> near ${Math.round(S.T)} °C. Going from 25 °C to 125 °C multiplies it by <b>${sig3(m25_125)}×</b>.</p></div>
+    <div class="reading"><span class="k">Temperature</span><p>${NAME} SVT leakage doubles every <b>${svtDbl.toFixed(1)} °C</b> near ${Math.round(S.T)} °C. Going from 25 °C to 125 °C multiplies it by <b>${sig3(m25_125)}×</b>.</p></div>
     <div class="reading"><span class="k">Timing corner</span><p>${invTxt}</p></div>
-    <div class="reading"><span class="k">Leakage floor</span><p>${floorTxt}</p></div>`;
+    <div class="reading">${fourth}</div>`;
 
   // ---- transfer curve
   const vg = []; for (let i = 0; i <= 140; i++) vg.push(t.Vmax * i / 140);
@@ -868,47 +1250,46 @@ function render() {
     ivSeries.push({ name: FL[i].key, color: COL.f[i], xs: vg, ys: vg.map(v => d.Id(v, S.VDD)), width: 2, end: FL[i].key });
     ivDots.push({ x: d.vth, y: d.Icc, color: COL.f[i], r: 4 });
   });
-  plots.iv.set({
+  const g = isP ? '|VGS|' : 'VGS';
+  plots.pIV.set({
     series: ivSeries, dots: ivDots, yLog: S.ivLog, yZero: true, xMin: 0, xMax: t.Vmax,
-    xLabel: 'Gate voltage VGS (V)', xFmt: v => v.toFixed(1), yFmt: v => S.ivLog ? si(v, 'A', true) : (v * 1e6).toFixed(0) + ' µA',
-    hline: S.ivLog ? { y: devs[2].Icc, label: 'Icc = 100 nA·W/L' } : null,
-    vline: { x: S.VDD, label: `VDD ${S.VDD.toFixed(2)} V` },
-    tipX: v => `VGS = ${v.toFixed(3)} V`, tipFmt: v => si(v, 'A/µm')
+    xLabel: `Gate voltage ${g} (V)`, xFmt: v => v.toFixed(1), yFmt: v => S.ivLog ? si(v, 'A', true) : (v * 1e6).toFixed(0) + ' µA',
+    hline: S.ivLog ? { y: devs[2].Icc, label: 'Icc = 100 nA·W/L', below: true } : null,
+    vline: { x: S.VDD, label: `${isP ? '|VDD|' : 'VDD'} ${S.VDD.toFixed(2)} V` },
+    tipX: v => `${g} = ${v.toFixed(3)} V`, tipFmt: v => si(v, 'A/µm')
   });
-  $('ivSub').innerHTML = `at V<sub>DS</sub> = ${S.VDD.toFixed(2)} V`;
+  $('ivTitle').innerHTML = isP ? `Transfer curve |I<sub>D</sub>|–|V<sub>GS</sub>|<span>at V<sub>DS</sub> = −${S.VDD.toFixed(2)} V</span>` : `Transfer curve I<sub>D</sub>–V<sub>GS</sub><span>at V<sub>DS</sub> = ${S.VDD.toFixed(2)} V</span>`;
+  $('ivCap').innerHTML = `Dots mark the extracted threshold, where |I<sub>D</sub>| = 100 nA × W/L (dashed line). The current at V<sub>GS</sub> = 0 is the subthreshold leakage.${isP ? ' PMOS curves are drawn in magnitudes so they compare directly with NMOS.' : ''}`;
 
   // ---- sweeps
   const key = S.sweep, sw = SWEEPS[key];
-  const xs = sweepGrid(t, key, key === 'T' ? 96 : 81);
-  const res = FL.map((_, i) => xs.map(x => {
-    const cc = { ...c, [key]: x }; const d = device(t, i, cc);
-    return { d, delay: delayPs(tk, d, cc.VDD) };
-  }));
-  const cur = c[key];
+  const xs = sweepGrid(tk, key, key === 'T' ? 96 : 81);
+  const res = FL.map((_, i) => xs.map(x => { const cc = { ...c, [key]: x }; const d = device(tk, type, i, cc); return { d, delay: delayPs(tk, type, d, cc.VDD) }; }));
+  const cur = c[key], word = SWEEP_WORD[key];
   const vline = { x: cur, label: sw.fmt(cur) };
-  const word = SWEEP_WORD[key];
-  $('ioffSub').innerHTML = `I<sub>off</sub> per µm vs ${word}`; $('vthSub').innerHTML = `V<sub>th,sat</sub> vs ${word}`;
-  $('dlySub').innerHTML = `vs ${word}`; $('bdSub').innerHTML = `${FL[S.focus].key} vs ${word}`; $('toSub').innerHTML = `path across ${word}`;
+  $('ioffSub').innerHTML = `${isP ? '|I<sub>off</sub>|' : 'I<sub>off</sub>'} per µm vs ${word}`;
+  $('vthSub').innerHTML = `${isP ? '|V<sub>th,sat</sub>|' : 'V<sub>th,sat</sub>'} vs ${word}`;
+  $('vthCap').innerHTML = `Constant-current threshold with full V<sub>DD</sub> on the drain, so DIBL is included. ${isP ? '|V<sub>th</sub>|' : 'V<sub>th</sub>'} falls as temperature rises.`;
+  $('dlyTitle').innerHTML = `${isP ? 'FO4 rise delay t<sub>pLH</sub>' : 'FO4 fall delay t<sub>pHL</sub>'}<span>vs ${word}</span>`;
+  $('bdSub').innerHTML = `${FL[S.focus].key} ${NAME} vs ${word}`; $('toSub').innerHTML = `path across ${word}`;
   const xBase = { xMin: xs[0], xMax: xs[xs.length - 1], xLabel: sw.axis, xTicks: sw.xt ? sw.xt() : null,
     xFmt: key === 'T' ? (v => String(v)) : key === 'dL' ? (v => (v > 0 ? '+' : '') + v) : (v => String(+v.toFixed(2))),
-    vline, tipX: v => `${sw.fmt(v)}` };
-  const mk = (getter, extra) => FL.map((f, i) => S.show[i] ? { name: f.key, color: COL.f[i], xs, ys: res[i].map(getter), width: 2, end: f.key, ...(extra || {}) } : null).filter(Boolean);
-
-  plots.ioff.set({ ...xBase, series: mk(r => r.d.Ioff), yLog: true, yFmt: v => si(v, 'A', true), tipFmt: v => si(v, 'A/µm') });
-  plots.vth.set({ ...xBase, series: mk(r => r.d.vth * 1000), yLog: false, yFmt: v => String(Math.round(v)), tipFmt: v => `${v.toFixed(0)} mV` });
+    vline, tipX: v => sw.fmt(v) };
+  const mk = getter => FL.map((f, i) => S.show[i] ? { name: f.key, color: COL.f[i], xs, ys: res[i].map(getter), width: 2, end: f.key } : null).filter(Boolean);
+  plots.pIoff.set({ ...xBase, series: mk(r => r.d.Ioff), yLog: true, yFmt: v => si(v, 'A', true), tipFmt: v => si(v, 'A/µm') });
+  plots.pVth.set({ ...xBase, series: mk(r => r.d.vth * 1000), yLog: false, yFmt: v => String(Math.round(v)), tipFmt: v => `${isP ? '−' : ''}${v.toFixed(0)} mV` });
   const dSeries = mk(r => r.delay);
   let dmn = Infinity, dmx = 0; dSeries.forEach(se => se.ys.forEach(v => { dmn = Math.min(dmn, v); dmx = Math.max(dmx, v); }));
   const dLog = dmx / dmn > 6;
-  plots.dly.set({ ...xBase, series: dSeries, yLog: dLog, yFmt: v => (dLog ? String(+v.toPrecision(3)) : (Math.abs(v) < 10 ? v.toFixed(1) : v.toFixed(0))) + ' ps', tipFmt: v => `${v.toFixed(2)} ps` });
+  plots.pDly.set({ ...xBase, series: dSeries, yLog: dLog, yFmt: v => (dLog ? String(+v.toPrecision(3)) : (Math.abs(v) < 10 ? v.toFixed(1) : v.toFixed(0))) + ' ps', tipFmt: v => `${v.toFixed(2)} ps` });
   $('dlyCap').innerHTML = key === 'VDD'
-    ? 'Delay climbs steeply as V<sub>DD</sub> approaches V<sub>th</sub>; high-Vt cells hit the wall first.'
-    : key === 'T' ? 'Mobility loss makes gates slower when hot; falling V<sub>th</sub> makes them faster. Which wins depends on V<sub>DD</sub> − V<sub>th</sub>.'
-    : key === 'Vbs' ? 'Forward bias lowers V<sub>th</sub> and speeds the cell up; reverse bias does the opposite.'
-    : 'Longer gates raise V<sub>th</sub>, lower drive current and add gate capacitance, so delay grows.';
+    ? 'Delay climbs steeply as V<sub>DD</sub> approaches V<sub>th</sub>; high-Vt devices hit the wall first.'
+    : key === 'T' ? `Mobility loss makes ${isP ? 'the pull-up' : 'the pull-down'} slower when hot; falling |V<sub>th</sub>| makes it faster. Which wins depends on V<sub>DD</sub> − |V<sub>th</sub>|.`
+    : key === 'Vbs' ? 'Forward bias lowers |V<sub>th</sub>| and speeds the device up; reverse bias does the opposite.'
+    : 'Longer gates raise |V<sub>th</sub>|, lower drive current and add gate capacitance, so delay grows.';
 
-  // breakdown
   const fi = S.focus, fc = COL.f[fi];
-  plots.bd.set({ ...xBase,
+  plots.pBd.set({ ...xBase,
     series: [
       { name: 'Total', color: fc, xs, ys: res[fi].map(r => r.d.Ioff), width: 2.4, end: 'Total' },
       { name: 'Subthreshold', color: fc, xs, ys: res[fi].map(r => r.d.Isub), width: 1.5, dash: [5, 4], end: 'Sub-Vt' },
@@ -916,7 +1297,6 @@ function render() {
       { name: 'Junction/GIDL', color: COL.muted, xs, ys: res[fi].map(r => r.d.Ijn), width: 1.5, dash: [8, 3, 2, 3], end: 'Junction' }
     ], yLog: true, yFloor: Math.max(1e-15, Math.min(...res[fi].map(r => r.d.Ioff)) / 1e4), yFmt: v => si(v, 'A', true), tipFmt: v => si(v, 'A/µm') });
 
-  // trade-off
   const toSeries = [], toDots = [];
   FL.forEach((f, i) => {
     if (!S.show[i]) return;
@@ -927,69 +1307,221 @@ function render() {
       tip: `<div class="th">${f.key} at ${sw.fmt(cur)}</div><div class="row">delay<b>${dly[i].toFixed(2)} ps</b></div><div class="row">I<sub>off</sub><b>${si(devs[i].Ioff, 'A/µm')}</b></div>` });
   });
   let tmn = Infinity, tmx = 0; toSeries.forEach(se => se.xs.forEach(v => { tmn = Math.min(tmn, v); tmx = Math.max(tmx, v); }));
-  const toXLog = tmx / tmn > 6;
-  plots.to.set({ series: toSeries, dots: toDots, yLog: true, xLog: toXLog, hover: 'dots',
-    xLabel: 'FO4 delay (ps)', xFmt: v => String(+v.toPrecision(3)), yFmt: v => si(v, 'A', true) });
+  plots.pTo.set({ series: toSeries, dots: toDots, yLog: true, xLog: tmx / tmn > 6, hover: 'dots',
+    xLabel: `${isP ? 'Rise' : 'Fall'} delay (ps)`, xFmt: v => String(+v.toPrecision(3)), yFmt: v => si(v, 'A', true) });
   $('toCap').innerHTML = `Filled dots are the current operating point. Each line traces ${word} from ${sw.fmt(xs[0])} (open circle) to ${sw.fmt(xs[xs.length - 1])}. Down and to the left is better.`;
+}
 
-  // ---- mix budget
+/* ====================== render: SRAM ====================== */
+let mcKey = null, mcRes = null, mcTimer = null, sweepCache = { key: null, data: null };
+function mcKeyOf(c, cfg) { return JSON.stringify([S.tech, S.sram.fi, c, cfg]); }
+function runMC(c, cfg) { mcRes = sramMC(S.tech, S.sram.fi, c, cfg, Z, NMC); mcKey = mcKeyOf(c, cfg); }
+
+function renderSram() {
+  const t = TECH[S.tech], tk = S.tech, c = cond(), cfg = cfgOf(), fi = S.sram.fi, fc = COL.f[fi], VDD = S.VDD;
+  $('kRead').style.borderColor = fc;
+  const m = sramMetrics(tk, fi, c, cfg, { npts: 81 });
+  const bits = S.sram.mbits * 1048576;
+  const kReq = requiredSigma(Math.max(bits, 1), YIELD);
+  // Monte Carlo: compute now on first view, otherwise after the controls settle
+  const key = mcKeyOf(c, cfg);
+  if (!mcRes) runMC(c, cfg);
+  else if (key !== mcKey) { clearTimeout(mcTimer); if (!anim) mcTimer = setTimeout(() => { runMC(cond(), cfgOf()); render(); }, 220); }
+  const stale = key !== mcKey;
+  const mu = mcRes.reduce((a, b) => a + b, 0) / mcRes.length;
+  const sd = Math.sqrt(mcRes.reduce((a, b) => a + (b - mu) * (b - mu), 0) / (mcRes.length - 1));
+  const kOK = mu / sd;
+  const pass = kOK >= kReq;
+  const arrayP = bits * m.Icell * VDD;
+
+  // ---- tiles
+  const tripTxt = m.trip === -Infinity ? 'fails' : (m.trip * 1000).toFixed(0);
+  const tile = (k, v, u, n) => `<div class="tile"><span class="k">${k}</span><span class="v">${v}${u ? `<small>${u}</small>` : ''}</span><span class="n">${n}</span></div>`;
+  $('tiles').innerHTML = [
+    tile('Hold SNM', mV(m.hold.snm), 'mV', `${(m.hold.snm / VDD * 100).toFixed(0)}% of V<sub>DD</sub>, word line off`),
+    tile('Read SNM', mV(m.read.snm), 'mV', `${(m.read.snm / VDD * 100).toFixed(0)}% of V<sub>DD</sub>, ${(m.read.snm / m.hold.snm * 100).toFixed(0)}% of hold`),
+    tile('Write trip', tripTxt, m.trip === -Infinity ? '' : 'mV', m.trip === -Infinity ? 'pull-up wins even at BL = −0.4 V<sub>DD</sub>' : m.trip < 0 ? 'needs a negative bitline' : `bitline must fall below this`),
+    tile('Read current', (m.Iread * 1e6).toFixed(1), 'µA', 'sunk from the bitline'),
+    tile('Read bump', mV(m.bump), 'mV', `'0' node during a read`),
+    tile('Cell leakage', sig3(m.Icell / 1e-12 >= 1000 ? m.Icell * 1e9 : m.Icell * 1e12), m.Icell / 1e-12 >= 1000 ? 'nA' : 'pA', 'standby, per bitcell'),
+    tile('Array leakage', si(arrayP, 'W').replace(/ .*$/, ''), si(arrayP, 'W').split(' ')[1], `${S.sram.mbits} Mbit at ${VDD.toFixed(2)} V`),
+    tile('Read yield', `${kOK.toFixed(2)}`, 'σ', `<span class="pill${pass ? '' : ' solid'}">${pass ? '✓ meets' : '✗ short of'} ${kReq.toFixed(2)}σ</span>`)
+  ].join('');
+
+  // ---- readings
+  const word = SWEEP_WORD[S.sweep];
+  const logicP = logicPower(c);
+  $('sReadings').innerHTML = `
+    <div class="reading"><span class="k">Read disturb</span><p>During a read the '0' node rises to <b>${mV(m.bump)} mV</b> as the access transistor fights the pull-down (β = ${(cfg.pd / cfg.pg).toFixed(2)}). That cuts the noise margin from <b>${mV(m.hold.snm)}</b> to <b>${mV(m.read.snm)} mV</b>.</p></div>
+    <div class="reading"><span class="k">Write</span><p>${m.trip === -Infinity ? 'The pull-up beats the access transistor even with the bitline well below ground: this cell cannot be written. Weaken the pull-up (γ) or boost the word line.' : m.trip < 0 ? `Writing needs the bitline at <b>${mV(m.trip)} mV</b>, below ground: a negative-bitline write assist is required.` : `Writing needs the bitline below <b>${mV(m.trip)} mV</b> (${(m.trip / VDD * 100).toFixed(0)}% of V<sub>DD</sub>). Below about 10% the write is fragile.`}</p></div>
+    <div class="reading"><span class="k">Array yield</span><p>Read SNM μ/σ is <b>${kOK.toFixed(2)}</b> across 200 mismatched cells. A ${S.sram.mbits} Mbit array needs <b>${kReq.toFixed(2)}σ</b> for 99% yield, so this cell ${pass ? 'passes' : '<b>fails</b>'}${pass ? '' : '. Try a 90% word line, a larger pull-down, or a higher V<sub>DD</sub>'}.</p></div>
+    <div class="reading"><span class="k">Standby</span><p>The array leaks <b>${si(arrayP, 'W')}</b> at this corner, ${sig3(arrayP / logicP)}× the logic block in the budget below.</p></div>`;
+
+  // ---- butterfly
+  const hb = m.holdBf, rb = m.readBf;
+  const sqR1 = lobeSquare(m.read, 0), sqR2 = lobeSquare(m.read, 1), sqH1 = lobeSquare(m.hold, 0), sqH2 = lobeSquare(m.hold, 1);
+  const rects = [sqH1, sqH2].filter(Boolean).map(q => ({ ...q, stroke: COL.ink2, dash: [3, 3] }))
+    .concat([sqR1, sqR2].filter(Boolean).map(q => ({ ...q, fill: fc, stroke: fc, alpha: 0.16 })));
+  const texts = [];
+  const lowerRight = [sqR1, sqR2].filter(Boolean).sort((a, b) => (b.x0 - b.y0) - (a.x0 - a.y0))[0];
+  const upperLeftH = [sqH1, sqH2].filter(Boolean).sort((a, b) => (a.x0 - a.y0) - (b.x0 - b.y0))[0];
+  if (lowerRight) texts.push({ x: lowerRight.x1, y: lowerRight.y1, text: `read ${mV(m.read.snm)} mV`, dx: 4, dy: -8, bold: true });
+  if (upperLeftH) texts.push({ x: upperLeftH.x1, y: upperLeftH.y1, text: `hold ${mV(m.hold.snm)} mV`, dx: 4, dy: -8, color: COL.ink2 });
+  plots.pBf.set({
+    series: [
+      { name: 'hold', color: COL.ink2, xs: hb.A.map(p => p[0]), ys: hb.A.map(p => p[1]), width: 1.4, dash: [5, 4] },
+      { name: 'hold', color: COL.ink2, xs: hb.B.map(p => p[0]), ys: hb.B.map(p => p[1]), width: 1.4, dash: [5, 4] },
+      { name: 'read', color: fc, xs: rb.A.map(p => p[0]), ys: rb.A.map(p => p[1]), width: 2.2 },
+      { name: 'read', color: fc, xs: rb.B.map(p => p[0]), ys: rb.B.map(p => p[1]), width: 2.2 }
+    ], rects, texts, square: true, xMin: -0.03 * VDD, xMax: 1.03 * VDD, yMin: -0.03 * VDD, yMax: 1.03 * VDD,
+    xTicks: linTicks(0, VDD, 4), yTicks: linTicks(0, VDD, 4), hover: false,
+    xLabel: 'V(Q) (V)', yLabel: 'V(QB) (V)', xFmt: v => String(+v.toFixed(2)), yFmt: v => String(+v.toFixed(2))
+  });
+  $('bfCap').innerHTML = `Squares are the largest that fit in each lobe; their side is the static noise margin. Read mode (solid) shrinks the lobes because the '0' node is lifted to the read bump.`;
+
+  // ---- write curve
+  const vbls = linspace(Math.min(0, isFinite(m.trip) ? m.trip - 0.05 : 0), VDD, 81);
+  const qs = vbls.map(v => m.qAt(v));
+  const wrV = [{ x: VDD, label: 'precharge', dash: [2, 3], color: COL.muted }];
+  if (isFinite(m.trip) && m.trip < VDD) wrV.push({ x: m.trip, label: `trip ${mV(m.trip)} mV` });
+  plots.pWr.set({
+    series: [{ name: 'V(Q)', color: fc, xs: vbls, ys: qs, width: 2.2 }],
+    hline: { y: m.vm, label: `V_M ${mV(m.vm)} mV`, below: false },
+    vlines: wrV, xMin: vbls[0], xMax: VDD, yMin: 0, yMax: VDD, yTicks: linTicks(0, VDD, 4),
+    xLabel: 'Bitline voltage V(BL) (V)', xFmt: v => String(+v.toFixed(2)), yFmt: v => String(+v.toFixed(2)) + ' V',
+    tipX: v => `V(BL) = ${v.toFixed(3)} V`, tipFmt: v => `${v.toFixed(3)} V`
+  });
+  $('wrCap').innerHTML = `The cell holds Q = 1 and the bitline is pulled down from V<sub>DD</sub> (right) toward 0 (left) with the word line at ${Math.round(cfg.wl * 100)}%. The write succeeds once the access transistor drags Q below V<sub>M</sub>, the opposite inverter's trip point.`;
+
+  // ---- Monte Carlo histogram
+  const lo = Math.min(0, ...mcRes), hi = Math.max(...mcRes);
+  const nb = 24, bw = (hi - lo) / nb || 0.001, counts = new Array(nb).fill(0);
+  mcRes.forEach(v => { counts[Math.min(nb - 1, Math.floor((v - lo) / bw))]++; });
+  const bars = counts.map((n, i) => ({ x0: (lo + i * bw) * 1000, x1: (lo + (i + 1) * bw) * 1000, y: n, color: fc, alpha: stale ? 0.45 : 0.85,
+    tip: `<div class="th">${((lo + i * bw) * 1000).toFixed(0)}–${((lo + (i + 1) * bw) * 1000).toFixed(0)} mV</div><div class="row">cells<b>${n}</b></div>` }));
+  const gx = linspace(lo, hi, 80), gy = gx.map(x => NMC * bw / (sd * Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * ((x - mu) / sd) ** 2));
+  plots.pMc.set({
+    bars, series: [{ name: 'normal fit', color: COL.ink2, xs: gx.map(v => v * 1000), ys: gy, width: 1.4, dash: [4, 3], hover: false }],
+    vlines: [{ x: 0, label: 'fail', color: COL.ink }, { x: mu * 1000, label: `μ ${(mu * 1000).toFixed(0)}`, dash: [2, 3] }],
+    yZero: true, hover: 'bars', xLabel: 'Read SNM (mV)', xFmt: v => String(Math.round(v)), yFmt: v => String(Math.round(v))
+  });
+  $('mcCap').innerHTML = `${stale ? 'Updating… ' : ''}μ = <b>${(mu * 1000).toFixed(0)} mV</b>, σ = <b>${(sd * 1000).toFixed(1)} mV</b>, μ/σ = <b>${kOK.toFixed(2)}</b>. Each transistor gets a random V<sub>th</sub> offset with σ = A<sub>Vt</sub>/√(WL) = ${sramSigmas(tk, cfg, S.dL).slice(0, 3).map(v => (v * 1000).toFixed(0)).join(' / ')} mV (PU / PD / PG).`;
+
+  // ---- sweeps (cached; the swept variable itself is excluded from the key)
+  const sk = S.sweep, sw = SWEEPS[sk];
+  const kObj = { tk, fi, cfg, c: { ...c } }; delete kObj.c[sk];
+  const ckey = sk + JSON.stringify(kObj);
+  if (sweepCache.key !== ckey) {
+    const xs = sweepGrid(tk, sk, 25);
+    const rows = xs.map(x => { const cc = { ...c, [sk]: x }; const mm = sramMetrics(tk, fi, cc, cfg, { npts: 29 }); return { x, h: mm.hold.snm, r: mm.read.snm, w: mm.trip, ir: mm.Iread, lk: mm.Icell }; });
+    sweepCache = { key: ckey, data: rows };
+  }
+  const rows = sweepCache.data, xs = rows.map(r => r.x), cur = c[sk];
+  const xb = { xMin: xs[0], xMax: xs[xs.length - 1], xLabel: sw.axis, xTicks: sw.xt ? sw.xt() : null,
+    xFmt: sk === 'T' ? (v => String(v)) : sk === 'dL' ? (v => (v > 0 ? '+' : '') + v) : (v => String(+v.toFixed(2))),
+    vline: { x: cur, label: sw.fmt(cur) }, tipX: v => sw.fmt(v) };
+  $('mgSub').innerHTML = `vs ${word}`; $('irSub').innerHTML = `vs ${word}`; $('lkSub').innerHTML = `per cell vs ${word}`;
+  plots.pMg.set({ ...xb, series: [
+      { name: 'Hold SNM', color: COL.ink2, xs, ys: rows.map(r => r.h * 1000), width: 1.6, dash: [5, 4], end: 'Hold' },
+      { name: 'Read SNM', color: fc, xs, ys: rows.map(r => r.r * 1000), width: 2.2, end: 'Read' },
+      { name: 'Write trip', color: COL.muted, xs, ys: rows.map(r => isFinite(r.w) ? r.w * 1000 : NaN), width: 1.6, dash: [8, 3, 2, 3], end: 'Write' }
+    ], yZero: true, yFmt: v => `${Math.round(v)}`, tipFmt: v => `${v.toFixed(0)} mV`, yLabel: 'mV' });
+  plots.pIr.set({ ...xb, series: [{ name: 'Read current', color: fc, xs, ys: rows.map(r => r.ir * 1e6), width: 2.2 }], yFmt: v => `${+v.toPrecision(3)} µA`, tipFmt: v => `${v.toFixed(1)} µA` });
+  plots.pLk.set({ ...xb, series: [{ name: 'Cell leakage', color: fc, xs, ys: rows.map(r => r.lk), width: 2.2 }], yLog: true, yFmt: v => si(v, 'A', true), tipFmt: v => si(v, 'A') });
+}
+
+/* ====================== render: budget + params ====================== */
+function logicPower(c) {
+  const tk = S.tech;
+  const tot = S.mix.reduce((a, b) => a + b, 0);
+  const share = S.mix.map(m => tot > 0 ? m / tot : 0.25);
+  const per = FL.map((_, i) => 0.5 * (device(tk, 'n', i, c).Ioff + device(tk, 'p', i, c).Ioff) * S.wcell * c.VDD * S.ncells);
+  return per.reduce((a, p, i) => a + p * share[i], 0);
+}
+function renderBudget() {
+  const tk = S.tech, c = cond();
   const tot = S.mix.reduce((a, b) => a + b, 0);
   const share = S.mix.map(m => tot > 0 ? m / tot : 0.25);
   FL.forEach((f, i) => { $('mixOut-' + i).textContent = (share[i] * 100).toFixed(0) + '%'; });
-  const per = devs.map(d => d.Ioff * S.wcell * S.VDD * S.ncells); // W if the whole block were this flavor
+  const per = FL.map((_, i) => 0.5 * (device(tk, 'n', i, c).Ioff + device(tk, 'p', i, c).Ioff) * S.wcell * c.VDD * S.ncells);
   const parts = per.map((p, i) => p * share[i]);
-  const P = parts.reduce((a, b) => a + b, 0);
+  const sramP = S.sram.mbits * 1048576 * cellLeak(tk, S.sram.fi, c, cfgOf()) * c.VDD;
+  const P = parts.reduce((a, b) => a + b, 0) + sramP;
   $('mixTotal').textContent = si(P, 'W');
-  $('cmpH').textContent = si(per[3], 'W'); $('cmpS').textContent = si(per[2], 'W'); $('cmpU').textContent = si(per[0], 'W');
-  const seg = arr => arr.map((v, i) => v > 0.0005 ? `<div style="flex:0 0 calc(${(v * 100).toFixed(3)}% - 2px);background:var(--f${i})" title="${FL[i].key} ${(v * 100).toFixed(1)}%"></div>` : '').join('');
-  const keys = arr => arr.map((v, i) => `<span><span class="sw" style="background:var(--f${i})"></span>${FL[i].key} ${(v * 100) < 0.95 && v > 0 ? '<1' : (v * 100).toFixed(0)}%</span>`).join('');
-  const lshare = parts.map(p => P > 0 ? p / P : 0);
+  $('cmpA').textContent = si(sramP, 'W'); $('cmpH').textContent = si(per[3], 'W'); $('cmpS').textContent = si(per[2], 'W'); $('cmpU').textContent = si(per[0], 'W');
+  const seg = (arr, extra) => arr.map((v, i) => v > 0.0005 ? `<div style="flex:0 0 calc(${(v * 100).toFixed(3)}% - 2px);background:var(--f${i})" title="${FL[i].key} ${(v * 100).toFixed(1)}%"></div>` : '').join('') + (extra || '');
+  const pct = v => (v * 100) < 0.95 && v > 0 ? '<1' : (v * 100).toFixed(0);
+  const keys = arr => arr.map((v, i) => `<span><span class="sw" style="background:var(--f${i})"></span>${FL[i].key} ${pct(v)}%</span>`).join('');
+  const lshare = parts.map(p => P > 0 ? p / P : 0), sshare = P > 0 ? sramP / P : 0;
   $('barCount').innerHTML = seg(share); $('keyCount').innerHTML = keys(share);
-  $('barLeak').innerHTML = seg(lshare); $('keyLeak').innerHTML = keys(lshare);
-
-  // ---- parameter table
+  $('barLeak').innerHTML = seg(lshare, sshare > 0.0005 ? `<div class="hatch" style="flex:0 0 calc(${(sshare * 100).toFixed(3)}% - 2px)" title="SRAM ${(sshare * 100).toFixed(1)}%"></div>` : '');
+  $('keyLeak').innerHTML = keys(lshare) + `<span><span class="sw hatch"></span>SRAM ${pct(sshare)}%</span>`;
+}
+function renderParams() {
+  const t = TECH[S.tech];
+  const row = (label, type, fn) => `<tr><td>${label}</td>${t[type].fl.map(fn).join('')}</tr>`;
+  const misc = type => { const p = t[type]; return `n = ${p.n} · α = ${p.alpha} · DIBL η = ${(p.eta * 1000).toFixed(0)} mV/V · k<sub>b</sub> = ${(p.kb * 1000).toFixed(0)} mV/V · θ = ${p.theta}`; };
   $('ptab').innerHTML = `<tr><th>${t.name}</th>${FL.map(f => `<th>${f.key}</th>`).join('')}</tr>
-    <tr><td>V<sub>th0</sub> (V<sub>DS</sub>≈0, 25 °C, TT)</td>${t.fl.map(f => `<td>${f.vth0.toFixed(3)} V</td>`).join('')}</tr>
-    <tr><td>κ = dV<sub>th</sub>/dT</td>${t.fl.map(f => `<td>${f.kT.toFixed(2)} mV/K</td>`).join('')}</tr>
-    <tr><td colspan="5">n = ${t.n} · α = ${t.alpha} · DIBL η = ${(t.eta * 1000).toFixed(0)} mV/V · body coefficient k<sub>b</sub> = ${(t.kb * 1000).toFixed(0)} mV/V · θ = ${t.theta} · L<sub>g</sub> = ${t.Lg} nm · V<sub>DD,nom</sub> = ${t.Vnom} V · corners ±35 mV</td></tr>`;
+    ${row('NMOS V<sub>th0</sub> (25 °C, TT)', 'n', f => `<td>${f.vth0.toFixed(3)} V</td>`)}
+    ${row('NMOS κ = dV<sub>th</sub>/dT', 'n', f => `<td>${f.kT.toFixed(2)} mV/K</td>`)}
+    ${row('PMOS |V<sub>th0</sub>| (25 °C, TT)', 'p', f => `<td>${f.vth0.toFixed(3)} V</td>`)}
+    ${row('PMOS κ = d|V<sub>th</sub>|/dT', 'p', f => `<td>${f.kT.toFixed(2)} mV/K</td>`)}
+    <tr><td colspan="5">NMOS: ${misc('n')}</td></tr>
+    <tr><td colspan="5">PMOS: ${misc('p')}</td></tr>
+    <tr><td colspan="5">L<sub>g</sub> = ${t.Lg} nm · V<sub>DD,nom</sub> = ${t.Vnom} V · corners ±35 mV, ±8% drive · balanced W<sub>P</sub>/W<sub>N</sub> = ${wpRatio(S.tech).toFixed(2)} · SRAM unit width ${Math.round(t.w0 * 1000)} nm · A<sub>Vt</sub> = ${t.Avt} mV·µm</td></tr>`;
 }
 
 let queued = false;
 function schedule() { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; render(); }); }
 
 /* ====================== events ====================== */
-$('techSeg').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
+const clickIn = (id, fn) => $(id).addEventListener('click', e => { const b = e.target.closest('button'); if (b) fn(b); });
+clickIn('techSeg', b => {
   S.tech = b.dataset.tech; const t = TECH[S.tech];
   S.VDD = t.Vnom; S.Vbs = 0;
+  if (t.finStep === 1) ['pu', 'pg', 'pd'].forEach(k => { S.sram[k] = Math.max(1, Math.round(S.sram[k])); });
   syncControls(); schedule();
 });
-$('cornerSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.corner = b.dataset.corner; syncControls(); schedule(); });
-$('sweepSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.sweep = b.dataset.sweep; syncControls(); schedule(); });
-$('focusSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.focus = +b.dataset.focus; syncControls(); schedule(); });
-$('ivSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.ivLog = b.dataset.scale === 'log'; syncControls(); schedule(); });
+clickIn('cornerSeg', b => { S.corner = b.dataset.corner; syncControls(); schedule(); });
+clickIn('sweepSeg', b => { S.sweep = b.dataset.sweep; syncControls(); schedule(); });
+clickIn('sSweepSeg', b => { S.sweep = b.dataset.sweep; syncControls(); schedule(); });
+clickIn('focusSeg', b => { S.focus = +b.dataset.focus; syncControls(); schedule(); });
+clickIn('ivSeg', b => { S.ivLog = b.dataset.scale === 'log'; syncControls(); schedule(); });
+clickIn('cellFlSeg', b => { S.sram.fi = +b.dataset.cfl; syncControls(); schedule(); });
+clickIn('arrSeg', b => { S.sram.mbits = +b.dataset.mb; syncControls(); schedule(); });
+clickIn('sizeChips', b => { const [pu, pg, pd] = b.dataset.size.split(',').map(Number); Object.assign(S.sram, { pu, pg, pd }); syncControls(); schedule(); });
+document.querySelector('.tabs').addEventListener('click', e => { const b = e.target.closest('[role="tab"]'); if (!b) return; S.dev = b.dataset.dev; syncControls(); render(); });
+document.querySelector('.tabs').addEventListener('keydown', e => {
+  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+  const order = ['n', 'p', 'sram'], i = order.indexOf(S.dev);
+  S.dev = order[(i + (e.key === 'ArrowRight' ? 1 : 2)) % 3]; syncControls(); render(); $('tab-' + S.dev).focus();
+});
 $('legend').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   const i = +b.dataset.show; const on = S.show.filter(Boolean).length;
-  if (S.show[i] && on === 1) return; // keep at least one visible
+  if (S.show[i] && on === 1) return;
   S.show[i] = !S.show[i]; b.setAttribute('aria-pressed', String(S.show[i])); schedule();
 });
 $('temp').addEventListener('input', e => { S.T = +e.target.value; $('tempOut').textContent = `${S.T} °C`; schedule(); });
 $('vdd').addEventListener('input', e => { S.VDD = +e.target.value; $('vddOut').textContent = `${S.VDD.toFixed(2)} V`; schedule(); });
 $('vbs').addEventListener('input', e => { S.Vbs = +e.target.value; syncControls(); schedule(); });
 $('dl').addEventListener('input', e => { S.dL = +e.target.value; syncControls(); schedule(); });
+$('wl').addEventListener('input', e => { S.sram.wl = +e.target.value; syncControls(); schedule(); });
+const sizeIn = (id, k) => $(id).addEventListener('input', e => { const v = +e.target.value; if (v > 0 && v <= 8) { S.sram[k] = v; syncControls(); schedule(); } });
+sizeIn('szPU', 'pu'); sizeIn('szPG', 'pg'); sizeIn('szPD', 'pd');
 $('tempChips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return; stopAnim(); S.T = +b.dataset.t; syncControls(); schedule(); });
 $('vddChips').addEventListener('click', e => {
   const b = e.target.closest('.chip'); if (!b) return; const t = TECH[S.tech];
   S.VDD = Math.min(Math.max(Math.round(t.Vnom * +b.dataset.v * 100) / 100, t.Vmin), t.Vmax); syncControls(); schedule();
 });
 $('reset').addEventListener('click', () => {
-  stopAnim(); const keep = S.tech; Object.assign(S, JSON.parse(JSON.stringify(DEFAULT)));
-  S.tech = keep; S.VDD = TECH[keep].Vnom; buildLegend(); syncControls(); schedule();
+  stopAnim(); const keepTech = S.tech, keepDev = S.dev; Object.assign(S, JSON.parse(JSON.stringify(DEFAULT)));
+  S.tech = keepTech; S.dev = keepDev; S.VDD = TECH[keepTech].Vnom; buildLegend(); syncControls(); schedule();
 });
 $('mixRows').addEventListener('input', e => { const m = e.target.id.match(/^mix-(\d)$/); if (!m) return; S.mix[+m[1]] = +e.target.value; schedule(); });
 $('ncells').addEventListener('input', e => { const v = +e.target.value; if (v > 0) { S.ncells = v; schedule(); } });
 $('wcell').addEventListener('input', e => { const v = +e.target.value; if (v > 0) { S.wcell = v; schedule(); } });
+$('mbits').addEventListener('input', e => { const v = +e.target.value; if (v >= 0) { S.sram.mbits = v; syncControls(); schedule(); } });
 
 // temperature sweep animation
 let anim = null, dir = 1, last = 0;
@@ -999,7 +1531,7 @@ function stopAnim() {
 }
 function stepAnim(ts) {
   const dt = last ? Math.min(ts - last, 50) : 16; last = ts;
-  let T = S.T + dir * dt * 0.06; // 60 °C per second
+  let T = S.T + dir * dt * 0.06;
   if (T >= 150) { T = 150; dir = -1; } else if (T <= -40) { T = -40; dir = 1; }
   S.T = Math.round(T * 10) / 10;
   $('temp').value = S.T; $('tempOut').textContent = `${Math.round(S.T)} °C`;
@@ -1007,14 +1539,13 @@ function stepAnim(ts) {
   anim = requestAnimationFrame(stepAnim);
 }
 $('playT').addEventListener('click', () => {
-  if (anim) { S.T = Math.round(S.T); syncControls(); stopAnim(); schedule(); return; }
+  if (anim) { S.T = Math.round(S.T); stopAnim(); syncControls(); schedule(); return; }
   last = 0; if (S.T >= 150) dir = -1; else if (S.T <= -40) dir = 1;
   $('playT').setAttribute('aria-pressed', 'true'); $('playTxt').textContent = 'Stop'; $('playIcon').setAttribute('d', 'M2 1h3v10H2zM7 1h3v10H7z');
   anim = requestAnimationFrame(stepAnim);
 });
 $('temp').addEventListener('pointerdown', stopAnim);
 
-// theme changes
 function rethemeAll() { readColors(); render(); }
 try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rethemeAll); } catch (e) {}
 new MutationObserver(rethemeAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
