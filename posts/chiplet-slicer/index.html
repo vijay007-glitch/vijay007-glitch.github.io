@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chiplet Slicer | Vijay</title>
+<meta name="description" content="Drag a die on a 300 mm wafer, slice it into up to 16 chiplets, and see yield, die-to-die overhead and packaging cost trade against each other. Then inject a defect signature and read the wafer like a yield engineer.">
+<meta name="author" content="Vijay">
+<link rel="canonical" href="https://vijay007-glitch.github.io/posts/chiplet-slicer/">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Chiplet Slicer">
+<meta property="og:description" content="Drag a die on a 300 mm wafer, slice it into up to 16 chiplets, and see yield, die-to-die overhead and packaging cost trade against each other. Then inject a defect signature and read the wafer like a yield engineer.">
+<meta property="og:url" content="https://vijay007-glitch.github.io/posts/chiplet-slicer/">
+<meta property="og:image" content="https://vijay007-glitch.github.io/simulations/chiplet-slicer/thumb.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="site-head">
+<a class="brand" href="../../">Vijay</a>
+<nav aria-label="Site"><a href="../../">All posts</a></nav>
+</header>
+
+<main>
+<article>
+<header>
+<h1>Chiplet Slicer</h1>
+<p class="dek">Drag a die on a 300 mm wafer, slice it into up to 16 chiplets, and see yield, die-to-die overhead and packaging cost trade against each other. Then inject a defect signature and read the wafer like a yield engineer.</p>
+<p class="meta">October 5, 2026, interactive simulator</p>
+</header>
+
+<div class="prose">
+<p>Cutting a big die into chiplets raises yield, because a smaller die offers a random defect less area to land on. It also costs you. Every die-to-die link puts a PHY block on both chiplets it joins, the package gets more expensive, and each chiplet you attach is another chance to scrap the whole assembly. This lab prices that trade on a 300 mm wafer: yield follows the Poisson model Y = e<sup>−A·D₀</sup>, the chiplets are equal-area splits on the same node, and only known-good chiplets are packaged.</p>
+<p>The second half of the lab is about what the cost model leaves out. Real wafers carry systematic defects on top of random ones. You can inject an edge ring, a scratch, a particle cluster or a reticle repeater, then compare the wafer with the Poisson baseline and look for structure by radius, by reticle position and between neighbouring dies. A mystery-wafer quiz hides the signature and asks you to name it.</p>
+</div>
+
+<p class="lab-open"><a href="../../simulations/chiplet-slicer/">Open the simulator full screen</a>. On a phone, that works better than the embedded view below.</p>
+<div class="lab-embed">
+<iframe src="../../simulations/chiplet-slicer/" title="Chiplet Slicer: interactive chiplet yield and cost simulator with wafer-map defect signatures" loading="lazy"></iframe>
+</div>
+
+<div class="prose">
+<p>Things to try:</p>
+<ul>
+<li>Leave the defaults (a 24 × 28 mm die, D₀ of 0.10 per cm², organic package) and read the verdict. The monolithic die costs $436 per good packaged die. Six chiplets cost $259, 41% less.</li>
+<li>Switch to the Si bridge package. Each link now costs money, so the cheapest split moves to 4 chiplets at $276, and 16 chiplets costs $397.</li>
+<li>Drag the die outline, or focus the wafer and use the arrow keys, to grow it past the 26 × 33 mm reticle limit. The monolithic column is hatched because that die could not be exposed in one shot.</li>
+<li>Pull D₀ down to 0.02 and the best split falls to 3 chiplets at $234 against $261 monolithic. Shrink the die to 8 × 8 mm and monolithic beats every split.</li>
+<li>Pick Edge ring with 4 chiplets on the default wafer. The trigger panel flags a 9.6σ excursion and points at radial zone 5, which yields 14.1% against 76.8% elsewhere.</li>
+<li>Pick Reticle repeater and switch on Reticle fields. One die position fails in field after field, and one cell of the stack map goes cold.</li>
+<li>Pick Scratch with 16 chiplets. The fails touch each other, and the neighbour-fail ratio climbs to 2.8 where random defects give about 1.</li>
+<li>Press Mystery wafer, read the bin map and the analysis, and make your call before the spatial checks are revealed.</li>
+</ul>
+<p>This is an educational model of yield economics and wafer-map signature analysis, not a production fab tool. The package presets and costs are illustrative defaults that you can change, and Poisson yield assumes independent defects, whereas real defects cluster. The equations and thresholds are in the "How the model works" section at the bottom of the lab.</p>
+</div>
+</article>
+</main>
+
+<footer class="site-foot">
+<p>Written by Vijay. Built with plain HTML, CSS, and JavaScript.</p>
+<p><a href="../../">Back to all posts</a></p>
+</footer>
+</body>
+</html>
