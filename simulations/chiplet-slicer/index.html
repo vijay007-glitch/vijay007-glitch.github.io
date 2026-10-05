@@ -1,0 +1,1298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="An educational model of yield economics and wafer-map signature analysis: slice a die into chiplets and see cost per good system on a 300 mm wafer.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Chiplet Slicer">
+<meta property="og:description" content="Slice a die into chiplets and see cost per good system, then read injected defect signatures on the wafer like a yield engineer.">
+<link rel="canonical" href="https://vijay007-glitch.github.io/simulations/chiplet-slicer/">
+<meta property="og:url" content="https://vijay007-glitch.github.io/simulations/chiplet-slicer/">
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<style>html,body{margin:0}img{max-width:100%}[hidden]{display:none!important}:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+<title>Chiplet Slicer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: lab sheet. Wafer map is the hero on a recessed stage (left); a datasheet column of levers and readouts (right);
+   below, the cost sweep across splits and the package bench; model notes last. */
+:root{
+  --bg:#f7f9f8;        /* sheet */
+  --stage:#e4e9e8;     /* recessed wafer stage */
+  --ink:#13211f;
+  --ink-2:#465855;
+  --ink-3:#6c7c78;
+  --line:#cbd5d3;
+  --grid:#e0e6e4;
+  --wafer:#c3ccd2;     /* bare silicon */
+  --wafer-edge:#a8b3ba;/* 3 mm edge exclusion */
+  --ghost:#8f9ca3;     /* partial edge dies */
+  --tile:#8cbda5;      /* bin 1, pass */
+  --fail:#d8453c;      /* killed by a defect */
+  --defect:#13211f;
+  --good-ink:#1d6845;
+  --bad-ink:#b0322a;
+  --focus:#1f6fbf;
+  --c-logic:#3d7fc4;
+  --c-phy:#e09a12;
+  --c-scrap:#d8453c;
+  --c-pkg:#4a3aa7;
+  --c-asm:#e87ba4;
+  --c-yield:#3a8a66;
+  --display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --body:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#141c1b; --stage:#0d1413; --ink:#e3ebe9; --ink-2:#a8b7b4; --ink-3:#7d8d89; --line:#2a3936; --grid:#202d2b;
+    --wafer:#28333a; --wafer-edge:#37444b; --ghost:#4f5e66; --tile:#3c7f61; --fail:#e0566e; --defect:#f3f6f5;
+    --good-ink:#62c99b; --bad-ink:#f2849a; --focus:#6aa8ec;
+    --c-logic:#4f93dc; --c-phy:#c98500; --c-scrap:#e0566e; --c-pkg:#9085e9; --c-asm:#d55181; --c-yield:#4fb487;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#141c1b; --stage:#0d1413; --ink:#e3ebe9; --ink-2:#a8b7b4; --ink-3:#7d8d89; --line:#2a3936; --grid:#202d2b;
+  --wafer:#28333a; --wafer-edge:#37444b; --ghost:#4f5e66; --tile:#3c7f61; --fail:#e0566e; --defect:#f3f6f5;
+  --good-ink:#62c99b; --bad-ink:#f2849a; --focus:#6aa8ec;
+  --c-logic:#4f93dc; --c-phy:#c98500; --c-scrap:#e0566e; --c-pkg:#9085e9; --c-asm:#d55181; --c-yield:#4fb487;
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+.page{max-width:1240px;margin:0 auto;padding-inline:clamp(16px,3vw,32px);padding-block:28px 64px;display:grid;gap:32px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.eyebrow{font:500 11px/1.3 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+h1,h2,h3{text-wrap:balance}
+h2{font-family:var(--display);font-stretch:112%;font-weight:700;font-size:18px;line-height:1.2;margin:0}
+p{margin:0}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+/* masthead */
+.masthead{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px 40px;align-items:end;padding-bottom:22px;border-bottom:1px solid var(--line)}
+h1{font-family:var(--display);font-stretch:125%;font-weight:800;font-size:clamp(2.3rem,6.4vw,4.2rem);line-height:.92;letter-spacing:-.015em;margin:8px 0 0}
+.lede{max-width:64ch;margin-top:14px;color:var(--ink-2);font-size:16px}
+.formula{font:500 clamp(1.15rem,2.4vw,1.6rem)/1 var(--mono);padding:14px 16px;border:1px solid var(--line);border-radius:4px;white-space:nowrap;display:grid;gap:8px}
+.formula sup{font-size:.6em}
+.formula small{font:400 11px/1.3 var(--mono);color:var(--ink-3);letter-spacing:.04em}
+@media (max-width:720px){.masthead{grid-template-columns:minmax(0,1fr)}.formula{justify-self:start}}
+
+/* stage */
+.stage{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);gap:32px;align-items:start}
+@media (max-width:960px){.stage{grid-template-columns:minmax(0,1fr)}}
+.wafer-card{background:var(--stage);border-radius:10px;padding:16px;display:grid;gap:14px;min-width:0}
+.wafer-head{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between}
+.dims{display:flex;align-items:center;gap:6px 8px;flex-wrap:wrap;font-family:var(--mono);font-size:13px;color:var(--ink-2)}
+.dims label{font:500 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-right:2px}
+.num{width:5.4em;padding:6px 8px;border:1px solid var(--line);border-radius:4px;background:var(--bg);font:500 14px var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+.btn{border:1px solid var(--line);background:var(--bg);border-radius:4px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer}
+.btn:hover{border-color:var(--ink-3)}
+.wafer-wrap{position:relative;width:100%;max-width:680px;margin:0 auto;aspect-ratio:1/1}
+#wafer{display:block;width:100%;height:100%;touch-action:none;border-radius:10px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--ink-2);list-style:none;margin:0;padding:0}
+.legend li{display:flex;align-items:center;gap:7px}
+.sw{width:12px;height:12px;border-radius:2px;flex:none}
+.sw.dot{width:7px;height:7px;border-radius:50%;margin-inline:2px}
+.sw.ghost{background:transparent;border:1.5px solid var(--ghost)}
+.sample{font-size:13.5px;color:var(--ink-2)}
+.sample b{color:var(--ink);font-weight:600}
+
+/* side column */
+.side{display:grid;gap:22px;min-width:0}
+.field{display:grid;gap:8px}
+.field-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.field-head label,.field-head .lbl{font-weight:600;font-size:14px}
+.field-head output,.field-head .cap{font:500 13px var(--mono);color:var(--ink-2);font-variant-numeric:tabular-nums}
+.seg{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg-k{grid-template-columns:repeat(8,minmax(0,1fr))}
+.seg-pkg{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:440px){.seg-k{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.seg button{border:0;background:var(--bg);padding:10px 4px;cursor:pointer;font:600 15px var(--mono);font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.seg-pkg button{font:600 13px var(--body);padding:9px 6px;line-height:1.25}
+.seg button:hover{background:var(--grid);color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.seg button:focus-visible{outline-offset:-3px}
+input[type=range]{width:100%;accent-color:var(--ink);margin:0}
+
+.verdict{display:grid;gap:8px;padding-block:18px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.big{font-family:var(--display);font-stretch:118%;font-weight:750;font-size:clamp(2.6rem,5.6vw,3.5rem);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.vnote{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:14px;color:var(--ink-2)}
+.chip{display:inline-flex;align-items:center;gap:6px;font:600 13px var(--mono);padding:3px 8px;border-radius:3px;border:1px solid currentColor}
+.chip.good{color:var(--good-ink)}
+.chip.bad{color:var(--bad-ink)}
+.chip.flat{color:var(--ink-2)}
+.flag{display:inline-flex;align-items:center;gap:5px;font:600 11px var(--mono);letter-spacing:.04em;color:var(--bad-ink);text-transform:uppercase}
+.linkbtn{border:0;background:none;padding:0;color:var(--ink);font-weight:600;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+
+.spec{width:100%;border-collapse:collapse;font-size:13.5px}
+.spec th,.spec td{padding:7px 0;border-bottom:1px solid var(--grid);vertical-align:top}
+.spec thead th{font:500 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);text-align:right;border-bottom:1px solid var(--line)}
+.spec thead th:first-child{text-align:left}
+.spec tbody th{text-align:left;font-weight:500;color:var(--ink-2);padding-right:10px}
+.spec td{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;padding-left:12px;white-space:nowrap}
+.spec td small{display:block;font-size:11px;color:var(--ink-3)}
+.spec tr.total th,.spec tr.total td{font-weight:600;color:var(--ink);border-bottom:0;padding-top:10px;font-size:15px}
+.spec .dash{color:var(--ink-3)}
+
+.ycurve{margin:0;display:grid;gap:6px}
+.ycurve figcaption{font-size:13px;color:var(--ink-2)}
+#ysvg{display:block;width:100%;height:160px}
+
+/* svg text */
+.ax{fill:var(--ink-3);font:10.5px var(--mono)}
+.ax-strong{fill:var(--ink);font:600 11.5px var(--mono)}
+.lab{fill:var(--ink);font:600 11px var(--mono)}
+.lab-2{fill:var(--ink-2);font:10.5px var(--mono)}
+.gridl{stroke:var(--grid);stroke-width:1}
+.base{stroke:var(--line);stroke-width:1}
+
+/* bench */
+.bench{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:32px;padding-top:26px;border-top:1px solid var(--line);align-items:start}
+@media (max-width:960px){.bench{grid-template-columns:minmax(0,1fr)}}
+.sec-head{display:grid;gap:6px;margin-bottom:14px}
+.sec-head p{color:var(--ink-2);font-size:14px;max-width:62ch}
+.chart-legend{margin-bottom:10px}
+.chart-wrap{position:relative;min-width:0}
+#sweep{display:block;width:100%}
+.tip{position:absolute;z-index:3;pointer-events:none;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px 12px;font:12px/1.45 var(--mono);font-variant-numeric:tabular-nums;box-shadow:0 6px 20px rgba(0,0,0,.12);min-width:210px}
+.tip h4{margin:0 0 6px;font:600 12.5px var(--body)}
+.tip .row{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center}
+.tip .row span:last-child{text-align:right}
+.tip .tot{border-top:1px solid var(--line);margin-top:5px;padding-top:5px;font-weight:600}
+details{margin-top:14px;font-size:13.5px}
+summary{cursor:pointer;color:var(--ink-2);font-weight:600}
+.table-scroll{overflow-x:auto;margin-top:10px}
+.data{border-collapse:collapse;width:100%;min-width:560px;font:12.5px var(--mono);font-variant-numeric:tabular-nums}
+.data th,.data td{padding:6px 8px;border-bottom:1px solid var(--grid);text-align:right;white-space:nowrap}
+.data th{font-weight:500;color:var(--ink-3);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.data th:first-child,.data td:first-child{text-align:left}
+.data tr.cur td{font-weight:600;color:var(--ink)}
+
+.pkg{display:grid;gap:16px;min-width:0}
+#floor{display:block;width:100%}
+.floor-cap{font-size:13px;color:var(--ink-2)}
+.fine{font-size:12.5px;color:var(--ink-3)}
+.custom-note{font:500 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+
+/* signature toolbar on the wafer card */
+.sigbar{display:grid;gap:10px;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.sigrow{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between}
+.sigrow .lbl{font-weight:600;font-size:14px}
+.seg-sig{grid-template-columns:repeat(5,minmax(0,1fr))}
+.seg-sig button{font:600 12.5px/1.2 var(--body);padding:8px 4px}
+.seg button.right{background:var(--good-ink);color:var(--bg)}
+.seg button.wrong{background:var(--bad-ink);color:var(--bg)}
+.sev{flex:1 1 240px;display:grid;gap:6px;min-width:0}
+.toggles{display:flex;gap:14px;flex-wrap:wrap}
+.toggle{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--ink-2);cursor:pointer}
+.toggle input{accent-color:var(--ink);margin:0}
+.quizline{font-size:13.5px;color:var(--ink-2);display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline}
+.quizline b{color:var(--ink)}
+.quizline .score{font:500 12.5px var(--mono);color:var(--ink-3)}
+
+/* wafer analysis */
+.analysis{padding-top:26px;border-top:1px solid var(--line);display:grid;gap:20px}
+.analysis .sec-head{margin-bottom:0}
+.an-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) minmax(0,.9fr);gap:28px;align-items:start}
+@media (max-width:1060px){.an-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.an-grid>:first-child{grid-column:1/-1}}
+@media (max-width:700px){.an-grid{grid-template-columns:minmax(0,1fr)}}
+.an-block{margin:0;min-width:0;display:grid;gap:10px;align-content:start}
+.an-block figcaption{display:grid;gap:2px;font-size:13px;color:var(--ink-2)}
+.an-block figcaption b{color:var(--ink);font-size:14px}
+#rsvg,#ssvg{display:block;width:100%}
+.trigger{display:grid;gap:7px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.trig{display:flex;gap:8px;align-items:baseline;font-size:13.5px;color:var(--ink)}
+.trig .ic{font:600 12px var(--mono);flex:none;width:1em}
+.trig.hot .ic{color:var(--bad-ink)}
+.trig.ok .ic{color:var(--good-ink)}
+.trig.hint{color:var(--ink-3)}
+.trig.hint .ic{color:var(--ink-3)}
+.diagnosis{display:grid;gap:12px;padding:18px;border-radius:8px;background:var(--stage)}
+.diagnosis h3{font-family:var(--display);font-stretch:112%;font-size:16px;margin:0}
+.diag{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:14px 28px}
+.diag h4{margin:0 0 4px;font:500 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+.diag p{font-size:14px;color:var(--ink-2);max-width:60ch}
+
+/* notes */
+.notes{padding-top:26px;border-top:1px solid var(--line);display:grid;gap:16px}
+.notes dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:18px 36px;margin:0}
+.notes dt{font-weight:700;font-size:14px;margin-bottom:4px}
+.notes dd{margin:0;color:var(--ink-2);font-size:14px;max-width:62ch}
+.notes code{font-family:var(--mono);font-size:.92em;color:var(--ink)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="masthead">
+    <div>
+      <div class="eyebrow">Yield economics · 300 mm wafer · Poisson defects</div>
+      <h1>Chiplet Slicer</h1>
+      <p class="lede">Drag the outlined die on the wafer to resize it. Then slice it into chiplets. Smaller dies dodge more defects, but every cut adds die-to-die PHY silicon, links, and another chance to fail in assembly.</p>
+    </div>
+    <div class="formula" aria-label="Poisson yield: Y equals e to the minus A times D zero">
+      <span>Y = e<sup>−A·D₀</sup></span>
+      <small>A = die area (cm²) · D₀ = defects/cm²</small>
+    </div>
+  </header>
+
+  <main class="stage">
+    <section class="wafer-card" aria-label="Wafer map">
+      <div class="wafer-head">
+        <div class="dims">
+          <label for="dieW">Die</label>
+          <input class="num" id="dieW" type="number" min="2" max="40" step="0.5" value="24" aria-label="Die width in millimetres">
+          <span>×</span>
+          <input class="num" id="dieH" type="number" min="2" max="40" step="0.5" value="28" aria-label="Die height in millimetres">
+          <span>mm</span>
+          <span id="dieArea">= 672 mm²</span>
+        </div>
+        <button class="btn" id="reroll" type="button">New wafer</button>
+      </div>
+      <div class="sigbar" id="sigbar">
+        <div class="sigrow">
+          <span class="lbl" id="sigLbl">Defect signature</span>
+          <button class="btn" id="quizBtn" type="button">Mystery wafer</button>
+        </div>
+        <div class="seg seg-sig" role="group" aria-labelledby="sigLbl" id="sigSeg"></div>
+        <div class="sigrow">
+          <div class="sev" id="sevBox">
+            <div class="field-head"><label for="sev">Severity</label><output id="sevOut" for="sev"></output></div>
+            <input type="range" id="sev" min="0" max="1" step="0.01" value="0.5">
+          </div>
+          <div class="toggles">
+            <label class="toggle"><input type="checkbox" id="ovl" checked>Inspection defects</label>
+            <label class="toggle"><input type="checkbox" id="fld">Reticle fields</label>
+          </div>
+        </div>
+        <div class="quizline" id="quizLine" hidden></div>
+      </div>
+      <div class="wafer-wrap" id="waferWrap">
+        <canvas id="wafer" tabindex="0" role="img" aria-label="300 mm wafer map. Drag a corner or edge of the outlined die to resize it, or focus and use the arrow keys."></canvas>
+      </div>
+      <ul class="legend" aria-label="Wafer map legend">
+        <li><span class="sw" style="background:var(--tile)"></span>Good die</li>
+        <li><span class="sw" style="background:var(--fail)"></span>Killed by a defect</li>
+        <li><span class="sw dot" style="background:var(--defect)"></span>Defect</li>
+        <li><span class="sw ghost"></span>Partial edge die</li>
+        <li><span class="sw" style="background:var(--wafer-edge)"></span>3 mm edge exclusion</li>
+      </ul>
+      <p class="sample" id="sample"></p>
+    </section>
+
+    <section class="side" aria-label="Controls and results">
+      <div class="field">
+        <div class="field-head"><span class="lbl" id="splitLbl">Split into chiplets</span><span class="cap" id="splitCap"></span></div>
+        <div class="seg seg-k" role="group" aria-labelledby="splitLbl" id="kSeg"></div>
+      </div>
+
+      <div class="field">
+        <div class="field-head"><label for="d0">Defect density D₀</label><output id="d0Out" for="d0"></output></div>
+        <input type="range" id="d0" min="0.02" max="0.5" step="0.01" value="0.10">
+      </div>
+      <div class="field">
+        <div class="field-head"><label for="wc">Processed wafer cost</label><output id="wcOut" for="wc"></output></div>
+        <input type="range" id="wc" min="2000" max="30000" step="500" value="17000">
+      </div>
+
+      <div class="verdict" aria-live="off">
+        <div class="eyebrow" id="vLabel"></div>
+        <div class="big" id="vCost"></div>
+        <div class="vnote" id="vNote"></div>
+      </div>
+
+      <table class="spec">
+        <thead><tr><th scope="col"></th><th scope="col">Monolithic</th><th scope="col" id="thSplit">Split</th></tr></thead>
+        <tbody id="specBody"></tbody>
+      </table>
+
+      <figure class="ycurve">
+        <figcaption id="yCap">Poisson yield against die area</figcaption>
+        <svg id="ysvg" role="img" aria-label="Poisson yield curve with the monolithic die and the chiplet marked"></svg>
+      </figure>
+    </section>
+  </main>
+
+  <section class="analysis" aria-labelledby="anTitle">
+    <div class="sec-head">
+      <h2 id="anTitle">Read the wafer</h2>
+      <p>The economics assume random defects. Real wafers also carry systematic signatures. Inject one with the controls on the wafer, or try a mystery wafer, and read it the way a yield engineer would: compare it with the Poisson baseline, then look for structure by radius, by reticle position and between neighbours.</p>
+    </div>
+    <div class="an-grid">
+      <div class="an-block">
+        <div class="trigger" id="trigger"></div>
+        <table class="spec"><tbody id="kpiBody"></tbody></table>
+      </div>
+      <figure class="an-block">
+        <figcaption><b>Yield by radius</b><span>Five equal-area zones by each die's farthest corner from the centre. Dashed line: Poisson baseline.</span></figcaption>
+        <svg id="rsvg" role="img" aria-label="Yield in five radial zones against the Poisson baseline"></svg>
+      </figure>
+      <figure class="an-block">
+        <figcaption><b>Reticle stack map</b><span id="stackCap"></span></figcaption>
+        <svg id="ssvg" role="img" aria-label="Yield at each die position inside the reticle field, stacked over all fields"></svg>
+      </figure>
+    </div>
+    <div class="diagnosis" id="diag"></div>
+  </section>
+
+  <section class="bench">
+    <div class="sweep">
+      <div class="sec-head">
+        <h2>Cost per good system, by split</h2>
+        <p>Each column prices one working, packaged product at the current die size, D₀ and package. Silicon scrap shrinks as you cut; PHY area, packaging and assembly losses grow. Click a column to use that split.</p>
+      </div>
+      <ul class="legend chart-legend" aria-label="Cost components">
+        <li><span class="sw" style="background:var(--c-logic)"></span>Logic silicon</li>
+        <li><span class="sw" style="background:var(--c-phy)"></span>D2D PHY silicon</li>
+        <li><span class="sw" style="background:var(--c-scrap)"></span>Defect scrap</li>
+        <li><span class="sw" style="background:var(--c-pkg)"></span>Package + D2D links</li>
+        <li><span class="sw" style="background:var(--c-asm)"></span>Assembly scrap</li>
+      </ul>
+      <div class="chart-wrap" id="sweepWrap">
+        <svg id="sweep" role="img" aria-label="Stacked columns of cost per good system for each chiplet count"></svg>
+        <div class="tip" id="tip" hidden></div>
+      </div>
+      <details>
+        <summary>Show as table</summary>
+        <div class="table-scroll"><table class="data" id="sweepTable"></table></div>
+      </details>
+    </div>
+
+    <div class="pkg">
+      <div class="sec-head" style="margin-bottom:0">
+        <h2>Package and die-to-die</h2>
+        <p id="pkgBlurb"></p>
+      </div>
+      <div class="seg seg-pkg" role="group" aria-label="Package type" id="pkgSeg">
+        <button type="button" data-p="organic">Organic MCM</button>
+        <button type="button" data-p="bridge">Si bridge</button>
+        <button type="button" data-p="interposer">Si interposer</button>
+      </div>
+      <div class="custom-note" id="customNote" hidden>Custom values</div>
+      <svg id="floor" role="img" aria-label="Floorplan of the current split inside its package"></svg>
+      <p class="floor-cap" id="floorCap"></p>
+      <div class="field">
+        <div class="field-head"><label for="phy">D2D PHY area per link end</label><output id="phyOut" for="phy"></output></div>
+        <input type="range" id="phy" min="0" max="8" step="0.1" value="3">
+      </div>
+      <div class="field">
+        <div class="field-head"><label for="link">Cost per D2D link</label><output id="linkOut" for="link"></output></div>
+        <input type="range" id="link" min="0" max="20" step="0.5" value="0">
+      </div>
+      <div class="field">
+        <div class="field-head"><label for="ya">Assembly yield per chiplet</label><output id="yaOut" for="ya"></output></div>
+        <input type="range" id="ya" min="97" max="100" step="0.1" value="99.5">
+      </div>
+      <div class="field">
+        <div class="field-head"><label for="ip">Interposer cost</label><output id="ipOut" for="ip"></output></div>
+        <input type="range" id="ip" min="0" max="0.2" step="0.01" value="0">
+      </div>
+      <p class="fine">Split packages start at $12 plus $2 per chiplet attach. A monolithic die always goes in a $14 flip-chip package with 99.8% assembly yield. All package figures are illustrative; set them to your own numbers.</p>
+    </div>
+  </section>
+
+  <section class="notes">
+    <h2>How the model works</h2>
+    <dl>
+      <div><dt>Dies per wafer</dt><dd>Whole dies on a grid centred on a 300 mm wafer, with 3 mm edge exclusion and 0.1 mm scribe lanes. Partial dies at the edge are lost. The textbook estimate <code>πr²/S − πd/√(2S)</code> gives <span class="mono" id="dpwEst"></span> for the current die; the exact count is <span class="mono" id="dpwExact"></span>.</dd></div>
+      <div><dt>Yield</dt><dd>Poisson, <code>Y = e<sup>−A·D₀</sup></code>, with A in cm² including PHY area. The map scatters real random defects at density D₀, so each new wafer lands near the Poisson value. Poisson assumes defects are independent; real defects cluster, which negative-binomial models capture and which lets very large dies yield somewhat better than shown here.</dd></div>
+      <div><dt>Splitting</dt><dd>The die is cut into equal chiplets on the same node and wafer. Each die-to-die link puts a PHY block on both chiplets it joins, so a 2 × 2 split has 4 links and 8 PHY blocks. Chiplets are tested before assembly (known-good die), so only good ones are packaged. Test cost is not modelled.</dd></div>
+      <div><dt>Packaging</dt><dd>Assembly yield is the per-chiplet yield raised to the number of chiplets, and a failed assembly scraps every good chiplet in it. Bridges add a cost per link; an interposer adds cost per mm² of silicon it carries, with 10% margin.</dd></div>
+      <div><dt>Reticle limit</dt><dd>A scanner exposes at most 26 × 33 mm (858 mm²) at once. A monolithic die beyond that needs stitching across fields, so its column is hatched and its cost is hypothetical. The same check applies to each chiplet.</dd></div>
+      <div><dt>Signatures and triggers</dt><dd>Edge rings, scratches, particle clusters and reticle repeaters are added on top of the random defects. They change this wafer's measured yield and the analysis, but the cost chart stays on the Poisson plan. A wafer is flagged for root cause analysis when its good-die count falls more than 3σ (binomial) below the Poisson baseline, or when a spatial check finds structure: a low radial zone, a low reticle position, or fails that touch each other.</dd></div>
+    </dl>
+  </section>
+</div>
+
+<script>
+(() => {
+// MODEL-START
+const WAFER_R = 150, EDGE = 3, R_USE = WAFER_R - EDGE, SCRIBE = 0.1;
+const KS = [1, 2, 3, 4, 6, 8, 12, 16];
+const SPLITS = {1:[1,1], 2:[1,2], 3:[1,3], 4:[2,2], 6:[2,3], 8:[2,4], 12:[3,4], 16:[4,4]};
+const PRESETS = {
+  organic:    {phy: 3.0, link: 0, ya: 99.5, ip: 0},
+  bridge:     {phy: 1.2, link: 4, ya: 99.2, ip: 0},
+  interposer: {phy: 0.8, link: 0, ya: 99.0, ip: 0.06}
+};
+const MONO_PKG = 14, MONO_YA = 0.998, PKG_BASE = 12, PKG_ATTACH = 2, IP_MARGIN = 1.1;
+const D0_MAX = 0.5;
+
+const S = {w: 24, h: 28, k: 1, d0: 0.10, wc: 17000, pkg: 'organic', phy: 3.0, link: 0, ya: 99.5, ip: 0, seed: 20261005, touched: false,
+  sig: 'none', sev: 0.5, ovl: true, fields: false};
+
+function fitsReticle(w, h) { const e = 1e-9; return (w <= 26 + e && h <= 33 + e) || (w <= 33 + e && h <= 26 + e); }
+function arrangement(k) { const [r, c] = SPLITS[k]; return S.w >= S.h ? [r, c] : [c, r]; }
+
+function geom(k) {
+  const [rows, cols] = arrangement(k);
+  const L = rows * (cols - 1) + cols * (rows - 1);
+  const A = S.w * S.h, a0 = A / k;
+  const phyTot = k > 1 ? 2 * L * S.phy : 0;
+  const ac = a0 + phyTot / k;
+  const s = Math.sqrt(ac / a0);
+  const cw = S.w / cols * s, ch = S.h / rows * s;
+  return {k, rows, cols, L, A, a0, ac, phyTot, cw, ch,
+    bw: cols * cw + (cols - 1) * SCRIBE, bh: rows * ch + (rows - 1) * SCRIBE};
+}
+
+// Whole dies on a grid centred so the product block sits at the wafer centre.
+function layout(cw, ch, oddX, oddY, collect) {
+  const px = cw + SCRIBE, py = ch + SCRIBE;
+  const ox = oddX ? 0 : 0.5, oy = oddY ? 0 : 0.5;
+  const nx = Math.ceil(WAFER_R / px) + 1, ny = Math.ceil(WAFER_R / py) + 1;
+  const R2 = R_USE * R_USE, W2 = WAFER_R * WAFER_R;
+  let full = 0; const tiles = collect ? [] : null;
+  for (let j = -ny; j <= ny; j++) {
+    const y = (j + oy) * py, ay = Math.abs(y) + ch / 2, ny0 = Math.max(0, Math.abs(y) - ch / 2);
+    if (ny0 > WAFER_R) continue;
+    for (let i = -nx; i <= nx; i++) {
+      const x = (i + ox) * px, ax = Math.abs(x) + cw / 2;
+      const isFull = ax * ax + ay * ay <= R2;
+      if (isFull) full++;
+      if (collect) {
+        const nx0 = Math.max(0, Math.abs(x) - cw / 2);
+        if (isFull || nx0 * nx0 + ny0 * ny0 < W2) tiles.push({x, y, i, j, full: isFull, bad: false});
+      }
+    }
+  }
+  return {full, tiles, px, py, ox, oy};
+}
+
+function evaluate(k) {
+  const g = geom(k);
+  const dpw = layout(g.cw, g.ch, g.cols % 2 === 1, g.rows % 2 === 1, false).full;
+  const Y = Math.exp(-g.ac / 100 * S.d0);
+  const fits = fitsReticle(g.cw, g.ch);
+  if (dpw === 0) return {...g, dpw, Y, fits, total: Infinity, logic: 0, phy: 0, scrap: 0, pkg: 0, asm: 0, ya: 1};
+  const siIdeal = k * S.wc / dpw;             // silicon for k chiplets if every die worked
+  const logic = siIdeal * (g.a0 / g.ac);
+  const phy = siIdeal - logic;
+  const scrap = siIdeal / Y - siIdeal;         // wafer area lost to defect-killed dies
+  let pkg, ya;
+  if (k === 1) { pkg = MONO_PKG; ya = MONO_YA; }
+  else {
+    pkg = PKG_BASE + PKG_ATTACH * k + g.L * S.link + (g.A + g.phyTot) * IP_MARGIN * S.ip;
+    ya = Math.pow(S.ya / 100, k);
+  }
+  const pre = logic + phy + scrap + pkg;
+  const total = pre / ya;
+  return {...g, dpw, Y, fits, logic, phy, scrap, pkg, asm: total - pre, total, ya};
+}
+// MODEL-END
+
+/* ---------- formatting ---------- */
+const f1 = n => n.toFixed(1);
+const int = n => Math.round(n).toLocaleString('en-US');
+const pct = y => (y * 100).toFixed(1) + '%';
+function money(n) {
+  if (!isFinite(n)) return '—';
+  if (n >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e4) return '$' + (n / 1e3).toFixed(1) + 'k';
+  if (n >= 100) return '$' + Math.round(n).toLocaleString('en-US');
+  return '$' + n.toFixed(2);
+}
+function niceStep(x) { const p = Math.pow(10, Math.floor(Math.log10(x))), n = x / p; return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p; }
+function tokens() {
+  const cs = getComputedStyle(document.documentElement);
+  const v = n => cs.getPropertyValue(n).trim();
+  return {bg: v('--bg'), stage: v('--stage'), ink: v('--ink'), ink2: v('--ink-2'), ink3: v('--ink-3'), line: v('--line'),
+    wafer: v('--wafer'), waferEdge: v('--wafer-edge'), ghost: v('--ghost'), tile: v('--tile'), fail: v('--fail'), defect: v('--defect'),
+    mono: v('--mono')};
+}
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+/* ---------- systematic signatures ---------- */
+const SIGS = ['none', 'edge', 'scratch', 'cluster', 'repeater'];
+const SIGNAME = {none: 'Random only', edge: 'Edge ring', scratch: 'Scratch', cluster: 'Cluster', repeater: 'Reticle repeater'};
+const SIGART = {none: 'random defects only', edge: 'an edge ring', scratch: 'a scratch', cluster: 'a particle cluster', repeater: 'a reticle repeater'};
+const SALT = {none: 0, edge: 101, scratch: 211, cluster: 307, repeater: 401};
+const mod = (a, n) => ((a % n) + n) % n;
+function hash3(a, b, c) {
+  let h = Math.imul(a | 0, 374761393) ^ Math.imul(b | 0, 668265263) ^ Math.imul(c | 0, 1274126177);
+  h = Math.imul(h ^ (h >>> 15), 2246822519); h = Math.imul(h ^ (h >>> 13), 3266489917); h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+// Dies per 26 x 33 mm exposure field, long side along the die's long side
+function fieldGrid(lay) {
+  const FW = S.w >= S.h ? 33 : 26, FH = S.w >= S.h ? 26 : 33;
+  return {nfx: Math.max(1, Math.floor((FW + SCRIBE + 1e-9) / lay.px)), nfy: Math.max(1, Math.floor((FH + SCRIBE + 1e-9) / lay.py))};
+}
+function sigParams() {
+  const v = S.sev;
+  switch (S.sig) {
+    case 'edge': return {width: 6 + 30 * v};
+    case 'scratch': return {count: v < 0.34 ? 1 : v < 0.67 ? 2 : 3, length: 70 + 150 * v};
+    case 'cluster': return {count: 1 + Math.round(v * 4)};
+    case 'repeater': return {positions: v > 0.66 ? 2 : 1, print: 0.6 + 0.4 * v};
+    default: return {};
+  }
+}
+function sevText() {
+  const p = sigParams();
+  switch (S.sig) {
+    case 'edge': return 'ring ' + p.width.toFixed(0) + ' mm wide';
+    case 'scratch': return p.count + (p.count > 1 ? ' scratches' : ' scratch') + ', about ' + p.length.toFixed(0) + ' mm';
+    case 'cluster': return p.count + ' particle cluster' + (p.count > 1 ? 's' : '');
+    case 'repeater': return p.positions + ' die position' + (p.positions > 1 ? 's' : '') + ', prints in ' + Math.round(p.print * 100) + '% of fields';
+    default: return '';
+  }
+}
+// Physical geometry in wafer mm, fixed by the seed so it stays put while the die is resized
+function sigGeometry() {
+  const p = sigParams(), r = mulberry32((S.seed ^ 0x5f3759df) + SALT[S.sig]);
+  const geo = {lines: [], points: [], pu: null};
+  if (S.sig === 'scratch') {
+    for (let s = 0; s < p.count; s++) {
+      const rad = 95 * Math.sqrt(r()), ph = 2 * Math.PI * r();
+      let th = 2 * Math.PI * r();
+      const straight = r() < 0.4, kappa = straight ? 0 : (r() < 0.5 ? -1 : 1) / (110 + 260 * r());
+      const L = p.length * (0.8 + 0.4 * r()), ds = 0.4;
+      let x = rad * Math.cos(ph) - Math.cos(th) * L / 2, y = rad * Math.sin(ph) - Math.sin(th) * L / 2;
+      const line = [];
+      for (let d = 0; d <= L; d += ds) {
+        line.push(x * x + y * y < 148.5 * 148.5 ? [x, y] : null);
+        x += Math.cos(th) * ds; y += Math.sin(th) * ds; th += kappa * ds;
+      }
+      geo.lines.push(line);
+    }
+  } else if (S.sig === 'cluster') {
+    for (let c = 0; c < p.count; c++) {
+      const rad = 130 * Math.sqrt(r()), ph = 2 * Math.PI * r();
+      const cx = rad * Math.cos(ph), cy = rad * Math.sin(ph), sg = 3 + 7 * r(), n = 20 + Math.round(35 * r());
+      for (let k = 0; k < n; k++) {
+        const u = Math.max(1e-9, r()), v = r(), m = sg * Math.sqrt(-2 * Math.log(u));
+        geo.points.push([cx + m * Math.cos(2 * Math.PI * v), cy + m * Math.sin(2 * Math.PI * v)]);
+      }
+    }
+  } else if (S.sig === 'repeater') geo.pu = [r(), r()];
+  return geo;
+}
+
+/* ---------- defects: a fixed pool thinned by D0, so changing D0 adds or removes points without reshuffling ---------- */
+let defects = [];
+function seedDefects() {
+  const r = mulberry32(S.seed);
+  const n = Math.round(D0_MAX * Math.PI * WAFER_R * WAFER_R / 100);
+  defects = [];
+  for (let i = 0; i < n; i++) {
+    const rad = WAFER_R * Math.sqrt(r()), th = 2 * Math.PI * r();
+    defects.push({x: rad * Math.cos(th), y: rad * Math.sin(th), u: r()});
+  }
+}
+
+/* ---------- DOM ---------- */
+const $ = id => document.getElementById(id);
+const canvas = $('wafer'), ctx = canvas.getContext('2d'), waferWrap = $('waferWrap');
+const kSeg = $('kSeg');
+KS.forEach(k => {
+  const b = document.createElement('button');
+  b.type = 'button'; b.textContent = k; b.dataset.k = k;
+  b.setAttribute('aria-label', k === 1 ? '1 die, monolithic' : k + ' chiplets');
+  b.addEventListener('click', () => setK(k));
+  kSeg.appendChild(b);
+});
+function setK(k) { S.k = k; schedule(); }
+
+let evals = [], cur, mono, best, wafer;
+let view = {cx: 0, cy: 0, sc: 1};
+let hover = null, drag = null;
+
+function compute() {
+  evals = KS.map(evaluate);
+  mono = evals[0];
+  cur = evals[KS.indexOf(S.k)];
+  const feas = evals.filter(e => e.fits && isFinite(e.total));
+  best = feas.length ? feas.reduce((a, b) => b.total < a.total ? b : a) : null;
+  // tiles on the drawn wafer
+  const lay = layout(cur.cw, cur.ch, cur.cols % 2 === 1, cur.rows % 2 === 1, true);
+  const map = new Map();
+  lay.tiles.forEach(t => { if (t.full) map.set(t.i + ',' + t.j, t); });
+  const tileAt = (x, y) => {
+    const t = map.get(Math.round(x / lay.px - lay.ox) + ',' + Math.round(y / lay.py - lay.oy));
+    return t && Math.abs(x - t.x) <= cur.cw / 2 && Math.abs(y - t.y) <= cur.ch / 2 ? t : null;
+  };
+  // random defects
+  const thr = S.d0 / D0_MAX, active = [];
+  for (const d of defects) {
+    if (d.u >= thr) continue;
+    active.push(d);
+    const t = tileAt(d.x, d.y); if (t) t.badR = true;
+  }
+  // systematic signature on top
+  const geo = sigGeometry(), p = sigParams(), fg = fieldGrid(lay), salt = S.seed + SALT[S.sig];
+  const marks = [];
+  if (S.sig === 'scratch') geo.lines.forEach(l => l.forEach(pt => { if (pt) { const t = tileAt(pt[0], pt[1]); if (t) t.badS = true; } }));
+  if (S.sig === 'cluster') geo.points.forEach(pt => { const t = tileAt(pt[0], pt[1]); if (t) t.badS = true; });
+  if (S.sig === 'edge') {
+    const rin = R_USE - p.width, ramp = Math.min(p.width, 10);
+    map.forEach(t => {
+      const rm = Math.hypot(Math.abs(t.x) + cur.cw / 2, Math.abs(t.y) + cur.ch / 2);
+      const pk = 0.92 * Math.min(1, Math.max(0, (rm - rin) / ramp));
+      if (pk > 0 && hash3(t.i, t.j, salt) < pk) t.badS = true;
+    });
+  }
+  if (S.sig === 'repeater') {
+    const N = fg.nfx * fg.nfy, i1 = Math.floor(geo.pu[0] * N);
+    const idx = [i1];
+    if (p.positions > 1 && N > 1) idx.push((i1 + 1 + Math.floor(geo.pu[1] * (N - 1))) % N);
+    const pos = idx.map(q => [q % fg.nfx, Math.floor(q / fg.nfx)]);
+    map.forEach(t => {
+      const pi = mod(t.i, fg.nfx), pj = mod(t.j, fg.nfy);
+      if (!pos.some(q => q[0] === pi && q[1] === pj)) return;
+      if (hash3(Math.floor(t.i / fg.nfx), Math.floor(t.j / fg.nfy), salt) < p.print) { t.badS = true; marks.push(t); }
+    });
+  }
+  // wafer statistics
+  let good = 0, full = 0, badSonly = 0, nBad = 0, nbTot = 0, nbBad = 0;
+  const zones = Array.from({length: 5}, () => ({n: 0, g: 0}));
+  const stack = new Map(), fieldSet = new Set();
+  map.forEach(t => { t.bad = !!(t.badR || t.badS); });
+  map.forEach(t => {
+    full++;
+    if (!t.bad) good++;
+    if (t.badS && !t.badR) badSonly++;
+    const z = Math.min(4, Math.floor((Math.hypot(Math.abs(t.x) + cur.cw / 2, Math.abs(t.y) + cur.ch / 2) / R_USE) ** 2 * 5));
+    zones[z].n++; if (!t.bad) zones[z].g++;
+    const key = mod(t.i, fg.nfx) + ',' + mod(t.j, fg.nfy);
+    const c = stack.get(key) || {n: 0, g: 0}; c.n++; if (!t.bad) c.g++; stack.set(key, c);
+    fieldSet.add(Math.floor(t.i / fg.nfx) + ',' + Math.floor(t.j / fg.nfy));
+    if (t.bad) {
+      nBad++;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nb = map.get((t.i + di) + ',' + (t.j + dj));
+        if (nb) { nbTot++; if (nb.bad) nbBad++; }
+      }
+    }
+  });
+  const failRate = full ? nBad / full : 0;
+  const nratio = nbTot && failRate > 0 && failRate < 1 ? (nbBad / nbTot) / failRate : NaN;
+  wafer = {tiles: lay.tiles, lay, active, good, full, badSonly, zones, stack, fg, fields: fieldSet.size, nratio, geo, marks};
+}
+
+/* ---------- wafer canvas ---------- */
+function pill(text, x, y, align, T, strong) {
+  ctx.font = (strong ? '600 ' : '500 ') + '11px ' + T.mono;
+  const w = ctx.measureText(text).width + 12, h = 19;
+  let x0 = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+  const size = waferWrap.clientWidth;
+  x0 = Math.max(4, Math.min(size - w - 4, x0));
+  const y0 = Math.max(4, Math.min(size - h - 4, y - h / 2));
+  ctx.fillStyle = T.bg; ctx.globalAlpha = .92;
+  ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x0, y0, w, h, 3) : ctx.rect(x0, y0, w, h); ctx.fill();
+  ctx.globalAlpha = 1; ctx.fillStyle = strong ? T.ink : T.ink2; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.fillText(text, x0 + 6, y0 + h / 2 + .5);
+}
+
+function drawWafer() {
+  const size = waferWrap.clientWidth; if (!size) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2.5), px = Math.round(size * dpr);
+  if (canvas.width !== px) { canvas.width = px; canvas.height = px; }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, size, size);
+  const T = tokens();
+  const cx = size / 2, cy = size / 2, sc = (size / 2 - 10) / WAFER_R;
+  view = {cx, cy, sc};
+  const RW = WAFER_R * sc, RU = R_USE * sc;
+
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, RW, 0, Math.PI * 2); ctx.fillStyle = T.wafer; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy, RW, 0, Math.PI * 2); ctx.arc(cx, cy, RU, 0, Math.PI * 2, true); ctx.fillStyle = T.waferEdge; ctx.fill('evenodd');
+  ctx.beginPath(); ctx.arc(cx, cy, RW, 0, Math.PI * 2); ctx.clip();
+
+  const W = cur.cw * sc, H = cur.ch * sc, ins = (W > 7 && H > 7) ? 1 : 0.5;
+  ctx.lineWidth = 1; ctx.strokeStyle = T.ghost;
+  for (const t of wafer.tiles) if (!t.full) ctx.strokeRect(cx + (t.x - cur.cw / 2) * sc + ins, cy + (t.y - cur.ch / 2) * sc + ins, W - 2 * ins, H - 2 * ins);
+  ctx.fillStyle = T.tile;
+  for (const t of wafer.tiles) if (t.full && !t.bad) ctx.fillRect(cx + (t.x - cur.cw / 2) * sc + ins / 2, cy + (t.y - cur.ch / 2) * sc + ins / 2, W - ins, H - ins);
+  ctx.fillStyle = T.fail;
+  for (const t of wafer.tiles) if (t.bad) ctx.fillRect(cx + (t.x - cur.cw / 2) * sc + ins / 2, cy + (t.y - cur.ch / 2) * sc + ins / 2, W - ins, H - ins);
+
+  // reticle field grid
+  if (S.fields) {
+    const L = wafer.lay, {nfx, nfy} = wafer.fg;
+    ctx.strokeStyle = T.ink; ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.globalAlpha = 0.55;
+    for (let F = -200; F <= 200; F++) {
+      const xm = (F * nfx + L.ox) * L.px - L.px / 2, ym = (F * nfy + L.oy) * L.py - L.py / 2;
+      if (Math.abs(xm) < WAFER_R) { ctx.beginPath(); ctx.moveTo(cx + xm * sc, cy - RW); ctx.lineTo(cx + xm * sc, cy + RW); ctx.stroke(); }
+      if (Math.abs(ym) < WAFER_R) { ctx.beginPath(); ctx.moveTo(cx - RW, cy + ym * sc); ctx.lineTo(cx + RW, cy + ym * sc); ctx.stroke(); }
+    }
+    ctx.setLineDash([]); ctx.globalAlpha = 1;
+  }
+
+  // faint diffraction sheen of a patterned wafer
+  if (ctx.createConicGradient) {
+    const g = ctx.createConicGradient(-0.6, cx, cy);
+    ['#7fd3ff', '#c39bff', '#ffd27a', '#8fffc8', '#7fd3ff'].forEach((c, i) => g.addColorStop(i / 4, c));
+    ctx.globalAlpha = 0.07; ctx.fillStyle = g; ctx.fillRect(cx - RW, cy - RW, 2 * RW, 2 * RW); ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+
+  // orientation notch at 6 o'clock
+  ctx.beginPath(); ctx.arc(cx, cy + RW, Math.max(3.5, 2.2 * sc), 0, Math.PI * 2); ctx.fillStyle = T.stage; ctx.fill();
+
+  // inspection overlay: random defects, scratch traces, cluster points, mask-defect prints
+  if (S.ovl) {
+    ctx.fillStyle = T.defect; ctx.strokeStyle = T.defect;
+    const dr = size < 420 ? 1.3 : 1.7;
+    for (const d of wafer.active) { ctx.beginPath(); ctx.arc(cx + d.x * sc, cy + d.y * sc, dr, 0, Math.PI * 2); ctx.fill(); }
+    for (const pt of wafer.geo.points) { ctx.beginPath(); ctx.arc(cx + pt[0] * sc, cy + pt[1] * sc, dr * 0.8, 0, Math.PI * 2); ctx.fill(); }
+    ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const l of wafer.geo.lines) {
+      ctx.beginPath(); let pen = false;
+      for (const pt of l) {
+        if (!pt) { pen = false; continue; }
+        const X = cx + pt[0] * sc, Y = cy + pt[1] * sc;
+        if (pen) ctx.lineTo(X, Y); else { ctx.moveTo(X, Y); pen = true; }
+      }
+      ctx.stroke();
+    }
+    ctx.lineWidth = 1.5;
+    for (const t of wafer.marks) {
+      const X = cx + (t.x + cur.cw * 0.18) * sc, Y = cy + (t.y - cur.ch * 0.14) * sc, a = Math.max(2.5, Math.min(5, W * 0.12));
+      ctx.beginPath(); ctx.moveTo(X - a, Y - a); ctx.lineTo(X + a, Y + a); ctx.moveTo(X + a, Y - a); ctx.lineTo(X - a, Y + a); ctx.stroke();
+    }
+  }
+
+  // reticle field, long side along the die's long side
+  const rw = (S.w >= S.h ? 33 : 26) * sc, rh = (S.w >= S.h ? 26 : 33) * sc;
+  ctx.setLineDash([5, 4]); ctx.lineWidth = 1.2; ctx.strokeStyle = T.ink2;
+  ctx.strokeRect(cx - rw / 2, cy - rh / 2, rw, rh); ctx.setLineDash([]);
+
+  // product block (one die, or the k chiplets of one product)
+  const hw = cur.bw / 2 * sc, hh = cur.bh / 2 * sc;
+  ctx.lineWidth = 2.5; ctx.strokeStyle = T.ink;
+  ctx.strokeRect(cx - hw, cy - hh, 2 * hw, 2 * hh);
+  const hs = 9, active = drag || hover;
+  const handles = [[-1, -1, 'both'], [1, -1, 'both'], [-1, 1, 'both'], [1, 1, 'both'], [1, 0, 'w'], [-1, 0, 'w'], [0, 1, 'h'], [0, -1, 'h']];
+  for (const [sx, sy, m] of handles) {
+    if (m !== 'both' && (hw < 22 || hh < 22)) continue;
+    const s = m === 'both' ? hs : 7;
+    const on = active && active.mode === m && (m === 'h' || active.sx === sx) && (m === 'w' || active.sy === sy);
+    ctx.fillStyle = on ? T.ink : T.bg; ctx.strokeStyle = T.ink; ctx.lineWidth = 1.5;
+    ctx.fillRect(cx + sx * hw - s / 2, cy + sy * hh - s / 2, s, s);
+    ctx.strokeRect(cx + sx * hw - s / 2, cy + sy * hh - s / 2, s, s);
+  }
+
+  pill('reticle 26 × 33 mm', cx - rw / 2, cy - rh / 2 - 13, 'left', T, false);
+  const lab = f1(S.w) + ' × ' + f1(S.h) + ' mm' + (S.k > 1 ? ' · ' + cur.rows + '×' + cur.cols + ' chiplets' : '');
+  pill(lab, cx, cy + hh + 16, 'center', T, true);
+  if (!S.touched) pill('drag to resize ↘', cx + hw + 12, cy + hh + 12 + 22, 'left', T, false);
+}
+
+/* ---------- pointer + keyboard on the wafer ---------- */
+function toMM(e) { const r = canvas.getBoundingClientRect(); return {mx: (e.clientX - r.left - view.cx) / view.sc, my: (e.clientY - r.top - view.cy) / view.sc}; }
+function hitTest(mx, my) {
+  const hw = cur.bw / 2, hh = cur.bh / 2, tol = 14 / view.sc;
+  const dx = Math.abs(Math.abs(mx) - hw), dy = Math.abs(Math.abs(my) - hh);
+  const sx = mx >= 0 ? 1 : -1, sy = my >= 0 ? 1 : -1;
+  if (dx < tol && dy < tol) return {mode: 'both', sx, sy};
+  if (dx < tol && Math.abs(my) < hh) return {mode: 'w', sx, sy: 0};
+  if (dy < tol && Math.abs(mx) < hw) return {mode: 'h', sx: 0, sy};
+  return null;
+}
+function cursorFor(h) { if (!h) return 'default'; if (h.mode === 'w') return 'ew-resize'; if (h.mode === 'h') return 'ns-resize'; return h.sx * h.sy > 0 ? 'nwse-resize' : 'nesw-resize'; }
+const clampDim = v => Math.min(40, Math.max(2, Math.round(v * 10) / 10));
+
+canvas.addEventListener('pointerdown', e => {
+  const {mx, my} = toMM(e); const h = hitTest(mx, my);
+  if (!h) return;
+  drag = h; S.touched = true; canvas.setPointerCapture(e.pointerId); e.preventDefault(); schedule();
+});
+canvas.addEventListener('pointermove', e => {
+  const {mx, my} = toMM(e);
+  if (drag) {
+    if (drag.mode !== 'h') S.w = clampDim(2 * Math.abs(mx) * S.w / cur.bw);
+    if (drag.mode !== 'w') S.h = clampDim(2 * Math.abs(my) * S.h / cur.bh);
+    schedule(); return;
+  }
+  const h = hitTest(mx, my);
+  if (JSON.stringify(h) !== JSON.stringify(hover)) { hover = h; canvas.style.cursor = cursorFor(h); schedule(); }
+});
+const endDrag = e => { if (drag) { drag = null; try { canvas.releasePointerCapture(e.pointerId); } catch (_) {} schedule(); } };
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+canvas.addEventListener('pointerleave', () => { if (!drag && hover) { hover = null; canvas.style.cursor = 'default'; schedule(); } });
+canvas.addEventListener('keydown', e => {
+  const step = e.shiftKey ? 2 : 0.5;
+  const m = {ArrowRight: ['w', step], ArrowLeft: ['w', -step], ArrowUp: ['h', step], ArrowDown: ['h', -step]}[e.key];
+  if (!m) return;
+  e.preventDefault(); S.touched = true; S[m[0]] = clampDim(S[m[0]] + m[1]); schedule();
+});
+
+/* ---------- inputs ---------- */
+const dieW = $('dieW'), dieH = $('dieH');
+function bindDim(el, key) {
+  el.addEventListener('input', () => { const v = parseFloat(el.value); if (v >= 2 && v <= 40) { S[key] = v; S.touched = true; schedule(); } });
+  el.addEventListener('change', () => { const v = parseFloat(el.value); S[key] = clampDim(isNaN(v) ? S[key] : v); el.value = S[key]; schedule(); });
+}
+bindDim(dieW, 'w'); bindDim(dieH, 'h');
+
+const sliders = {
+  d0:   {el: $('d0'),   out: $('d0Out'),   fmt: v => v.toFixed(2) + ' defects/cm²'},
+  wc:   {el: $('wc'),   out: $('wcOut'),   fmt: v => '$' + Math.round(v).toLocaleString('en-US')},
+  phy:  {el: $('phy'),  out: $('phyOut'),  fmt: v => v.toFixed(1) + ' mm²'},
+  link: {el: $('link'), out: $('linkOut'), fmt: v => '$' + v.toFixed(2)},
+  ya:   {el: $('ya'),   out: $('yaOut'),   fmt: v => v.toFixed(1) + '%'},
+  ip:   {el: $('ip'),   out: $('ipOut'),   fmt: v => '$' + v.toFixed(2) + '/mm²'}
+};
+Object.entries(sliders).forEach(([key, s]) => {
+  s.el.addEventListener('input', () => {
+    S[key] = parseFloat(s.el.value);
+    if (['phy', 'link', 'ya', 'ip'].includes(key)) detectPreset();
+    schedule();
+  });
+});
+function detectPreset() {
+  const hit = Object.entries(PRESETS).find(([, p]) => Math.abs(p.phy - S.phy) < 1e-6 && Math.abs(p.link - S.link) < 1e-6 && Math.abs(p.ya - S.ya) < 1e-6 && Math.abs(p.ip - S.ip) < 1e-6);
+  S.pkg = hit ? hit[0] : 'custom';
+}
+$('pkgSeg').addEventListener('click', e => {
+  const b = e.target.closest('button[data-p]'); if (!b) return;
+  const p = PRESETS[b.dataset.p]; S.pkg = b.dataset.p;
+  Object.assign(S, p);
+  ['phy', 'link', 'ya', 'ip'].forEach(k => sliders[k].el.value = S[k]);
+  schedule();
+});
+$('reroll').addEventListener('click', () => { S.seed = (Math.random() * 2 ** 31) | 0; seedDefects(); schedule(); });
+
+/* ---------- side panel ---------- */
+function updatePanel() {
+  const k = S.k;
+  Object.entries(sliders).forEach(([key, s]) => { s.out.textContent = s.fmt(S[key]); });
+  if (document.activeElement !== dieW) dieW.value = S.w;
+  if (document.activeElement !== dieH) dieH.value = S.h;
+  $('dieArea').textContent = '= ' + int(S.w * S.h) + ' mm²';
+  kSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.k === k)));
+  $('splitCap').textContent = k === 1 ? 'monolithic' : cur.rows + ' × ' + cur.cols + ' · ' + cur.L + ' D2D link' + (cur.L === 1 ? '' : 's');
+  document.querySelectorAll('#pkgSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.p === S.pkg)));
+  $('customNote').hidden = S.pkg !== 'custom';
+
+  // wafer sample line
+  const noun = k === 1 ? 'dies' : 'chiplets';
+  let sample = 'This wafer: <b>' + int(wafer.good) + ' of ' + int(wafer.full) + ' ' + noun + ' good</b> (' +
+    (wafer.full ? pct(wafer.good / wafer.full) : '—') + ') with ' + wafer.active.length + ' random defects. Poisson predicts ' + pct(cur.Y) + '.';
+  if (!quiz && S.sig !== 'none') sample += ' The ' + SIGNAME[S.sig].toLowerCase() + ' killed ' + int(wafer.badSonly) + ' more.';
+  $('sample').innerHTML = sample;
+
+  // verdict
+  const vLabel = $('vLabel'), vCost = $('vCost'), vNote = $('vNote');
+  vCost.textContent = money(cur.total);
+  const parts = [];
+  if (k === 1) {
+    vLabel.textContent = 'Cost per good packaged die';
+    if (!mono.fits) parts.push('<span class="flag">▲ Larger than the reticle</span>');
+    if (best && best.k !== 1) {
+      const d = 1 - best.total / mono.total;
+      parts.push('<span>Cheapest here: <button class="linkbtn" type="button" data-go="' + best.k + '">' + best.k + ' chiplets at ' + money(best.total) + '</button></span>' +
+        '<span class="chip good">▼ ' + (d * 100).toFixed(0) + '%</span>');
+    } else if (best) parts.push('<span>Monolithic is the cheapest option at this die size.</span>');
+  } else {
+    vLabel.textContent = 'Cost per good system · ' + k + ' chiplets';
+    const d = cur.total / mono.total - 1;
+    if (Math.abs(d) < 0.005) parts.push('<span class="chip flat">≈ same as monolithic</span>');
+    else parts.push('<span class="chip ' + (d < 0 ? 'good' : 'bad') + '">' + (d < 0 ? '▼ ' : '▲ ') + Math.abs(d * 100).toFixed(0) + '% vs monolithic</span>');
+    parts.push('<span>Monolithic: ' + money(mono.total) + (mono.fits ? '' : ' (beyond reticle)') + '</span>');
+    if (!cur.fits) parts.push('<span class="flag">▲ Chiplet larger than the reticle</span>');
+    else if (best && best.k !== k) parts.push('<span>Lowest: <button class="linkbtn" type="button" data-go="' + best.k + '">' + (best.k === 1 ? 'monolithic' : best.k + ' chiplets') + ' at ' + money(best.total) + '</button></span>');
+    else if (best && best.k === k) parts.push('<span>Lowest of all splits here.</span>');
+  }
+  vNote.innerHTML = parts.join('');
+
+  // spec table
+  const sp = k > 1, dash = '<span class="dash">—</span>';
+  $('thSplit').textContent = sp ? k + ' chiplets' : 'Split';
+  const rows = [
+    ['Die size', f1(mono.cw) + ' × ' + f1(mono.ch) + ' mm' + (mono.fits ? '' : '<small class="flag">beyond reticle</small>'), sp ? f1(cur.cw) + ' × ' + f1(cur.ch) + ' mm' : dash],
+    ['Area per die', int(mono.ac) + ' mm²', sp ? int(cur.ac) + ' mm²<small>incl. ' + f1(cur.phyTot / k) + ' mm² PHY</small>' : dash],
+    ['Dies per wafer', int(mono.dpw), sp ? int(cur.dpw) : dash],
+    ['Poisson yield', pct(mono.Y), sp ? pct(cur.Y) : dash],
+    ['Good dies per wafer', int(mono.dpw * mono.Y), sp ? int(cur.dpw * cur.Y) + '<small>≈ ' + int(Math.floor(cur.dpw * cur.Y / k)) + ' systems</small>' : dash],
+    ['Assembly yield', pct(mono.ya), sp ? pct(cur.ya) : dash],
+    ['Cost per good system', money(mono.total), sp ? money(cur.total) : dash]
+  ];
+  $('specBody').innerHTML = rows.map((r, i) => '<tr' + (i === rows.length - 1 ? ' class="total"' : '') + '><th scope="row">' + r[0] + '</th><td>' + r[1] + '</td><td>' + r[2] + '</td></tr>').join('');
+
+  // notes: textbook DPW estimate for the current die
+  const Sd = (cur.cw + SCRIBE) * (cur.ch + SCRIBE), d = 2 * R_USE;
+  $('dpwEst').textContent = int(Math.PI * R_USE * R_USE / Sd - Math.PI * d / Math.sqrt(2 * Sd));
+  $('dpwExact').textContent = int(cur.dpw);
+
+  // package blurb
+  $('pkgBlurb').textContent = k === 1
+    ? 'Pick 2 or more chiplets to see the split package. These settings only apply to split designs.'
+    : (S.pkg === 'organic' ? 'Chiplets side by side on an organic substrate. Cheap, but coarse bumps need big PHYs.'
+      : S.pkg === 'bridge' ? 'Small silicon bridges under each shared edge. Dense links and smaller PHYs, with a cost per bridge.'
+      : S.pkg === 'interposer' ? 'All chiplets on one silicon interposer. The densest wiring and smallest PHYs, priced by area.'
+      : 'Your own package numbers.');
+}
+$('vNote').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) setK(+b.dataset.go); });
+
+/* ---------- yield curve ---------- */
+function drawYield() {
+  const svg = $('ysvg'), W = svg.clientWidth || 320, H = 160, m = {l: 38, r: 12, t: 12, b: 30};
+  const xMax = 1600, X = a => m.l + Math.min(a, xMax) / xMax * (W - m.l - m.r), Y = y => m.t + (1 - y) * (H - m.t - m.b);
+  let s = '';
+  [0, .25, .5, .75, 1].forEach(v => { s += '<line class="' + (v === 0 ? 'base' : 'gridl') + '" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + Y(v) + '" y2="' + Y(v) + '"/><text class="ax" x="' + (m.l - 6) + '" y="' + (Y(v) + 3.5) + '" text-anchor="end">' + (v * 100) + '%</text>'; });
+  [0, 400, 800, 1200, 1600].forEach(a => { s += '<text class="ax" x="' + X(a) + '" y="' + (H - m.b + 15) + '" text-anchor="middle">' + a + '</text>'; });
+  s += '<text class="ax" x="' + (W - m.r) + '" y="' + (H - 2) + '" text-anchor="end">die area, mm²</text>';
+  const xr = X(858);
+  s += '<line x1="' + xr + '" x2="' + xr + '" y1="' + m.t + '" y2="' + (H - m.b) + '" style="stroke:var(--ink-3);stroke-width:1;stroke-dasharray:3 3"/>';
+  s += '<text class="ax" x="' + (xr + 4) + '" y="' + (m.t + 9) + '">reticle</text>';
+  let p = '';
+  for (let i = 0; i <= 120; i++) { const a = i / 120 * xMax; p += (i ? 'L' : 'M') + X(a).toFixed(1) + ' ' + Y(Math.exp(-a / 100 * S.d0)).toFixed(1); }
+  s += '<path d="' + p + '" style="fill:none;stroke:var(--ink-2);stroke-width:2;stroke-linejoin:round"/>';
+  const pts = [{a: mono.ac, y: mono.Y, label: 'mono ' + pct(mono.Y), col: 'var(--fail)'}];
+  if (S.k > 1) pts.push({a: cur.ac, y: cur.Y, label: S.k + '× ' + pct(cur.Y), col: 'var(--tile)'});
+  pts.forEach((q, i) => {
+    const x = X(q.a), y = Y(q.y);
+    s += '<circle cx="' + x + '" cy="' + y + '" r="5" style="fill:' + q.col + ';stroke:var(--bg);stroke-width:2"/>';
+    const right = x < W - 110;
+    const above = i === 1 || y > m.t + 26;
+    s += '<text class="lab" x="' + (right ? x + 9 : x - 9) + '" y="' + (above ? y - 8 : y + 16) + '" text-anchor="' + (right ? 'start' : 'end') + '">' + q.label + '</text>';
+  });
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  svg.innerHTML = s;
+  $('yCap').textContent = 'Poisson yield vs die area at D₀ = ' + S.d0.toFixed(2) + '/cm²';
+}
+
+/* ---------- cost sweep ---------- */
+const SEGS = [['logic', 'Logic silicon', '--c-logic'], ['phy', 'D2D PHY silicon', '--c-phy'], ['scrap', 'Defect scrap', '--c-scrap'], ['pkg', 'Package + D2D links', '--c-pkg'], ['asm', 'Assembly scrap', '--c-asm']];
+let sweepGeo = null;
+function drawSweep() {
+  const wrap = $('sweepWrap'), svg = $('sweep');
+  const W = wrap.clientWidth || 600, H = Math.round(Math.max(250, Math.min(330, W * 0.5))), m = {l: 58, r: 10, t: 34, b: 46};
+  const fin = evals.filter(e => isFinite(e.total));
+  if (!fin.length) { svg.innerHTML = ''; return; }
+  const minT = Math.min(...fin.map(e => e.total)), maxT = Math.max(...fin.map(e => e.total));
+  const top = Math.min(maxT, minT * 3.2);
+  const step = niceStep(top / 4), yMax = Math.ceil(top / step) * step;
+  const pw = W - m.l - m.r, ph = H - m.t - m.b, band = pw / KS.length, bw = Math.min(24, band * 0.6);
+  const Y = v => m.t + ph - Math.min(v, yMax) / yMax * ph;
+  let s = '<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" style="fill:var(--bg);opacity:.35"/><line x1="0" y1="0" x2="0" y2="6" style="stroke:var(--ink);stroke-width:1.6;opacity:.55"/></pattern></defs>';
+  const ci = KS.indexOf(S.k);
+  s += '<rect x="' + (m.l + ci * band + 2) + '" y="' + (m.t - 26) + '" width="' + (band - 4) + '" height="' + (ph + 26 + 40) + '" rx="4" style="fill:var(--grid)"/>';
+  for (let v = 0; v <= yMax + 1e-9; v += step) {
+    s += '<line class="' + (v === 0 ? 'base' : 'gridl') + '" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + Y(v) + '" y2="' + Y(v) + '"/>';
+    s += '<text class="ax" x="' + (m.l - 8) + '" y="' + (Y(v) + 3.5) + '" text-anchor="end">' + money(v).replace('.00', '') + '</text>';
+  }
+  evals.forEach((e, i) => {
+    const cx = m.l + i * band + band / 2, x = cx - bw / 2;
+    if (isFinite(e.total)) {
+      let cum = 0;
+      const vis = SEGS.filter(([key]) => e[key] > 0 && cum < yMax && (cum += e[key], true));
+      cum = 0;
+      SEGS.forEach(([key, , col]) => {
+        const v = e[key]; if (!(v > 0)) return;
+        const y0 = Y(cum), y1 = Y(cum + v); cum += v;
+        if (y0 - y1 < 0.3) return;
+        const isTop = vis.length && key === vis[vis.length - 1][0];
+        const yy = isTop ? y1 : y1 + 2, hh = y0 - yy;
+        if (hh <= 0.3) return;
+        if (isTop) {
+          const r = Math.min(4, hh / 2, bw / 2);
+          s += '<path d="M' + x + ' ' + (yy + hh) + 'V' + (yy + r) + 'Q' + x + ' ' + yy + ' ' + (x + r) + ' ' + yy + 'H' + (x + bw - r) + 'Q' + (x + bw) + ' ' + yy + ' ' + (x + bw) + ' ' + (yy + r) + 'V' + (yy + hh) + 'Z" style="fill:var(' + col + ')"/>';
+        } else s += '<rect x="' + x + '" y="' + yy + '" width="' + bw + '" height="' + hh + '" style="fill:var(' + col + ')"/>';
+      });
+      if (!e.fits) s += '<rect x="' + x + '" y="' + Y(e.total) + '" width="' + bw + '" height="' + (Y(0) - Y(e.total)) + '" style="fill:url(#hatch)"/>';
+      const clipped = e.total > yMax;
+      const label = e.k === S.k || (best && e.k === best.k) || clipped || !e.fits;
+      if (label) {
+        let t = money(e.total) + (clipped ? ' ↑' : '');
+        s += '<text class="' + (e.k === S.k ? 'lab' : 'lab-2') + '" x="' + cx + '" y="' + (Y(e.total) - 8) + '" text-anchor="middle">' + t + '</text>';
+        const tag = !e.fits ? '> reticle' : (best && e.k === best.k ? 'lowest' : '');
+        if (tag) s += '<text class="ax" x="' + cx + '" y="' + (Y(e.total) - 21) + '" text-anchor="middle">' + tag + '</text>';
+      }
+    }
+    s += '<text class="' + (e.k === S.k ? 'ax-strong' : 'ax') + '" x="' + cx + '" y="' + (H - m.b + 17) + '" text-anchor="middle">' + e.k + '</text>';
+    s += '<text class="ax" x="' + cx + '" y="' + (H - m.b + 31) + '" text-anchor="middle">' + (e.k === 1 ? 'mono' : e.rows + '×' + e.cols) + '</text>';
+    s += '<rect data-i="' + i + '" x="' + (m.l + i * band) + '" y="' + (m.t - 26) + '" width="' + band + '" height="' + (ph + 26 + 46) + '" style="fill:transparent;cursor:pointer"/>';
+  });
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  svg.setAttribute('height', H);
+  svg.innerHTML = s;
+  sweepGeo = {m, band, W};
+
+  // table view
+  $('sweepTable').innerHTML = '<thead><tr><th>Split</th><th>Die mm</th><th>Area mm²</th><th>Dies/wafer</th><th>Yield</th>' + SEGS.map(sg => '<th>' + sg[1] + '</th>').join('') + '<th>Total</th></tr></thead><tbody>' +
+    evals.map(e => '<tr' + (e.k === S.k ? ' class="cur"' : '') + '><td>' + (e.k === 1 ? '1 (mono)' : e.k + ' (' + e.rows + '×' + e.cols + ')') + (e.fits ? '' : ' > reticle') + '</td><td>' + f1(e.cw) + '×' + f1(e.ch) + '</td><td>' + int(e.ac) + '</td><td>' + int(e.dpw) + '</td><td>' + pct(e.Y) + '</td>' +
+      SEGS.map(sg => '<td>' + money(e[sg[0]]) + '</td>').join('') + '<td>' + money(e.total) + '</td></tr>').join('') + '</tbody>';
+}
+const tip = $('tip');
+$('sweep').addEventListener('pointermove', e => {
+  const r = e.target.closest && e.target.closest('rect[data-i]'); if (!r) { tip.hidden = true; return; }
+  const ev = evals[+r.dataset.i];
+  tip.innerHTML = '<h4>' + (ev.k === 1 ? 'Monolithic die' : ev.k + ' chiplets · ' + ev.rows + ' × ' + ev.cols) + '</h4>' +
+    SEGS.map(([key, name, col]) => '<div class="row"><span class="sw" style="background:var(' + col + ')"></span><span>' + name + '</span><span>' + money(ev[key]) + '</span></div>').join('') +
+    '<div class="row tot"><span></span><span>Per good system</span><span>' + money(ev.total) + '</span></div>' + (ev.fits ? '' : '<div class="flag" style="margin-top:6px">▲ beyond reticle</div>');
+  tip.hidden = false;
+  const wr = $('sweepWrap').getBoundingClientRect();
+  const cx = sweepGeo.m.l + (+r.dataset.i + 0.5) * sweepGeo.band;
+  const tw = tip.offsetWidth;
+  let left = cx + 18; if (left + tw > wr.width) left = cx - 18 - tw; left = Math.max(0, left);
+  tip.style.left = left + 'px'; tip.style.top = Math.max(0, e.clientY - wr.top - 40) + 'px';
+});
+$('sweep').addEventListener('pointerleave', () => { tip.hidden = true; });
+$('sweep').addEventListener('click', e => { const r = e.target.closest && e.target.closest('rect[data-i]'); if (r) setK(KS[+r.dataset.i]); });
+
+/* ---------- package floorplan ---------- */
+function drawFloor() {
+  const svg = $('floor'), W = svg.clientWidth || 340, H = Math.round(Math.max(200, Math.min(260, W * 0.66)));
+  const k = S.k, g = cur;
+  const gap = k > 1 ? Math.max(0.6, 0.025 * Math.max(S.w, S.h)) : 0;
+  const tw = g.cols * g.cw + (g.cols - 1) * gap, th = g.rows * g.ch + (g.rows - 1) * gap;
+  const useIP = k > 1 && S.ip > 0, useBridge = k > 1 && !useIP && S.link > 0;
+  const ipm = useIP ? Math.max(1, 0.04 * Math.max(tw, th)) : 0;
+  const sub = Math.max(4, 0.17 * Math.max(tw, th));
+  const totW = tw + 2 * (ipm + sub), totH = th + 2 * (ipm + sub);
+  const sc = Math.min((W - 4) / totW, (H - 4) / totH);
+  const ox = (W - totW * sc) / 2, oy = (H - totH * sc) / 2;
+  let s = '';
+  s += '<rect x="' + ox + '" y="' + oy + '" width="' + totW * sc + '" height="' + totH * sc + '" rx="6" style="fill:var(--stage);stroke:var(--line)"/>';
+  const subLabel = k === 1 ? 'flip-chip substrate' : useIP ? 'Si interposer on substrate' : useBridge ? 'organic substrate + Si bridges' : 'organic substrate';
+  s += '<text class="ax" x="' + (ox + 8) + '" y="' + (oy + totH * sc - 8) + '">' + subLabel + '</text>';
+  const x0 = ox + (sub + ipm) * sc, y0 = oy + (sub + ipm) * sc;
+  if (useIP) s += '<rect x="' + (ox + sub * sc) + '" y="' + (oy + sub * sc) + '" width="' + (tw + 2 * ipm) * sc + '" height="' + (th + 2 * ipm) * sc + '" rx="2" style="fill:var(--wafer);stroke:var(--wafer-edge)"/>';
+  const cwp = g.cw * sc, chp = g.ch * sc;
+  const pos = (r, c) => [x0 + c * (g.cw + gap) * sc, y0 + r * (g.ch + gap) * sc];
+  for (let r = 0; r < g.rows; r++) for (let c = 0; c < g.cols; c++) {
+    const [x, y] = pos(r, c);
+    s += '<rect x="' + x + '" y="' + y + '" width="' + cwp + '" height="' + chp + '" rx="1.5" style="fill:var(--tile)"/>';
+    if (k > 1) {
+      const dv = Math.max(1.5, S.phy / g.ch * sc), dh = Math.max(1.5, S.phy / g.cw * sc);
+      if (S.phy > 0) {
+        if (c < g.cols - 1) s += '<rect x="' + (x + cwp - dv) + '" y="' + (y + chp * 0.15) + '" width="' + dv + '" height="' + chp * 0.7 + '" style="fill:var(--c-phy)"/>';
+        if (c > 0) s += '<rect x="' + x + '" y="' + (y + chp * 0.15) + '" width="' + dv + '" height="' + chp * 0.7 + '" style="fill:var(--c-phy)"/>';
+        if (r < g.rows - 1) s += '<rect x="' + (x + cwp * 0.15) + '" y="' + (y + chp - dh) + '" width="' + cwp * 0.7 + '" height="' + dh + '" style="fill:var(--c-phy)"/>';
+        if (r > 0) s += '<rect x="' + (x + cwp * 0.15) + '" y="' + y + '" width="' + cwp * 0.7 + '" height="' + dh + '" style="fill:var(--c-phy)"/>';
+      }
+    }
+    if (cwp > 52 && chp > 26) s += '<text class="lab" x="' + (x + cwp / 2) + '" y="' + (y + chp / 2 + 4) + '" text-anchor="middle">' + int(g.ac) + ' mm²</text>';
+  }
+  if (useBridge) {
+    for (let r = 0; r < g.rows; r++) for (let c = 0; c < g.cols; c++) {
+      const [x, y] = pos(r, c);
+      if (c < g.cols - 1) { const bwid = gap * sc + 12, bh = chp * 0.34; s += '<rect x="' + (x + cwp - 6) + '" y="' + (y + chp / 2 - bh / 2) + '" width="' + bwid + '" height="' + bh + '" rx="1.5" style="fill:var(--c-pkg);opacity:.85"/>'; }
+      if (r < g.rows - 1) { const bh2 = gap * sc + 12, bwid2 = cwp * 0.34; s += '<rect x="' + (x + cwp / 2 - bwid2 / 2) + '" y="' + (y + chp - 6) + '" width="' + bwid2 + '" height="' + bh2 + '" rx="1.5" style="fill:var(--c-pkg);opacity:.85"/>'; }
+    }
+  }
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  svg.setAttribute('height', H);
+  svg.innerHTML = s;
+  const extra = g.phyTot / g.A;
+  $('floorCap').innerHTML = k === 1
+    ? 'One ' + f1(g.cw) + ' × ' + f1(g.ch) + ' mm die in a standard flip-chip package. No die-to-die links.'
+    : k + ' chiplets of ' + f1(g.cw) + ' × ' + f1(g.ch) + ' mm, ' + g.L + ' D2D link' + (g.L === 1 ? '' : 's') + '. PHY blocks (amber) add ' + int(g.phyTot) + ' mm² of silicon, ' + (extra * 100).toFixed(1) + '% on top of the monolithic die.';
+}
+
+/* ---------- signature toolbar and mystery-wafer quiz ---------- */
+let quiz = null;
+const sigSeg = $('sigSeg');
+SIGS.forEach(s => {
+  const b = document.createElement('button');
+  b.type = 'button'; b.dataset.s = s; b.textContent = SIGNAME[s];
+  b.addEventListener('click', () => pickSig(s));
+  sigSeg.appendChild(b);
+});
+function pickSig(s) {
+  if (quiz) {
+    if (!quiz.guess) { quiz.guess = s; quiz.total++; if (s === quiz.answer) quiz.right++; schedule(); }
+    return;
+  }
+  S.sig = s;
+  if (s === 'repeater') S.fields = true;
+  schedule();
+}
+function nextMystery() {
+  quiz.answer = SIGS[Math.floor(Math.random() * SIGS.length)];
+  quiz.guess = null;
+  S.sig = quiz.answer; S.sev = 0.35 + 0.6 * Math.random();
+  S.seed = (Math.random() * 2 ** 31) | 0; seedDefects();
+  S.ovl = false; S.fields = false;
+}
+$('sev').addEventListener('input', e => { S.sev = parseFloat(e.target.value); schedule(); });
+$('ovl').addEventListener('change', e => { S.ovl = e.target.checked; schedule(); });
+$('fld').addEventListener('change', e => { S.fields = e.target.checked; schedule(); });
+$('quizBtn').addEventListener('click', () => {
+  if (quiz) { quiz = null; S.ovl = true; }
+  else { quiz = {right: 0, total: 0}; nextMystery(); }
+  schedule();
+});
+$('quizLine').addEventListener('click', e => { if (e.target.closest('[data-q]')) { nextMystery(); schedule(); } });
+
+function updateSigbar() {
+  const q = quiz;
+  $('sigLbl').textContent = q ? (q.guess ? 'Mystery wafer' : 'Which signature is on this wafer?') : 'Defect signature';
+  $('quizBtn').textContent = q ? 'Exit quiz' : 'Mystery wafer';
+  sigSeg.querySelectorAll('button').forEach(b => {
+    const s = b.dataset.s;
+    b.setAttribute('aria-pressed', String(q ? s === q.guess : s === S.sig));
+    b.classList.toggle('right', !!(q && q.guess && s === q.answer));
+    b.classList.toggle('wrong', !!(q && q.guess && s === q.guess && s !== q.answer));
+  });
+  $('sevBox').hidden = !!q || S.sig === 'none';
+  $('sev').value = S.sev; $('sevOut').textContent = sevText();
+  $('ovl').checked = S.ovl; $('fld').checked = S.fields;
+  const ql = $('quizLine'); ql.hidden = !q;
+  if (!q) return;
+  const score = '<span class="score">Score ' + q.right + ' / ' + q.total + '</span>';
+  ql.innerHTML = q.guess
+    ? (q.guess === q.answer ? '<b>Correct: ' + SIGART[q.answer] + '.</b>' : '<span><b>Not quite.</b> You picked ' + SIGNAME[q.guess] + '; this wafer has ' + SIGART[q.answer] + '.</span>') +
+      score + '<button class="linkbtn" type="button" data-q="next">Next mystery wafer</button>'
+    : '<span>Read the bin map and the analysis below, then pick one.</span>' + score;
+}
+
+/* ---------- wafer analysis ---------- */
+const DIAG = {
+  none: {see: 'Fails scattered with no structure. Yield sits near the Poisson baseline, the radial profile is flat, the stack map is even and the neighbour-fail ratio is close to 1.',
+    src: 'The line\'s baseline random defectivity: particles and pattern defects from every tool, summed into D₀.',
+    chk: 'No excursion to chase. Track D₀ by layer on SPC charts and work the defect-type Pareto to lower the baseline over time.'},
+  edge: {see: 'A ring of failing dies at the wafer edge while the centre yields normally. The outer radial zone drops well below the baseline.',
+    src: 'Steps with edge non-uniformity: CMP edge effects from the pad or retaining ring, edge-bead removal and bevel etch, film thickness or stress roll-off, etch rate at the edge, or thermal non-uniformity in anneal.',
+    chk: 'Plot film thickness, CD and parametric test results against radius for each module. Run tool and chamber commonality on the affected lots. Inspect the bevel for film peeling.'},
+  scratch: {see: 'A line or arc of failing dies across the map, with inspection defects strung along it. Neighbouring dies fail together, so the neighbour-fail ratio rises well above 1.',
+    src: 'Arcs usually come from CMP: pad debris, slurry agglomerates or a worn conditioner. Straight lines usually come from wafer handling: a robot end-effector or a cassette slot.',
+    chk: 'Find the first inspection layer where the scratch appears; that pins the step. Check CMP consumables and conditioner logs and the handling robots on that route. Review the scratch under SEM.'},
+  cluster: {see: 'Tight groups of failing neighbours on an otherwise clean wafer. Many defects kill only a few dies, so the yield loss can stay inside the 3σ limit while the neighbour-fail ratio rises.',
+    src: 'A particle burst: flaking from chamber walls or a showerhead, a gas-line or valve event, a contaminated wet bath, or a resist dispense fault.',
+    chk: 'Compare inspection results layer by layer to find where the extra defects first appear. Check chamber maintenance history and particle-monitor wafers. Classify the defects by SEM and EDX to identify the material.'},
+  repeater: {see: 'The same die position fails in field after field, so one cell of the stack map goes cold. When one die fills the field, almost every die on the wafer fails.',
+    src: 'A defect on the photomask or its pellicle: a particle, haze growth or damage that prints at every exposure.',
+    chk: 'Overlay the fails on the field grid to confirm the repeat. Pull the reticle for inspection and check every lot exposed with it since its last clean inspection. Clean or requalify the mask and pellicle.'}
+};
+const HOWTO = [
+  ['Is it systematic?', 'Compare observed yield with the Poisson baseline. A shortfall of more than 3σ means something besides random defects is killing dies.'],
+  ['Where is it?', 'A low outer zone in the radial chart points to the edge. One cold cell in the reticle stack map points to the mask.'],
+  ['What shape is it?', 'A neighbour-fail ratio well above 1 means fails touch each other, as in a line or a blob. Switch on inspection defects to see what sits under them.']
+];
+const zoneBounds = [0, 1, 2, 3, 4, 5].map(k => R_USE * Math.sqrt(k / 5));
+const zscore = (n, g, Y) => n ? (n * Y - g) / Math.sqrt(Math.max(1e-9, n * Y * (1 - Y))) : 0;
+// two-proportion z: is this group's yield below the rest of the wafer?
+function zrel(n1, g1, N, G) {
+  const n2 = N - n1, g2 = G - g1;
+  if (n1 < 4 || n2 < 4) return {z: 0, d: 0, p1: 0, p2: 0};
+  const p1 = g1 / n1, p2 = g2 / n2, p = G / N;
+  const se = Math.sqrt(Math.max(1e-12, p * (1 - p) * (1 / n1 + 1 / n2)));
+  return {z: (p2 - p1) / se, d: p2 - p1, p1, p2};
+}
+
+function renderAnalysis() {
+  const YP = cur.Y, n = wafer.full, g = wafer.good, Yo = n ? g / n : 0;
+  const exp = n * YP, z = zscore(n, g, YP);
+  const reveal = !quiz || !!quiz.guess;
+  const noun = S.k > 1 ? 'chiplets' : 'dies';
+
+  // RCA triggers
+  const trig = [];
+  if (z > 3) trig.push(['hot', '▲', 'Yield excursion: ' + int(exp - g) + ' ' + noun + ' short, ' + z.toFixed(1) + 'σ below the Poisson baseline. Open an RCA.']);
+  else trig.push(['ok', '●', 'No yield excursion: within 3σ of the Poisson baseline (z = ' + z.toFixed(1) + ').']);
+  if (reveal) {
+    if (isFinite(wafer.nratio) && wafer.nratio > 1.5) trig.push(['hot', '▲', 'Fails touch each other: neighbour-fail ratio ' + wafer.nratio.toFixed(1) + '× (random ≈ 1).']);
+    // each zone / field position against the rest of the wafer, so a whole-wafer drop doesn't flag every group
+    let wz = null;
+    wafer.zones.forEach((zn, i) => { const t = zrel(zn.n, zn.g, n, g); if (t.z > 3 && t.d > 0.12 && (!wz || t.z > wz.z)) wz = {...t, i}; });
+    if (wz) trig.push(['hot', '▲', 'Radial zone ' + (wz.i + 1) + ' (' + zoneBounds[wz.i].toFixed(0) + '–' + zoneBounds[wz.i + 1].toFixed(0) + ' mm) yields ' + pct(wz.p1) + ' vs ' + pct(wz.p2) + ' elsewhere (' + wz.z.toFixed(1) + 'σ).']);
+    const M = wafer.fg.nfx * wafer.fg.nfy;
+    if (M > 1) {
+      const thr = 3 + 0.5 * Math.log10(M);   // stricter when there are many positions to test
+      let wp = null;
+      wafer.stack.forEach((c, key) => { const t = zrel(c.n, c.g, n, g); if (t.z > thr && t.d > 0.12 && (!wp || t.z > wp.z)) wp = {...t, key}; });
+      if (wp) { const [a, b] = wp.key.split(',').map(Number); trig.push(['hot', '▲', 'Field position ' + (a + 1) + ',' + (b + 1) + ' yields ' + pct(wp.p1) + ' vs ' + pct(wp.p2) + ' elsewhere, field after field (' + wp.z.toFixed(1) + 'σ).']); }
+    }
+    if (trig.length === 1 && z <= 3) trig.push(['ok', '●', 'No spatial structure found.']);
+  } else trig.push(['hint', '?', 'Spatial checks stay hidden until you make your call.']);
+  $('trigger').innerHTML = trig.map(t => '<div class="trig ' + t[0] + '"><span class="ic" aria-hidden="true">' + t[1] + '</span><span>' + t[2] + '</span></div>').join('');
+
+  // readouts
+  const d0e = Yo > 0 ? -Math.log(Yo) / (cur.ac / 100) : Infinity;
+  const rows = [
+    ['Observed yield', pct(Yo), int(g) + ' of ' + int(n)],
+    ['Poisson baseline', pct(YP), 'at D₀ ' + S.d0.toFixed(2) + '/cm²'],
+    ['Systematic yield', pct(Math.min(1, Yo / YP)), 'observed ÷ baseline'],
+    ['Effective D₀', isFinite(d0e) ? d0e.toFixed(2) + '/cm²' : '—', '−ln(Y) ÷ A'],
+    ['Neighbour-fail ratio', isFinite(wafer.nratio) ? wafer.nratio.toFixed(2) + '×' : '—', 'random ≈ 1.0×'],
+    ['Silicon per good ' + (S.k > 1 ? 'chiplet' : 'die'), money(S.wc / Math.max(1, g)), 'plan ' + money(S.wc / Math.max(1e-9, exp))]
+  ];
+  $('kpiBody').innerHTML = rows.map(r => '<tr><th scope="row">' + r[0] + '</th><td>' + r[1] + '<small>' + r[2] + '</small></td></tr>').join('');
+
+  drawRadial(YP); drawStack(YP);
+
+  // diagnosis
+  const key = quiz ? quiz.answer : S.sig;
+  if (!reveal) {
+    $('diag').innerHTML = '<h3>How to read a mystery wafer</h3><div class="diag">' + HOWTO.map(h => '<div><h4>' + h[0] + '</h4><p>' + h[1] + '</p></div>').join('') + '</div>';
+  } else {
+    const D = DIAG[key];
+    $('diag').innerHTML = '<h3>' + (quiz ? 'Answer: ' : '') + SIGNAME[key] + '</h3><div class="diag">' +
+      '<div><h4>What you see</h4><p>' + D.see + '</p></div><div><h4>Likely sources</h4><p>' + D.src + '</p></div><div><h4>First RCA checks</h4><p>' + D.chk + '</p></div></div>';
+  }
+}
+
+function drawRadial(YP) {
+  const svg = $('rsvg'), W = svg.clientWidth || 320, H = 200, m = {l: 38, r: 8, t: 20, b: 42};
+  const band = (W - m.l - m.r) / 5, bw = Math.min(30, band * 0.56);
+  const Y = v => m.t + (1 - v) * (H - m.t - m.b);
+  let s = '';
+  [0, 0.5, 1].forEach(v => {
+    s += '<line class="' + (v === 0 ? 'base' : 'gridl') + '" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + Y(v) + '" y2="' + Y(v) + '"/>';
+    s += '<text class="ax" x="' + (m.l - 6) + '" y="' + (Y(v) + 3.5) + '" text-anchor="end">' + v * 100 + '%</text>';
+  });
+  wafer.zones.forEach((zn, i) => {
+    const cx = m.l + band * i + band / 2, x = cx - bw / 2;
+    if (zn.n) {
+      const y = zn.g / zn.n, top = Y(y), hh = Y(0) - top, r = Math.min(4, hh / 2, bw / 2);
+      if (hh > 0.5) s += '<path d="M' + x + ' ' + Y(0) + 'V' + (top + r) + 'Q' + x + ' ' + top + ' ' + (x + r) + ' ' + top + 'H' + (x + bw - r) + 'Q' + (x + bw) + ' ' + top + ' ' + (x + bw) + ' ' + (top + r) + 'V' + Y(0) + 'Z" style="fill:var(--c-yield)"><title>Zone ' + (i + 1) + ': ' + zn.g + ' of ' + zn.n + ' good</title></path>';
+      s += '<text class="lab-2" x="' + cx + '" y="' + (top - 6) + '" text-anchor="middle">' + (y * 100).toFixed(0) + '%</text>';
+    } else s += '<text class="ax" x="' + cx + '" y="' + (Y(0) - 6) + '" text-anchor="middle">no dies</text>';
+    s += '<text class="ax" x="' + cx + '" y="' + (H - m.b + 15) + '" text-anchor="middle">' + zoneBounds[i].toFixed(0) + '–' + zoneBounds[i + 1].toFixed(0) + '</text>';
+  });
+  s += '<text class="ax" x="' + (m.l + band / 2) + '" y="' + (H - m.b + 30) + '" text-anchor="middle">centre</text>';
+  s += '<text class="ax" x="' + (m.l + band * 4.5) + '" y="' + (H - m.b + 30) + '" text-anchor="middle">edge, mm</text>';
+  s += '<line x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + Y(YP) + '" y2="' + Y(YP) + '" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:5 4"/>';
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('height', H);
+  svg.innerHTML = s;
+}
+
+function drawStack(YP) {
+  const svg = $('ssvg'), W = svg.clientWidth || 280, {nfx, nfy} = wafer.fg;
+  const single = nfx * nfy === 1;
+  const cell = single ? 84 : Math.max(10, Math.min(44, Math.floor((W - 4) / nfx), Math.floor(210 / nfy)));
+  const gw = nfx * cell, gh = nfy * cell, ox = (W - gw) / 2, H = gh + 4;
+  let s = '';
+  for (let pj = 0; pj < nfy; pj++) for (let pi = 0; pi < nfx; pi++) {
+    const c = wafer.stack.get(pi + ',' + pj) || {n: 0, g: 0};
+    const y = c.n ? c.g / c.n : NaN, def = isNaN(y) ? 0 : Math.min(1, Math.max(0, (YP - y) / YP));
+    const x = ox + pi * cell, yy = 2 + pj * cell;
+    s += '<g><title>Field position ' + (pi + 1) + ',' + (pj + 1) + ': ' + c.g + ' of ' + c.n + ' good</title>';
+    s += '<rect x="' + (x + 1) + '" y="' + (yy + 1) + '" width="' + (cell - 2) + '" height="' + (cell - 2) + '" rx="2" style="fill:var(--tile)"/>';
+    if (def > 0) s += '<rect x="' + (x + 1) + '" y="' + (yy + 1) + '" width="' + (cell - 2) + '" height="' + (cell - 2) + '" rx="2" style="fill:var(--fail);opacity:' + def.toFixed(2) + '"/>';
+    if (cell >= 28 && c.n) s += '<text x="' + (x + cell / 2) + '" y="' + (yy + cell / 2 + 4) + '" text-anchor="middle" style="font:600 ' + (cell >= 40 ? 11 : 9.5) + 'px var(--mono);fill:' + (def > 0.5 ? 'var(--bg)' : 'var(--ink)') + '">' + (y * 100).toFixed(0) + '</text>';
+    s += '</g>';
+  }
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('height', H);
+  svg.innerHTML = s;
+  $('stackCap').textContent = single
+    ? 'One die fills each 26 × 33 mm field, so the map is a single cell. A mask defect here kills that die in every field it prints.'
+    : nfx + ' × ' + nfy + ' dies per field, stacked over ' + wafer.fields + ' fields. Numbers are % good; red cells sit below the baseline.';
+}
+
+/* ---------- render loop ---------- */
+let pending = false;
+function schedule() { if (pending) return; pending = true; requestAnimationFrame(() => { pending = false; renderAll(); }); }
+function renderAll() { compute(); drawWafer(); updatePanel(); updateSigbar(); renderAnalysis(); drawYield(); drawSweep(); drawFloor(); }
+
+seedDefects();
+new ResizeObserver(schedule).observe(document.body);
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', schedule);
+new MutationObserver(schedule).observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedule);
+renderAll();
+})();
+</script>
+</body>
+</html>
