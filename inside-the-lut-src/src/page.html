@@ -1,0 +1,209 @@
+<title>Inside the LUT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a compile bench. Source on the left, the device view in the middle, the numbers on the right.
+   The stage rail reads like a tool-flow log; copper is reserved for wires, because wires are the story. */
+:root {
+  --bg: #E6EAEC; --panel: #F3F5F6; --view: #FAFBFB; --tile: #E9EEF0;
+  --ink: #10181D; --ink-2: #46535B; --ink-3: #78858D; --rule: #C2CBD0; --rule-2: #D8DFE2;
+  --copper: #A54C16; --logic: #0C6F61; --sram: #2E41AE; --hot: #C02F29; --amber: #C2850F;
+  --chip: #1B2328; --chip-ink: #B9C3C8;
+  --k1: #12806F; --k2: #4655C4; --k3: #9A3F8E; --k4: #66760F; --k5: #1F76AB; --k6: #BC4366; --k7: #9C6416; --k8: #4C7D48;
+  --on-k: #FFFFFF;
+  --f-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0B1013; --panel: #121A1E; --view: #0E1518; --tile: #172026;
+    --ink: #E0E6E9; --ink-2: #A0ACB3; --ink-3: #66737A; --rule: #2A353B; --rule-2: #1E282D;
+    --copper: #E68A4D; --logic: #40C2AC; --sram: #8F9EFF; --hot: #FF6158; --amber: #EDB33F;
+    --chip: #1F292F; --chip-ink: #9EABB2;
+    --k1: #45C6B0; --k2: #8E9AFF; --k3: #D684CB; --k4: #B3C54B; --k5: #5DB4EC; --k6: #F27C9E; --k7: #E2A452; --k8: #86BE7E;
+    --on-k: #0B1013;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0B1013; --panel: #121A1E; --view: #0E1518; --tile: #172026;
+  --ink: #E0E6E9; --ink-2: #A0ACB3; --ink-3: #66737A; --rule: #2A353B; --rule-2: #1E282D;
+  --copper: #E68A4D; --logic: #40C2AC; --sram: #8F9EFF; --hot: #FF6158; --amber: #EDB33F;
+  --chip: #1F292F; --chip-ink: #9EABB2;
+  --k1: #45C6B0; --k2: #8E9AFF; --k3: #D684CB; --k4: #B3C54B; --k5: #5DB4EC; --k6: #F27C9E; --k7: #E2A452; --k8: #86BE7E;
+  --on-k: #0B1013;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1480px; margin: 0 auto; padding-inline: 20px; padding-block: 22px 40px; }
+@media (max-width: 520px) { .wrap { padding-inline: 16px; } }
+button, input, textarea, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--copper); outline-offset: 2px; }
+
+/* masthead */
+.mast { display: flex; gap: 24px; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; padding-bottom: 18px; }
+.mast-text { min-width: 0; max-width: 760px; }
+.eyebrow { font-family: var(--f-mono); font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 6px; }
+h1 { font-family: var(--f-display); font-stretch: 125%; font-weight: 800; font-size: clamp(34px, 5.4vw, 64px); line-height: .95; letter-spacing: -.012em; margin: 0; text-wrap: balance; }
+h1 em { font-style: normal; color: var(--copper); }
+.dek { margin: 12px 0 0; color: var(--ink-2); font-size: 16px; max-width: 62ch; text-wrap: pretty; }
+.chip { position: relative; background: var(--chip); color: var(--chip-ink); border-radius: 5px; padding: 12px 16px 12px 30px; font-family: var(--f-mono); font-size: 11.5px; line-height: 1.55; letter-spacing: .06em; flex: 0 0 auto; box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
+.chip::before { content: ""; position: absolute; left: 11px; top: 12px; width: 7px; height: 7px; border-radius: 50%; border: 1px solid var(--chip-ink); opacity: .6; }
+.chip b { color: #E9EEF0; font-weight: 600; letter-spacing: .1em; }
+@media (max-width: 720px) { .chip { display: none; } }
+
+/* bench grid */
+.bench { display: grid; gap: 18px; grid-template-columns: 300px minmax(0, 1fr) 282px; grid-template-areas: "src stage read"; align-items: start; }
+@media (max-width: 1260px) { .bench { grid-template-columns: 300px minmax(0, 1fr); grid-template-areas: "src stage" "read stage"; } }
+@media (max-width: 880px) { .bench { grid-template-columns: minmax(0, 1fr); grid-template-areas: "src" "stage" "read"; } }
+.src { grid-area: src; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.stage { grid-area: stage; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.read { grid-area: read; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+@media (min-width: 1261px) { .read, .src { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); } }
+
+.label { font-family: var(--f-mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mode { font-family: var(--f-mono); font-size: 11px; padding: 2px 7px; border: 1px solid var(--rule); border-radius: 3px; color: var(--ink-2); }
+textarea#src { width: 100%; min-height: 236px; resize: vertical; background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 12px 12px; font-family: var(--f-mono); font-size: 12.5px; line-height: 1.6; tab-size: 2; white-space: pre; overflow: auto; }
+textarea#src:focus-visible { outline: 2px solid var(--copper); outline-offset: 0; }
+.err { color: var(--hot); font-family: var(--f-mono); font-size: 12px; line-height: 1.45; min-height: 0; margin: -4px 0 0; }
+.err:empty { display: none; }
+.examples { display: flex; flex-wrap: wrap; gap: 6px; }
+.ex { border: 1px solid var(--rule); background: transparent; border-radius: 3px; padding: 4px 8px; font-size: 12.5px; cursor: pointer; color: var(--ink-2); }
+.ex:hover { border-color: var(--ink-3); color: var(--ink); }
+.ex[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); background: var(--panel); }
+.btn { border: 1px solid var(--rule); background: transparent; border-radius: 4px; padding: 7px 12px; font-size: 13.5px; font-weight: 500; cursor: pointer; line-height: 1.2; white-space: nowrap; }
+.btn:hover { border-color: var(--ink-3); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 600; }
+.btn.primary:hover { background: var(--ink-2); border-color: var(--ink-2); }
+.btn.go { width: 100%; padding: 11px 14px; font-size: 14.5px; display: flex; justify-content: space-between; align-items: center; }
+.kbd { font-family: var(--f-mono); font-size: 11px; opacity: .7; font-weight: 400; }
+.hint { font-size: 12.5px; color: var(--ink-3); line-height: 1.5; margin: 0; }
+.hint code { font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-2); }
+.summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--rule-2); border: 1px solid var(--rule-2); border-radius: 4px; overflow: hidden; }
+.summary div { background: var(--bg); padding: 7px 8px; min-width: 0; }
+.summary b { display: block; font-family: var(--f-display); font-stretch: 100%; font-weight: 600; font-size: 19px; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.summary span { font-family: var(--f-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+
+/* stage rail */
+.rail { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, 1.05fr); gap: 6px; }
+@media (max-width: 680px) { .rail { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.step { text-align: left; border: 1px solid var(--rule); background: transparent; border-radius: 4px; padding: 7px 9px 8px; cursor: pointer; min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; align-items: baseline; }
+.step:hover { border-color: var(--ink-3); }
+.step .n { font-family: var(--f-mono); font-size: 11px; color: var(--ink-3); }
+.step .nm { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.step .st { grid-column: 2; font-family: var(--f-mono); font-size: 11px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.step[aria-current="step"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.step[aria-current="step"] .n, .step[aria-current="step"] .st { color: var(--bg); opacity: .72; }
+.step.race { border-style: dashed; border-color: var(--copper); }
+.step.race .n { color: var(--copper); }
+.step.race[aria-current="step"] { background: var(--copper); border-color: var(--copper); border-style: solid; color: var(--on-k); }
+
+/* viewport */
+.view { position: relative; background: var(--view); border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+.view canvas { display: block; width: 100%; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-height: 40px; }
+.ctl { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+.ctl output, .ctl .val { font-family: var(--f-mono); font-size: 12px; color: var(--ink); min-width: 3.5em; font-variant-numeric: tabular-nums; }
+.ctl input[type=range] { width: 130px; accent-color: var(--copper); }
+.ctl.wide input[type=range] { width: 170px; }
+@media (max-width: 520px) { .ctl input[type=range], .ctl.wide input[type=range] { width: 120px; } }
+.ctl input[type=checkbox] { accent-color: var(--copper); width: 15px; height: 15px; }
+.sep { width: 1px; align-self: stretch; background: var(--rule); }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+.seg button { border: 0; background: transparent; padding: 6px 10px; font-size: 13px; cursor: pointer; color: var(--ink-2); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.pins { display: flex; flex-wrap: wrap; gap: 5px; }
+.pin { border: 1px solid var(--rule); border-radius: 3px; background: transparent; padding: 4px 7px; font-family: var(--f-mono); font-size: 11.5px; cursor: pointer; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: baseline; }
+.pin b { font-weight: 600; color: var(--ink); }
+.pin[aria-pressed="true"] { border-color: var(--sram); color: var(--sram); }
+.pin[aria-pressed="true"] b { color: var(--sram); }
+.pin:disabled { opacity: .4; cursor: default; }
+
+/* readout */
+.read h2 { font-family: var(--f-display); font-stretch: 112%; font-weight: 700; font-size: 24px; line-height: 1.1; margin: 0; letter-spacing: -.005em; }
+.lede { margin: 0; color: var(--ink-2); font-size: 14px; line-height: 1.55; }
+.metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; margin: 0; }
+.metrics div { min-width: 0; }
+.metrics dt { font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.metrics dd { margin: 0; font-family: var(--f-display); font-stretch: 100%; font-weight: 600; font-size: 21px; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.metrics dd small { font-family: var(--f-body); font-weight: 400; font-size: 12px; color: var(--ink-3); margin-left: 2px; }
+.metrics .big { grid-column: 1 / -1; }
+.metrics .big dd { font-size: 34px; letter-spacing: -.01em; }
+.metrics dd.cu { color: var(--copper); }
+.metrics dd.lg { color: var(--logic); }
+.metrics dd.bad { color: var(--hot); }
+.chart { width: 100%; height: 118px; display: block; }
+.chart[hidden] { display: none; }
+.insight { border-top: 1px solid var(--rule); padding-top: 12px; }
+.insight p { margin: 4px 0 0; font-family: var(--f-display); font-stretch: 100%; font-weight: 500; font-size: 17px; line-height: 1.38; text-wrap: pretty; }
+.insight p .cu { color: var(--copper); }
+.insight p .lg { color: var(--logic); }
+.insight p .sr { color: var(--sram); }
+pre.list { margin: 0; background: var(--panel); border: 1px solid var(--rule-2); border-radius: 4px; padding: 9px 10px; font-family: var(--f-mono); font-size: 11.5px; line-height: 1.6; max-height: 220px; overflow: auto; white-space: pre; color: var(--ink-2); }
+pre.list b { color: var(--ink); font-weight: 600; }
+pre.list .cu { color: var(--copper); }
+.lutcard { display: grid; gap: 4px; font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-2); background: var(--panel); border: 1px solid var(--rule-2); border-radius: 4px; padding: 9px 10px; overflow-wrap: anywhere; }
+.lutcard b { color: var(--ink); font-weight: 600; }
+footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--rule); color: var(--ink-3); font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 6px 18px; justify-content: space-between; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="mast">
+    <div class="mast-text">
+      <p class="eyebrow">FPGA compile flow, one stage at a time</p>
+      <h1>Inside the <em>LUT</em></h1>
+      <p class="dek">Type a Boolean expression or a small Verilog module. Watch it become gates, then 64 bits of memory, then a placed and routed circuit with a delay you can measure.</p>
+    </div>
+    <div class="chip" aria-hidden="true"><b>LUT6</b> &nbsp;64 × 1 SRAM<br>I0 … I5 → O<br>2<sup>6</sup> = 64 configuration bits</div>
+  </header>
+
+  <main class="bench">
+    <section class="src" aria-label="Design source">
+      <div class="panel-head"><span class="label">Design source</span><span class="mode" id="modeTag">Verilog</span></div>
+      <textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Boolean expression or Verilog module"></textarea>
+      <p class="err" id="srcErr" role="alert"></p>
+      <button class="btn primary go" id="goBtn" type="button"><span>Compile and play all stages</span><span class="kbd" id="kbdHint">Ctrl ↵</span></button>
+      <div>
+        <div class="label" style="margin-bottom:6px">Examples</div>
+        <div class="examples" id="examples"></div>
+      </div>
+      <p class="hint">Boolean: <code>a&amp;b | ~c</code>, <code>a'b + c</code>, <code>a ^ b</code>; one <code>name = …</code> per line. Verilog: one module of <code>assign</code> statements with <code>&amp; | ^ ~ ?: + - == &lt; &gt;</code>, vectors and <code>{a, b}</code>.</p>
+      <div class="summary" id="summary" aria-live="polite"></div>
+    </section>
+
+    <section class="stage" aria-label="Compile stages">
+      <nav class="rail" id="rail" aria-label="Stages"></nav>
+      <div class="view" id="view"><canvas id="cv" role="img" aria-label="Device view"></canvas></div>
+      <div class="controls" id="controls"></div>
+    </section>
+
+    <aside class="read" aria-live="polite">
+      <div>
+        <div class="label" id="stageNum">Stage 1 of 5</div>
+        <h2 id="stageTitle">Synthesis</h2>
+      </div>
+      <p class="lede" id="stageLede"></p>
+      <dl class="metrics" id="metrics"></dl>
+      <canvas class="chart" id="chart" hidden></canvas>
+      <div id="extra"></div>
+      <div class="insight" id="insightBox"><div class="label">What to notice</div><p id="insight"></p></div>
+    </aside>
+  </main>
+
+  <footer>
+    <span>Delays are illustrative, in the range of a 16 nm-class FPGA: LUT 0.12 ns, 0.135 ns per routing segment, I/O buffers 0.45 / 0.80 ns.</span>
+    <span>One LUT per logic site here; a real slice packs four to eight.</span>
+  </footer>
+</div>
+
+<script>
+/*__CORE__*/
+/*__UI__*/
+</script>
