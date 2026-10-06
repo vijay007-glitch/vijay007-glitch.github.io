@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Inside the LUT | Vijay</title>
+<meta name="description" content="Type a Boolean expression or a small Verilog module and watch an FPGA compile it: gates, the 64 SRAM bits of a LUT6, simulated-annealing placement, PathFinder routing with a congestion heat map, and timing. Then race the annealer.">
+<meta name="author" content="Vijay">
+<link rel="canonical" href="https://vijay007-glitch.github.io/posts/inside-the-lut/">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Inside the LUT">
+<meta property="og:description" content="Type a Boolean expression or a small Verilog module and watch an FPGA compile it: gates, the 64 SRAM bits of a LUT6, simulated-annealing placement, PathFinder routing with a congestion heat map, and timing. Then race the annealer.">
+<meta property="og:url" content="https://vijay007-glitch.github.io/posts/inside-the-lut/">
+<meta property="og:image" content="https://vijay007-glitch.github.io/simulations/inside-the-lut/thumb.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="site-head">
+<a class="brand" href="../../">Vijay</a>
+<nav aria-label="Site"><a href="../../">All posts</a></nav>
+</header>
+
+<main>
+<article>
+<header>
+<h1>Inside the LUT</h1>
+<p class="dek">Type a Boolean expression or a small Verilog module and watch an FPGA compile it: gates, the 64 SRAM bits of a LUT6, simulated-annealing placement, PathFinder routing with a congestion heat map, and timing. Then race the annealer.</p>
+<p class="meta">October 6, 2026, interactive simulator</p>
+</header>
+
+<div class="prose">
+<p>The logic in an FPGA is really memory. A 6-input lookup table (LUT6) is 64 bits of SRAM addressed by its six inputs: put the inputs on the address lines and the stored bit comes out. Any Boolean function of six inputs is therefore just a 64-bit pattern, and compiling a design means turning gates into those patterns, deciding which tile holds each one, and routing wires between the tiles. In this lab you type a Boolean expression or a small Verilog module and watch each of those steps happen.</p>
+<p>Nothing here is canned animation. A parser, a gate synthesizer, a LUT6 mapper, a simulated-annealing placer, a PathFinder router and a static timing analyzer run in the browser on whatever you type. The last tab turns the placer into an opponent: you and the annealer start from the same scrambled layout, and you place the cells by hand against its 40-second schedule. The delays are illustrative, in the range of a 16 nm-class FPGA, so read the ratios rather than the nanoseconds. For the ASIC version of the same journey, see the <a href="../pnr-command-lab/">PnR Command Lab</a>.</p>
+</div>
+
+<p class="lab-open"><a href="../../simulations/inside-the-lut/">Open the simulator full screen</a>. On a phone, that works better than the embedded view below.</p>
+<div class="lab-embed">
+<iframe src="../../simulations/inside-the-lut/" title="Inside the LUT: interactive FPGA compile flow from gates to LUT contents, placement, routing and timing" loading="lazy"></iframe>
+</div>
+
+<div class="prose">
+<p>Things to try:</p>
+<ul>
+<li>Press Compile and play all stages on the default 4-bit adder. Synthesis turns <code>a + b + cin</code> into 26 gates (12 XOR, 11 AND, 3 OR) at a logic depth of 8, from 9 inputs to 5 outputs.</li>
+<li>On the LUT mapping tab those 26 gates become 8 LUTs, three levels deep. Select L8, which drives <code>cout</code>. It uses 4 of its 6 inputs (a[3], b[3] and the outputs of L2 and L6), so its contents repeat every 16 bits: <code>64'h7EE8_7EE8_7EE8_7EE8</code>. Click a bit, or toggle I0 to I5, to read the table at any address. The gates are gone; what is left is memory.</li>
+<li>Logic is copied, not shared. 12 of the adder's 26 gates end up inside more than one LUT. A LUT is always 64 bits, so logic that fits inside it is free, and copying a shared gate into a second LUT costs nothing as long as that LUT still has six or fewer inputs. A mapper that instead made every gate with more than one fanout its own LUT would need 18 LUTs for this adder rather than 8, and 23 for the 8-bit adder rather than 12, with the longest LUT chain growing from 3 to 5 levels and from 4 to 8.</li>
+<li>Type <code>y = (a ^ b) &amp; (c | ~d) | e'f</code>. Seven gates, six inputs, one LUT: it exactly fills a LUT6. Then try the majority vote, <code>y = a&amp;b | b&amp;c | a&amp;c</code>. It uses only three inputs, so the table repeats: <code>64'hE8E8_E8E8_E8E8_E8E8</code> is the 8-bit pattern 11101000 written eight times.</li>
+<li>The 8:1 mux has 7 mux gates and 11 inputs, and maps to 3 LUTs: two 4:1 muxes that each use all six inputs, and a 2:1 mux to choose between them. 12-bit parity is 11 XOR gates and also needs 3 LUTs, in a chain of three levels.</li>
+<li>On Placement, press Anneal from random. On the 4-bit adder's 4 × 4 array of logic sites, a random layout has a total half-perimeter wirelength of 71 to 97 tiles, median 84. Annealing brings it to 46 to 51, median 48 (40 seeded runs). Switch off Auto-cool and drag Temperature by hand: high values keep the layout scrambled, and values near zero freeze it wherever it happens to be.</li>
+<li>On Routing, the page finds the smallest channel width that routes. For the 4-bit adder that was 2 tracks per channel in all 40 runs, and PathFinder needed 4 to 15 iterations (median 7) to get there, with the chart on the right showing overused channels falling each iteration. Set Channel width to 1 and press Route again: in all 40 runs the router gave up after 45 iterations with 21 to 38 channels still overused.</li>
+<li>On Timing, the adder's critical path ranged from 3.4 to 6.1 ns across the 40 placements, median 4.4. Of that, 1.25 ns is fixed (input and output buffers at 0.45 and 0.80 ns), 0.24 to 0.36 ns is LUT delay (two or three LUTs at 0.12 ns each) and the remaining 1.8 to 4.6 ns is routing. Switch to Wires cost 0 ns and the path drops to 1.61 ns every time. Routing is 52 to 75% of the critical path, in a circuit where the LUTs do all the logic.</li>
+<li>The same netlist, mapped to the same 8 LUTs, lands anywhere in that 2.7 ns spread depending on where the placer puts them. Press Anneal from random again, route, and compare. Placement quality moves the delay as much as the logic does.</li>
+<li>On Race, start the race and drag a cell onto another site to move it; dropping on an occupied site swaps them. In test races on the 4-bit adder the annealer finished at 47 to 50 tiles of wire. When the race ends you can route either layout, yours or the annealer's, and see how placement quality carries through to congestion and delay. A good rule: put each LUT near the pads and LUTs it talks to.</li>
+<li>Type your own design. Boolean mode takes <code>a'b + c</code>, <code>a ^ b</code> and one <code>name = expression</code> per line. Verilog mode takes one module of <code>assign</code> statements, with vectors, concatenation, <code>+</code> and <code>-</code>, comparisons and <code>?:</code>. Ctrl or Cmd with Enter compiles and plays. Registers, <code>always</code> blocks, parameters and <code>*</code> are rejected with a message saying what to write instead. The limits are 64 input bits, 900 gates and 160 LUTs.</li>
+</ul>
+<p>This is an educational model, not a vendor tool. The delays are illustrative (LUT 0.12 ns, 0.135 ns per routing segment, I/O buffers 0.45 and 0.80 ns). There is one LUT per logic site where a real slice packs four to eight, and there are no registers, clocks or carry chains, so every design is pure combinational logic. The annealer follows the VPR style and the router is PathFinder, but both are small versions running on a simple channel graph rather than a real device's mix of wire lengths and switch types. Run to run, the annealer is random, so the placement and timing figures above are ranges, not single answers.</p>
+</div>
+</article>
+</main>
+
+<footer class="site-foot">
+<p>Written by Vijay. Built with plain HTML, CSS, and JavaScript.</p>
+<p><a href="../../">Back to all posts</a></p>
+</footer>
+</body>
+</html>

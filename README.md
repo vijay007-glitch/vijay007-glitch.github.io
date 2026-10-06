@@ -27,8 +27,9 @@ posts/light-painter/index.html
 simulations/light-painter/     Light Painter: one self-contained page (built from light-painter-src/), plus thumb.png
 light-painter-src/             Light Painter source, tests and build.py. Not linked from the site.
                                Rebuild: python build.py, then copy dist/index.html to simulations/light-painter/
-simulations/inside-the-lut/    Inside the LUT: one self-contained page (built from inside-the-lut-src/), plus thumb.png.
-                               Linked from the home page directly, with no post page
+posts/inside-the-lut/index.html
+                               Blog post that embeds Inside the LUT
+simulations/inside-the-lut/    Inside the LUT: one self-contained page (built from inside-the-lut-src/), plus thumb.png
 inside-the-lut-src/            Inside the LUT source, test.js and build.py. Not linked from the site.
                                Test: node test.js. Rebuild: python build.py, then copy dist/index.html to simulations/inside-the-lut/
 assets/css/style.css           Shared styles (light and dark mode)
