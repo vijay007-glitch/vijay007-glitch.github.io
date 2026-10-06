@@ -1,0 +1,1826 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Light Painter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: lithography-bay console. Header + level strip; bench = [reticle | wafer] viewports with the scorecard under them; control rack on the right (stacks below on narrow screens). */
+:root {
+  --bg: #e8ebef;
+  --surface: #f8f9fb;
+  --surface-2: #eef1f5;
+  --line: #cdd3dc;
+  --fg: #141820;
+  --muted: #586271;
+  --accent: #b46a00;
+  --accent-strong: #8c5200;
+  --accent-soft: #f4e2bf;
+  --on-accent: #1b1204;
+  --euv: #5f43cc;
+  --ok: #0f7f55;
+  --warn: #9a6200;
+  --bad: #c03434;
+  --vp: #0c0e12;
+  --vp-2: #14171d;
+  --vp-line: #262b34;
+  --vp-fg: #e1e5ec;
+  --vp-muted: #8d96a5;
+  --f-display: "Big Shoulders Display", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1014; --surface: #161920; --surface-2: #1c2028; --line: #2a303a; --fg: #e7eaef; --muted: #98a1ae;
+    --accent: #f0a83a; --accent-strong: #ffc46b; --accent-soft: #3a2a10; --on-accent: #1b1204; --euv: #a68cff;
+    --ok: #3cd29b; --warn: #f2c94c; --bad: #f47b7b; --vp: #0a0c10; --vp-2: #12151b; --vp-line: #252a33;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1014; --surface: #161920; --surface-2: #1c2028; --line: #2a303a; --fg: #e7eaef; --muted: #98a1ae;
+  --accent: #f0a83a; --accent-strong: #ffc46b; --accent-soft: #3a2a10; --on-accent: #1b1204; --euv: #a68cff;
+  --ok: #3cd29b; --warn: #f2c94c; --bad: #f47b7b; --vp: #0a0c10; --vp-2: #12151b; --vp-line: #252a33;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 400 14px/1.5 var(--f-body); }
+.page { max-width: 1320px; margin: 0 auto; padding-inline: 20px; padding-block: 18px 40px; display: grid; gap: 16px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- header ---------- */
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+.brand { display: grid; gap: 4px; min-width: 0; }
+.brand h1 { font: 800 clamp(34px, 4.4vw, 50px)/0.9 var(--f-display); letter-spacing: 0.01em; text-transform: uppercase; }
+.brand h1 span { color: var(--accent); }
+.brand p { color: var(--muted); max-width: 62ch; }
+.status { font: 500 11.5px/1.4 var(--f-mono); color: var(--muted); letter-spacing: 0.02em; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.status b { color: var(--fg); font-weight: 600; }
+.status .euv { color: var(--euv); }
+.top-right { display: grid; gap: 8px; justify-items: end; }
+
+/* ---------- segmented controls & buttons ---------- */
+.seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; }
+.seg button { border: 0; background: transparent; padding: 6px 11px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 13px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.seg button:hover { color: var(--fg); }
+.seg button[aria-checked="true"], .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.seg button small { font: 400 11px var(--f-mono); opacity: 0.8; }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 6px 11px; border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { border-color: var(--muted); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn.ghost { background: transparent; }
+
+/* ---------- levels ---------- */
+.levelbar { display: grid; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+.levels { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
+.lvl { flex: 0 0 auto; display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; column-gap: 8px; align-items: center; text-align: left; border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 6px 12px 6px 9px; cursor: pointer; }
+.lvl .n { grid-row: 1 / 3; font: 800 26px/1 var(--f-display); color: var(--muted); }
+.lvl .nm { font-weight: 600; font-size: 13px; white-space: nowrap; }
+.lvl .st { font-size: 11px; letter-spacing: 1px; color: var(--muted); }
+.lvl .st .on { color: var(--accent); }
+.lvl[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.lvl[aria-current="true"] .n { color: var(--accent); }
+.brief { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 20px; align-items: start; }
+.brief h2 { font: 800 26px/1 var(--f-display); text-transform: uppercase; letter-spacing: 0.02em; }
+.brief .txt { display: grid; gap: 6px; min-width: 0; }
+.brief p { max-width: 78ch; }
+.brief .goal { color: var(--muted); font-size: 13px; }
+.brief .hint { font-size: 13px; border-left: 3px solid var(--accent); padding-left: 10px; }
+.brief .actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+#solBtn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-soft); }
+
+/* ---------- solution reveal ---------- */
+.solution { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px 22px; align-items: start; padding: 14px; border: 1px dashed var(--accent); border-radius: 9px; background: var(--surface-2); }
+.sol-fig { margin: 0; display: grid; gap: 8px; justify-items: start; }
+.sol-fig canvas { display: block; border-radius: 7px; max-width: 100%; }
+.sol-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 400 11px var(--f-mono); color: var(--muted); max-width: 300px; }
+.sol-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.sol-legend .k-keep { background: #f3e2b8; border: 1px solid var(--line); }
+.sol-legend .k-add { background: #ffad2a; }
+.sol-legend .k-cut { background: repeating-linear-gradient(45deg, #ff6b6b 0 2px, #2a1416 2px 4px); }
+.sol-legend .k-step { background: transparent; outline: 2px solid var(--fg); outline-offset: -2px; }
+.sol-body { display: grid; gap: 10px; min-width: 0; }
+.sol-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.sol-head h3 { font: 800 22px/1 var(--f-display); text-transform: uppercase; letter-spacing: 0.04em; }
+.sol-result { font: 600 13px var(--f-mono); font-variant-numeric: tabular-nums; color: var(--ok); }
+.sol-why { max-width: 72ch; font-size: 13.5px; }
+.sol-steps { margin: 0; padding-left: 22px; display: grid; gap: 4px; max-width: 78ch; }
+.sol-steps li { padding: 5px 8px; border-radius: 6px; font-size: 13.5px; cursor: default; }
+.sol-steps li::marker { font: 600 13px var(--f-mono); color: var(--accent-strong); }
+.sol-steps li:hover, .sol-steps li:focus-visible, .sol-steps li.on { background: var(--accent-soft); }
+.sol-steps li small { display: block; color: var(--muted); font-size: 12.5px; }
+.sol-apply { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.sandbox-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sandbox-tools select { border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 6px 8px; font-size: 13px; }
+
+/* ---------- bench ---------- */
+.bench { display: grid; grid-template-columns: minmax(0, 1fr) 344px; gap: 16px; align-items: start; }
+.main { display: grid; gap: 16px; min-width: 0; }
+.views { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.vp { margin: 0; background: var(--vp); border-radius: var(--radius); overflow: hidden; display: grid; grid-template-rows: auto auto 1fr; color: var(--vp-fg); min-width: 0; border: 1px solid var(--vp-line); }
+.vp-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; min-height: 60px; border-bottom: 1px solid var(--vp-line); flex-wrap: wrap; }
+.vp-title { font: 800 18px/1 var(--f-display); letter-spacing: 0.08em; text-transform: uppercase; }
+.vp-sub { font: 400 11.5px var(--f-mono); color: var(--vp-muted); }
+.vp-head .grow { flex: 1; }
+.vp-canvas { position: relative; aspect-ratio: 1 / 1; max-width: 100%; }
+.vp-canvas canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+#maskCanvas { cursor: crosshair; }
+.vp-tools { display: flex; flex-wrap: wrap; gap: 6px; padding: 9px 10px; border-top: 1px solid var(--vp-line); background: var(--vp-2); align-items: center; }
+.vp .seg { background: var(--vp); border-color: var(--vp-line); }
+.vp .seg button { color: var(--vp-muted); }
+.vp .seg button:hover { color: var(--vp-fg); }
+.vp .seg button[aria-checked="true"], .vp .seg button[aria-pressed="true"] { background: #f0a83a; color: #1b1204; }
+.vp .btn { background: var(--vp); border-color: var(--vp-line); color: var(--vp-fg); }
+.vp .btn:hover { border-color: var(--vp-muted); }
+.vp .btn.opc { border-color: #8a6a2c; color: #ffc46b; }
+.vp .sep { width: 1px; align-self: stretch; background: var(--vp-line); margin-inline: 2px; }
+.brush-sq { display: inline-block; background: currentColor; border-radius: 1px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 400 11.5px var(--f-mono); color: var(--vp-muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+/* ---------- readout ---------- */
+.readout { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 14px 24px; }
+.verdict-row { display: flex; gap: 14px; align-items: center; }
+.stars { font-size: 26px; letter-spacing: 2px; line-height: 1; color: var(--line); white-space: nowrap; }
+.stars .on { color: var(--accent); }
+.verdict { display: grid; gap: 4px; min-width: 0; }
+.verdict strong { font-size: 15px; }
+.verdict span { color: var(--muted); font-size: 13px; }
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 12px 0 0; }
+.metrics div { display: grid; gap: 2px; }
+.metrics dt { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.metrics dd { margin: 0; font: 600 20px/1.1 var(--f-mono); font-variant-numeric: tabular-nums; }
+.metrics .sub { font: 400 11.5px var(--f-mono); color: var(--muted); }
+.spec { margin-top: 10px; font: 400 11.5px var(--f-mono); color: var(--muted); }
+.hot-h { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 6px; }
+.hotspots { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.hotspots li { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 7px; background: var(--surface-2); cursor: default; }
+.hotspots li:hover { outline: 1px solid var(--line); }
+.hotspots .dot { width: 8px; height: 8px; border-radius: 50%; }
+.hotspots .what { font-size: 13px; }
+.hotspots .what small { color: var(--muted); display: block; font-size: 11.5px; }
+.hotspots .v { font: 600 13px var(--f-mono); font-variant-numeric: tabular-nums; }
+.sev-ok { background: var(--ok); } .sev-warn { background: var(--warn); } .sev-bad { background: var(--bad); }
+.c-ok { color: var(--ok); } .c-warn { color: var(--warn); } .c-bad { color: var(--bad); }
+.mismatch { margin-top: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+
+/* ---------- rack ---------- */
+.rack { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); display: grid; }
+.rack section { padding: 14px 16px; display: grid; gap: 10px; border-top: 1px solid var(--line); }
+.rack section:first-child { border-top: 0; }
+.rack h3 { font: 800 17px/1 var(--f-display); letter-spacing: 0.08em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: baseline; }
+.rack h3 small { font: 400 11px var(--f-mono); letter-spacing: 0; text-transform: none; color: var(--muted); }
+.field { display: grid; gap: 5px; }
+.field label, .field .label { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; font-weight: 500; }
+.field output { font: 600 13px var(--f-mono); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--accent); margin: 2px 0; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--line); background: var(--surface-2); border-radius: 999px; padding: 2px 10px; font: 500 12px var(--f-mono); cursor: pointer; }
+.chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-soft); }
+.k1-scale { position: relative; height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.k1-scale .bad { position: absolute; inset: 0 auto 0 0; background: var(--bad); opacity: 0.55; }
+.k1-scale .warn { position: absolute; top: 0; bottom: 0; background: var(--warn); opacity: 0.45; }
+.k1-legend { position: relative; height: 14px; font: 400 11px var(--f-mono); color: var(--muted); }
+.k1-legend span { position: absolute; top: 0; white-space: nowrap; transform: translateX(-50%); }
+.k1-legend span:first-child { transform: none; }
+.derived { font-size: 12.5px; color: var(--muted); }
+.derived b { color: var(--fg); font: 600 13px var(--f-mono); }
+.note { font-size: 12.5px; border-radius: 7px; padding: 7px 9px; background: var(--accent-soft); color: var(--fg); }
+.note.bad { background: color-mix(in srgb, var(--bad) 16%, transparent); }
+.illum { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; align-items: center; }
+.illum canvas { width: 112px; height: 112px; }
+.shapes { display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; }
+.shapes button { border: 1px solid var(--line); background: var(--surface-2); border-radius: 7px; padding: 3px 8px; font-size: 12.5px; white-space: nowrap; display: flex; gap: 6px; align-items: center; cursor: pointer; text-align: left; }
+.shapes button svg { flex: 0 0 auto; }
+.shapes button[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.bossung { position: relative; aspect-ratio: 16 / 10; max-width: 100%; }
+.bossung canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.dof { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; align-items: center; }
+.dof .big { font: 600 24px/1 var(--f-mono); font-variant-numeric: tabular-nums; }
+.dof span { font-size: 12px; color: var(--muted); }
+.tgroup { display: grid; gap: 4px; }
+.tg-h { font-size: 12px; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.tg-h small { font-weight: 400; color: var(--muted); }
+.trow { display: grid; grid-template-columns: 96px minmax(0, 1fr) 64px; gap: 8px; align-items: center; font-size: 12.5px; }
+.trow .track { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.trow .track i { display: block; height: 100%; border-radius: 4px; background: var(--muted); opacity: 0.6; }
+.trow.euv .track i { background: var(--euv); opacity: 0.7; }
+.trow.cur span:first-child { color: var(--accent-strong); font-weight: 600; }
+.trow.cur .track i { background: var(--accent); opacity: 1; }
+.trow b { font: 500 12px var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.small { font-size: 12.5px; color: var(--muted); }
+
+/* ---------- footer ---------- */
+.about { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 16px; }
+.about summary { cursor: pointer; padding: 10px 0; font-weight: 600; }
+.about .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 28px; padding-bottom: 14px; }
+.about h4 { margin: 0 0 4px; font-size: 13px; }
+.about p { font-size: 13px; color: var(--muted); max-width: 62ch; }
+.foot { font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 16px; justify-content: space-between; }
+.foot a { color: var(--accent-strong); }
+
+@media (max-width: 1120px) {
+  .bench { grid-template-columns: minmax(0, 1fr); }
+  .rack { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rack section:nth-child(2) { border-top: 0; border-left: 1px solid var(--line); }
+  .rack section:nth-child(4) { border-left: 1px solid var(--line); }
+}
+@media (max-width: 760px) {
+  .page { padding-inline: 16px; }
+  .views { grid-template-columns: minmax(0, 1fr); }
+  .readout { grid-template-columns: minmax(0, 1fr); }
+  .rack { grid-template-columns: minmax(0, 1fr); }
+  .rack section:nth-child(2), .rack section:nth-child(4) { border-left: 0; border-top: 1px solid var(--line); }
+  .brief { grid-template-columns: minmax(0, 1fr); }
+  .brief .actions { justify-content: flex-start; }
+  .solution { grid-template-columns: minmax(0, 1fr); }
+  .top-right { justify-items: start; }
+  .metrics dd { font-size: 17px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="top">
+    <div class="brand">
+      <h1>Light <span>Painter</span></h1>
+      <p>Paint a photomask, expose it, and watch what prints. Corners round off and line ends pull back. Your job is the inverse problem: design the mask that prints the shape you want.</p>
+    </div>
+    <div class="top-right">
+      <div class="seg" role="radiogroup" aria-label="Mode" id="modeSeg">
+        <button role="radio" data-mode="puzzle" aria-checked="true">OPC puzzle</button>
+        <button role="radio" data-mode="sandbox" aria-checked="false">Sandbox</button>
+      </div>
+      <div class="status" id="status" aria-live="off"></div>
+    </div>
+  </header>
+
+  <section class="levelbar" aria-label="Level">
+    <nav class="levels" id="levels" aria-label="Puzzle levels"></nav>
+    <div class="brief">
+      <div class="txt">
+        <h2 id="lvlName">Corner rounding</h2>
+        <p id="lvlBrief"></p>
+        <p class="goal" id="lvlGoal"></p>
+        <p class="hint" id="lvlHint" hidden></p>
+        <div class="sandbox-tools" id="sandboxTools" hidden>
+          <label for="preset" class="small">Preset</label>
+          <select id="preset">
+            <option value="dense">Dense lines with ends</option>
+            <option value="contacts">Contact array</option>
+            <option value="logic">Logic cell snippet</option>
+            <option value="letters">Letters “LP”</option>
+            <option value="blank">Blank field</option>
+          </select>
+          <button class="btn" id="setTarget">Set mask as target</button>
+          <button class="btn" id="pickSite" aria-pressed="false">Pick CD site</button>
+        </div>
+      </div>
+      <div class="actions" id="briefActions">
+        <button class="btn" id="hintBtn">Show hint</button>
+        <button class="btn" id="solBtn" aria-expanded="false" aria-controls="solution">Show solution</button>
+        <button class="btn" id="nextBtn">Next level →</button>
+      </div>
+    </div>
+    <div class="solution" id="solution" hidden>
+      <figure class="sol-fig">
+        <canvas id="solCanvas" role="img" aria-label="Solution mask diagram"></canvas>
+        <figcaption class="sol-legend">
+          <span><i class="k-keep"></i>target kept</span><span><i class="k-add"></i>added</span><span><i class="k-cut"></i>erased</span><span><i class="k-step"></i>step</span>
+        </figcaption>
+      </figure>
+      <div class="sol-body">
+        <div class="sol-head"><h3>Solution</h3><span class="sol-result" id="solResult"></span></div>
+        <p class="sol-why" id="solWhy"></p>
+        <ol class="sol-steps" id="solSteps"></ol>
+        <div class="sol-apply">
+          <button class="btn primary" id="solApply">Paint it onto the reticle</button>
+          <span class="small">Loads as a reference, so stars aren’t recorded until you press Reset. Undo takes it back off.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="bench">
+    <div class="main">
+      <div class="views">
+        <figure class="vp" aria-label="Reticle editor">
+          <div class="vp-head">
+            <span class="vp-title">Reticle</span>
+            <span class="vp-sub">what you draw · <span id="cellNm">1 cell = 4.00 nm</span></span>
+          </div>
+          <div class="vp-canvas"><canvas id="maskCanvas" role="img" aria-label="Mask editor. Drag to paint openings that let light through."></canvas></div>
+          <div class="vp-tools">
+            <div class="seg" role="radiogroup" aria-label="Brush mode" id="paintSeg">
+              <button role="radio" data-paint="1" aria-checked="true" title="Paint (B)">Paint</button>
+              <button role="radio" data-paint="0" aria-checked="false" title="Erase (E, or right-drag)">Erase</button>
+            </div>
+            <div class="seg" role="radiogroup" aria-label="Brush size" id="brushSeg">
+              <button role="radio" data-b="1" aria-checked="true" title="1 cell (1)"><span class="brush-sq" style="width:4px;height:4px"></span>1</button>
+              <button role="radio" data-b="2" aria-checked="false" title="2 × 2 cells (2)"><span class="brush-sq" style="width:7px;height:7px"></span>2</button>
+              <button role="radio" data-b="3" aria-checked="false" title="3 × 3 cells (3)"><span class="brush-sq" style="width:10px;height:10px"></span>3</button>
+            </div>
+            <span class="sep"></span>
+            <button class="btn" id="undoBtn" title="Undo (Ctrl/⌘ Z)">Undo</button>
+            <button class="btn" id="resetBtn" title="Mask = target, no correction">Reset</button>
+            <button class="btn" id="clearBtn">Clear</button>
+            <button class="btn opc" id="opcBtn" title="Model-based OPC: flips edge cells to cut the error">Auto-OPC</button>
+          </div>
+        </figure>
+        <figure class="vp" aria-label="Wafer view">
+          <div class="vp-head">
+            <span class="vp-title">Wafer</span>
+            <span class="vp-sub">what prints</span>
+            <span class="grow"></span>
+            <div class="seg" role="radiogroup" aria-label="Wafer view" id="viewSeg">
+              <button role="radio" data-view="resist" aria-checked="true">Resist</button>
+              <button role="radio" data-view="aerial" aria-checked="false">Aerial image</button>
+            </div>
+          </div>
+          <div class="vp-canvas"><canvas id="waferCanvas" role="img" aria-label="Printed resist pattern"></canvas></div>
+          <div class="vp-tools">
+            <div class="legend" id="legend"></div>
+          </div>
+        </figure>
+      </div>
+
+      <section class="readout" aria-label="Scorecard">
+        <div>
+          <div class="verdict-row">
+            <div class="stars" id="stars" aria-label="Stars"><span>★</span><span>★</span><span>★</span></div>
+            <div class="verdict"><strong id="verdictMain"></strong><span id="verdictSub"></span></div>
+          </div>
+          <dl class="metrics">
+            <div><dt>Worst edge error</dt><dd id="mWorst">–</dd><span class="sub" id="mWorstSub"></span></div>
+            <div><dt>RMS edge error</dt><dd id="mRms">–</dd><span class="sub" id="mRmsSub"></span></div>
+            <div><dt>OPC edits</dt><dd id="mCells">0</dd><span class="sub" id="mCellsSub">cells vs target</span></div>
+          </dl>
+          <p class="spec" id="specLine"></p>
+          <div class="mismatch" id="mismatch" hidden>
+            <span>You changed the optics, so stars are paused. Explore freely.</span>
+            <button class="btn" id="restoreBtn">Restore level optics</button>
+          </div>
+        </div>
+        <div>
+          <div class="hot-h">Hotspots · worst first</div>
+          <ul class="hotspots" id="hotspots"></ul>
+        </div>
+      </section>
+    </div>
+
+    <aside class="rack" aria-label="Exposure controls">
+      <section aria-labelledby="hScanner">
+        <h3 id="hScanner">Scanner <small id="rayleigh">R = k1·λ/NA</small></h3>
+        <div class="field">
+          <span class="label">Wavelength</span>
+          <div class="seg" role="radiogroup" aria-label="Wavelength" id="toolSeg">
+            <button role="radio" data-tool="arf" aria-checked="false">193 nm <small>ArF immersion</small></button>
+            <button role="radio" data-tool="euv" aria-checked="true">13.5 nm <small>EUV</small></button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="na">Numerical aperture <output id="naOut" for="na">0.33</output></label>
+          <input type="range" id="na" min="0.25" max="0.6" step="0.01" value="0.33">
+          <div class="chips" id="naChips"></div>
+        </div>
+        <div class="field">
+          <label for="k1">k1 factor <output id="k1Out" for="k1">0.39</output></label>
+          <input type="range" id="k1" min="0.1" max="1" step="0.01" value="0.39">
+          <div class="k1-scale" aria-hidden="true"><span class="bad" style="width:16.7%"></span><span class="warn" style="left:16.7%;width:5.6%"></span></div>
+          <div class="k1-legend" aria-hidden="true"><span style="left:0">0.10</span><span style="left:16.7%;transform:none">0.25 limit</span><span style="left:44.4%">0.50</span><span style="left:100%;transform:translateX(-100%)">1.00</span></div>
+          <p class="derived">Feature CD <b id="cdOut">16.0 nm</b> · λ/NA <b id="lnaOut">40.9 nm</b></p>
+          <p class="note" id="toolNote" hidden></p>
+        </div>
+      </section>
+
+      <section aria-labelledby="hIllum">
+        <h3 id="hIllum">Illumination <small>source shape in the pupil</small></h3>
+        <div class="illum">
+          <canvas id="pupil" width="224" height="224" aria-label="Illumination pupil diagram"></canvas>
+          <div class="shapes" role="radiogroup" aria-label="Illumination shape" id="shapeSeg"></div>
+        </div>
+        <div class="field">
+          <label for="sigma">σ, outer radius <output id="sigmaOut" for="sigma">0.60</output></label>
+          <input type="range" id="sigma" min="0.2" max="1" step="0.01" value="0.6">
+        </div>
+      </section>
+
+      <section aria-labelledby="hDose">
+        <h3 id="hDose">Dose &amp; focus <small id="zrNote"></small></h3>
+        <div class="field">
+          <label for="dose">Dose <output id="doseOut" for="dose">1.00×</output></label>
+          <input type="range" id="dose" min="0.4" max="2.5" step="0.01" value="1">
+          <div class="row"><button class="btn" id="dtsBtn" title="Set dose so the CD site prints on size">Dose to size</button><span class="small">resist prints above 30% of clear-field light</span></div>
+        </div>
+        <div class="field">
+          <label for="focus">Focus offset <output id="focusOut" for="focus">0 nm</output></label>
+          <input type="range" id="focus" min="-200" max="200" step="1" value="0">
+        </div>
+        <div class="bossung"><canvas id="bossung" aria-label="Bossung plot: printed CD versus focus"></canvas></div>
+        <div class="dof">
+          <div class="big" id="dofOut">–</div>
+          <span id="dofSub">depth of focus: CD at the site stays within ±10%</span>
+        </div>
+      </section>
+
+      <section aria-labelledby="hTrade">
+        <h3 id="hTrade">The High-NA trade-off</h3>
+        <p class="small">Resolution scales with λ/NA. Depth of focus scales with λ/NA². Raising NA buys the first and pays with the second.</p>
+        <div class="tgroup"><div class="tg-h">Resolution scale, λ/NA <small>smaller prints finer</small></div><div id="tradeRes"></div></div>
+        <div class="tgroup"><div class="tg-h">Focus scale, λ/NA² <small>larger is more forgiving</small></div><div id="tradeDof"></div></div>
+        <p class="small" id="tradeNote"></p>
+      </section>
+    </aside>
+  </div>
+
+  <details class="about">
+    <summary>How the model works</summary>
+    <div class="cols">
+      <div><h4>Imaging</h4><p>Abbe's method. The illumination is split into 14 to 49 source points. Each one lights the mask from a slightly different angle, the projection lens passes only the spatial frequencies inside its pupil (radius NA/λ), and the intensities from all source points add up. That is why the illumination shape matters: off-axis light lets a dense grating's first diffraction orders through.</p></div>
+      <div><h4>Focus</h4><p>Defocus adds the phase 2π·(z/λ)·(√(n² − NA²ρ²) − n) across the pupil, with n = 1.44 for water immersion and 1 for EUV in vacuum. The Bossung plot sweeps focus and measures the CD at the CD site for the nominal dose and ±5%.</p></div>
+      <div><h4>Resist and scoring</h4><p>Resist prints wherever dose × intensity exceeds 30% of the clear-field intensity. Edge placement error is measured at gauges spaced along every target edge, the way an OPC verification run does it. Stars use the worst gauge: ★ ≤ 25% of CD, ★★ ≤ 15%, ★★★ ≤ 10%, with no bridges, breaks or stray prints.</p></div>
+      <div><h4>What it leaves out</h4><p>Scalar, thin-mask optics on a 128 × 128 periodic grid: no polarization, no 3D mask shadowing (which matters for EUV), no flare, no resist blur or stochastics. Accurate enough to build intuition, not to tape out.</p></div>
+    </div>
+  </details>
+  <p class="foot"><span>k1 = CD · NA / λ. Every level is set on a 0.33 NA EUV scanner at 16 nm CD; switch scanners to see how the same pattern behaves.</span><a href="https://vijay007-glitch.github.io/posts/high-na-euv/" target="_top">Companion to the High-NA EUV post →</a></p>
+</div>
+
+<script>
+// Light Painter — imaging core (Abbe partially coherent imaging + threshold resist)
+// Works in the browser (window.LPCore) and in Node (module.exports).
+(function (root) {
+  'use strict';
+  const G = 64;            // design grid, cells per side
+  const UPS = 2;           // sim pixels per cell
+  const N = G * UPS;       // sim grid (128)
+  const CD_CELLS = 4;      // a level's CD is 4 cells
+  const T_RESIST = 0.3;    // resist threshold, fraction of clear-field intensity
+  const LOG2N = Math.round(Math.log2(N));
+
+  // ---------- FFT ----------
+  const rev = new Uint16Array(N);
+  for (let i = 0; i < N; i++) { let r = 0, x = i; for (let b = 0; b < LOG2N; b++) { r = (r << 1) | (x & 1); x >>= 1; } rev[i] = r; }
+  const cosT = new Float64Array(N / 2), sinT = new Float64Array(N / 2);
+  for (let i = 0; i < N / 2; i++) { cosT[i] = Math.cos(2 * Math.PI * i / N); sinT[i] = Math.sin(2 * Math.PI * i / N); }
+
+  // in-place FFT of N contiguous values starting at off; inv=true -> +i exponent (unnormalised)
+  function fft1(re, im, off, inv) {
+    for (let i = 0; i < N; i++) {
+      const j = rev[i];
+      if (j > i) { const a = off + i, b = off + j; let t = re[a]; re[a] = re[b]; re[b] = t; t = im[a]; im[a] = im[b]; im[b] = t; }
+    }
+    const sgn = inv ? 1 : -1;
+    for (let size = 2; size <= N; size <<= 1) {
+      const half = size >> 1, step = N / size;
+      for (let i = 0; i < N; i += size) {
+        for (let j = 0; j < half; j++) {
+          const k = j * step, wr = cosT[k], wi = sgn * sinT[k];
+          const a = off + i + j, b = a + half;
+          const xr = re[b] * wr - im[b] * wi, xi = re[b] * wi + im[b] * wr;
+          re[b] = re[a] - xr; im[b] = im[a] - xi; re[a] += xr; im[a] += xi;
+        }
+      }
+    }
+  }
+
+  const colRe = new Float64Array(N), colIm = new Float64Array(N);
+  function fft2(re, im, inv) {
+    for (let y = 0; y < N; y++) fft1(re, im, y * N, inv);
+    for (let x = 0; x < N; x++) {
+      for (let y = 0; y < N; y++) { colRe[y] = re[y * N + x]; colIm[y] = im[y * N + x]; }
+      fft1(colRe, colIm, 0, inv);
+      for (let y = 0; y < N; y++) { re[y * N + x] = colRe[y]; im[y * N + x] = colIm[y]; }
+    }
+  }
+
+  // ---------- mask spectrum ----------
+  const sincT = new Float64Array(N);
+  for (let k = 0; k < N; k++) { const f = (k < N / 2 ? k : k - N) / N; sincT[k] = f === 0 ? 1 : Math.sin(Math.PI * f) / (Math.PI * f); }
+
+  function maskSpectrum(mask) { // mask: Uint8Array G*G
+    const re = new Float64Array(N * N), im = new Float64Array(N * N);
+    for (let y = 0; y < N; y++) {
+      const cy = y >> 1;
+      for (let x = 0; x < N; x++) re[y * N + x] = mask[cy * G + (x >> 1)];
+    }
+    fft2(re, im, false);
+    const s = 1 / (N * N);
+    for (let ky = 0; ky < N; ky++) for (let kx = 0; kx < N; kx++) {
+      const i = ky * N + kx, f = sincT[kx] * sincT[ky] * s;
+      re[i] *= f; im[i] *= f;
+    }
+    return { re, im };
+  }
+
+  // ---------- illumination ----------
+  // Point lists in sigma units (fraction of pupil radius). Sampling scales continuously with sigma.
+  function sourcePoints(shape, sigma) {
+    const pts = [];
+    const add = (sx, sy, w) => pts.push({ sx, sy, w });
+    if (shape === 'conventional') {
+      const K = 3, ms = [1, 10, 16];
+      for (let k = 0; k < K; k++) {
+        const b0 = sigma * k / K, b1 = sigma * (k + 1) / K;
+        const area = Math.PI * (b1 * b1 - b0 * b0);
+        if (k === 0) { add(0, 0, area); continue; }
+        const rho = (b0 + b1) / 2, m = ms[k];
+        for (let j = 0; j < m; j++) { const th = 2 * Math.PI * (j + 0.5 * (k % 2)) / m; add(rho * Math.cos(th), rho * Math.sin(th), area / m); }
+      }
+    } else if (shape === 'annular') {
+      const so = sigma, si = Math.max(0, sigma - 0.3), ms = [16, 20];
+      for (let k = 0; k < 2; k++) {
+        const b0 = si + (so - si) * k / 2, b1 = si + (so - si) * (k + 1) / 2;
+        const area = Math.PI * (b1 * b1 - b0 * b0), rho = (b0 + b1) / 2, m = ms[k];
+        for (let j = 0; j < m; j++) { const th = 2 * Math.PI * (j + 0.5 * k) / m; add(rho * Math.cos(th), rho * Math.sin(th), area / m); }
+      }
+    } else { // dipole-x, dipole-y, quadrupole
+      const pr = 0.18, c = Math.max(pr, sigma - pr);
+      let centers;
+      if (shape === 'dipole-x') centers = [[c, 0], [-c, 0]];
+      else if (shape === 'dipole-y') centers = [[0, c], [0, -c]];
+      else { const d = c / Math.SQRT2; centers = [[d, d], [-d, d], [-d, -d], [d, -d]]; }
+      for (const [cx, cy] of centers) {
+        const a0 = Math.PI * Math.pow(pr * 0.45, 2), a1 = Math.PI * pr * pr - a0;
+        add(cx, cy, a0);
+        for (let j = 0; j < 6; j++) { const th = 2 * Math.PI * j / 6; add(cx + 0.68 * pr * Math.cos(th), cy + 0.68 * pr * Math.sin(th), a1 / 6); }
+      }
+    }
+    const tot = pts.reduce((a, p) => a + p.w, 0);
+    pts.forEach(p => { p.w /= tot; });
+    return pts;
+  }
+  // fold +s/-s pairs together (valid at best focus for a real mask and a symmetric pupil)
+  function halfSource(pts) {
+    const out = [];
+    for (const p of pts) {
+      const m = out.find(q => Math.abs(q.sx + p.sx) < 1e-9 && Math.abs(q.sy + p.sy) < 1e-9 && !(Math.abs(q.sx) < 1e-12 && Math.abs(q.sy) < 1e-12));
+      if (m) m.w += p.w; else out.push({ sx: p.sx, sy: p.sy, w: p.w });
+    }
+    return out;
+  }
+
+  // ---------- aerial image ----------
+  const bufRe = new Float64Array(N * N), bufIm = new Float64Array(N * N);
+  // opts: { r: pupil radius in bins, src: points, z: defocus nm, lambda, n, NA }
+  function aerial(spec, opts, out) {
+    out = out || new Float32Array(N * N);
+    out.fill(0);
+    const r = opts.r, defocus = opts.z && Math.abs(opts.z) > 1e-9;
+    const src = defocus ? opts.src : halfSource(opts.src);
+    const zl = defocus ? opts.z / opts.lambda : 0, n = opts.n || 1, NA = opts.NA;
+    const rows = new Int32Array(N);
+    for (const p of src) {
+      const cx = -p.sx * r, cy = -p.sy * r;
+      const y0 = Math.ceil(cy - r - 0.5), y1 = Math.floor(cy + r + 0.5);
+      const x0 = Math.ceil(cx - r - 0.5), x1 = Math.floor(cx + r + 0.5);
+      let nRows = 0;
+      for (let ky = y0; ky <= y1; ky++) {
+        const row = ((ky % N) + N) % N, gy = ky - cy;
+        let any = false;
+        for (let kx = x0; kx <= x1; kx++) {
+          const gx = kx - cx, g = Math.sqrt(gx * gx + gy * gy);
+          let a = r + 0.5 - g; if (a <= 0) continue; if (a > 1) a = 1;
+          const idx = row * N + (((kx % N) + N) % N);
+          let mr = spec.re[idx] * a, mi = spec.im[idx] * a;
+          if (defocus) {
+            let u = g / r; if (u > 1) u = 1;
+            const ph = 2 * Math.PI * zl * (Math.sqrt(n * n - u * u * NA * NA) - n);
+            const c = Math.cos(ph), s = Math.sin(ph);
+            const t = mr * c - mi * s; mi = mr * s + mi * c; mr = t;
+          }
+          bufRe[idx] = mr; bufIm[idx] = mi; any = true;
+        }
+        if (any) rows[nRows++] = row;
+      }
+      for (let k = 0; k < nRows; k++) fft1(bufRe, bufIm, rows[k] * N, true);
+      const w = p.w;
+      for (let x = 0; x < N; x++) {
+        colRe.fill(0); colIm.fill(0);
+        for (let k = 0; k < nRows; k++) { const y = rows[k], i = y * N + x; colRe[y] = bufRe[i]; colIm[y] = bufIm[i]; }
+        fft1(colRe, colIm, 0, true);
+        for (let y = 0; y < N; y++) out[y * N + x] += w * (colRe[y] * colRe[y] + colIm[y] * colIm[y]);
+      }
+      for (let k = 0; k < nRows; k++) { const o = rows[k] * N; bufRe.fill(0, o, o + N); bufIm.fill(0, o, o + N); }
+    }
+    return out;
+  }
+
+  // ---------- sampling helpers ----------
+  // intensity at cell coordinates (xc, yc), bilinear, periodic
+  function sampleCell(I, xc, yc) {
+    let x = xc * UPS - 0.5, y = yc * UPS - 0.5;
+    const fx = Math.floor(x), fy = Math.floor(y), tx = x - fx, ty = y - fy;
+    const x0 = ((fx % N) + N) % N, y0 = ((fy % N) + N) % N, x1 = (x0 + 1) % N, y1 = (y0 + 1) % N;
+    return (I[y0 * N + x0] * (1 - tx) + I[y0 * N + x1] * tx) * (1 - ty) + (I[y1 * N + x0] * (1 - tx) + I[y1 * N + x1] * tx) * ty;
+  }
+
+  // ---------- target geometry: gauges ----------
+  function tget(t, x, y) { return t[(((y % G) + G) % G) * G + (((x % G) + G) % G)]; }
+  function inRois(rois, x, y) {
+    if (!rois) return true;
+    return rois.some(r => x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3]);
+  }
+  function buildGauges(target, rois) {
+    const segs = [];
+    // vertical edges at x=i between cells i-1 and i
+    for (let i = 0; i < G; i++) {
+      for (const inside of [1, -1]) { // inside=1: inside is cell i (normal -x); inside=-1: inside is cell i-1 (normal +x)
+        let j = 0;
+        while (j < G) {
+          const isEdge = jj => { const a = tget(target, i - 1, jj), b = tget(target, i, jj); return inside === 1 ? (b && !a) : (a && !b); };
+          if (!isEdge(j)) { j++; continue; }
+          const j0 = j; while (j < G && isEdge(j)) j++;
+          const inX = inside === 1 ? i : i - 1;
+          segs.push({ x: i, y: j0, tx: 0, ty: 1, L: j - j0, nx: inside === 1 ? -1 : 1, ny: 0,
+            convex0: !tget(target, inX, j0 - 1), convex1: !tget(target, inX, j) });
+        }
+      }
+    }
+    // horizontal edges at y=j between cells j-1 and j
+    for (let j = 0; j < G; j++) {
+      for (const inside of [1, -1]) {
+        let i = 0;
+        while (i < G) {
+          const isEdge = ii => { const a = tget(target, ii, j - 1), b = tget(target, ii, j); return inside === 1 ? (b && !a) : (a && !b); };
+          if (!isEdge(i)) { i++; continue; }
+          const i0 = i; while (i < G && isEdge(i)) i++;
+          const inY = inside === 1 ? j : j - 1;
+          segs.push({ x: i0, y: j, tx: 1, ty: 0, L: i - i0, nx: 0, ny: inside === 1 ? -1 : 1,
+            convex0: !tget(target, i0 - 1, inY), convex1: !tget(target, i, inY) });
+        }
+      }
+    }
+    const gauges = [];
+    for (const s of segs) {
+      let us;
+      if (s.L <= 5) us = [s.L / 2];
+      else { const m = Math.floor((s.L - 2) / 2) + 1; us = []; for (let k = 0; k < m; k++) us.push(1 + k * (s.L - 2) / (m - 1)); }
+      for (const u of us) {
+        const px = s.x + s.tx * u, py = s.y + s.ty * u;
+        let kind = 'edge';
+        if (s.L >= G) kind = 'edge';
+        else if (s.L <= 5 && s.convex0 && s.convex1) kind = 'line end';
+        else if (u <= 1.5) kind = s.convex0 ? 'corner' : 'inner corner';
+        else if (s.L - u <= 1.5) kind = s.convex1 ? 'corner' : 'inner corner';
+        gauges.push({ x: px, y: py, nx: s.nx, ny: s.ny, kind, scored: inRois(rois, px, py) });
+      }
+    }
+    return gauges;
+  }
+
+  const EPE_RANGE = 4; // cells
+  function measureGauges(I, thr, gauges) {
+    const step = 0.125, nS = Math.round(2 * EPE_RANGE / step) + 1;
+    for (const g of gauges) {
+      let best = null, prev = null, prevT = 0, eAt0 = 0;
+      const mid = (nS - 1) >> 1;
+      for (let k = 0; k < nS; k++) {
+        const t = -EPE_RANGE + k * step;
+        const e = sampleCell(I, g.x + g.nx * t, g.y + g.ny * t) - thr;
+        if (k === mid) eAt0 = e;
+        if (prev !== null && prev > 0 && e <= 0) {
+          const tc = prevT + step * prev / (prev - e);
+          if (best === null || Math.abs(tc) < Math.abs(best)) best = tc;
+        }
+        prev = e; prevT = t;
+      }
+      // no printed edge in range: either the space is filled (overprint) or the feature is gone
+      if (best === null) best = eAt0 > 0 ? EPE_RANGE : -EPE_RANGE;
+      g.epe = best;
+    }
+    return gauges;
+  }
+
+  // width of the printed feature along a cut through (ax, ay) — cells
+  function measureWidth(I, thr, ax, ay, dir) {
+    const dx = dir === 'h' ? 1 : 0, dy = dir === 'h' ? 0 : 1;
+    if (sampleCell(I, ax, ay) <= thr) return 0;
+    let w = 0;
+    for (const sgn of [1, -1]) {
+      let prev = sampleCell(I, ax, ay) - thr, t = 0, found = 16;
+      for (let k = 1; k <= 256; k++) {
+        const tt = k * 0.0625, e = sampleCell(I, ax + sgn * dx * tt, ay + sgn * dy * tt) - thr;
+        if (e <= 0) { found = t + 0.0625 * prev / (prev - e); break; }
+        prev = e; t = tt;
+      }
+      w += found;
+    }
+    return w;
+  }
+
+  function doseToSize(I, anchor, gauges) {
+    let lo = 0.2, hi = 8;
+    const f = d => {
+      const thr = T_RESIST / d;
+      if (anchor) return measureWidth(I, thr, anchor.x, anchor.y, anchor.dir) - anchor.w;
+      measureGauges(I, thr, gauges);
+      const sc = gauges.filter(g => g.scored); if (!sc.length) return 0;
+      return sc.reduce((a, g) => a + g.epe, 0) / sc.length;
+    };
+    for (let it = 0; it < 40; it++) { const m = Math.sqrt(lo * hi); if (f(m) > 0) hi = m; else lo = m; }
+    return Math.sqrt(lo * hi);
+  }
+
+  // ---------- per-pixel maps ----------
+  function targetPx(target) {
+    const t = new Uint8Array(N * N);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) t[y * N + x] = target[(y >> 1) * G + (x >> 1)];
+    return t;
+  }
+  function coverage(I, thr, out) {
+    out = out || new Float32Array(N * N);
+    for (let y = 0; y < N; y++) {
+      const ym = ((y - 1 + N) % N) * N, yp = ((y + 1) % N) * N, yo = y * N;
+      for (let x = 0; x < N; x++) {
+        const xm = (x - 1 + N) % N, xp = (x + 1) % N;
+        const gx = (I[yo + xp] - I[yo + xm]) / 2, gy = (I[yp + x] - I[ym + x]) / 2;
+        const d = (I[yo + x] - thr) / (Math.sqrt(gx * gx + gy * gy) + 1e-6);
+        out[yo + x] = d >= 0.5 ? 1 : d <= -0.5 ? 0 : 0.5 + d;
+      }
+    }
+    return out;
+  }
+
+  // periodic 4-connected labelling of a binary map
+  function label(bin) {
+    const lab = new Int32Array(N * N).fill(-1), comps = [];
+    const stack = new Int32Array(N * N);
+    for (let s = 0; s < N * N; s++) {
+      if (!bin[s] || lab[s] >= 0) continue;
+      const id = comps.length; let sp = 0, area = 0, sx = 0, sy = 0;
+      stack[sp++] = s; lab[s] = id;
+      const x0 = s % N, y0 = (s / N) | 0;
+      while (sp) {
+        const i = stack[--sp], x = i % N, y = (i / N) | 0; area++;
+        // unwrap relative to seed for a sane centroid
+        let ux = x - x0; if (ux > N / 2) ux -= N; if (ux < -N / 2) ux += N;
+        let uy = y - y0; if (uy > N / 2) uy -= N; if (uy < -N / 2) uy += N;
+        sx += ux; sy += uy;
+        const nb = [y * N + (x + 1) % N, y * N + (x - 1 + N) % N, ((y + 1) % N) * N + x, ((y - 1 + N) % N) * N + x];
+        for (const j of nb) if (bin[j] && lab[j] < 0) { lab[j] = id; stack[sp++] = j; }
+      }
+      comps.push({ area, cx: x0 + sx / area, cy: y0 + sy / area });
+    }
+    return { lab, comps };
+  }
+
+  // defect check. Returns list of {type, x, y} in cell coords.
+  function defects(I, thr, tpx) {
+    const pbin = new Uint8Array(N * N);
+    for (let i = 0; i < N * N; i++) pbin[i] = I[i] > thr ? 1 : 0;
+    const P = label(pbin), T = label(tpx);
+    const nP = P.comps.length, nT = T.comps.length;
+    const ov = new Map(); // key p*1e4+t -> count
+    const outside = P.comps.map(() => ({ n: 0, sx: 0, sy: 0 }));
+    const missedT = T.comps.map(() => ({ n: 0, sx: 0, sy: 0 }));
+    for (let i = 0; i < N * N; i++) {
+      const p = P.lab[i], t = T.lab[i];
+      if (p >= 0 && t >= 0) { const k = p * 10000 + t; ov.set(k, (ov.get(k) || 0) + 1); }
+      else if (p >= 0) { const o = outside[p]; o.n++; o.sx += i % N; o.sy += (i / N) | 0; }
+      else if (t >= 0) { const o = missedT[t]; o.n++; o.sx += i % N; o.sy += (i / N) | 0; }
+    }
+    const toCell = (x, y) => ({ x: (x + 0.5) / UPS, y: (y + 0.5) / UPS });
+    const out = [];
+    const pOf = Array.from({ length: nT }, () => []), tOf = Array.from({ length: nP }, () => []);
+    for (const [k, c] of ov) { const p = Math.floor(k / 10000), t = k % 10000; if (c >= 3) { pOf[t].push({ p, c }); tOf[p].push({ t, c }); } }
+    for (let t = 0; t < nT; t++) {
+      const tc = T.comps[t], tot = pOf[t].reduce((a, q) => a + q.c, 0);
+      if (tot < 0.25 * tc.area) out.push({ type: 'missing', ...toCell(tc.cx, tc.cy) });
+      else if (pOf[t].filter(q => q.c >= Math.max(3, 0.04 * tc.area)).length >= 2) {
+        const m = missedT[t]; out.push({ type: 'break', ...toCell(m.n ? m.sx / m.n : tc.cx, m.n ? m.sy / m.n : tc.cy) });
+      }
+    }
+    for (let p = 0; p < nP; p++) {
+      const pc = P.comps[p];
+      if (tOf[p].length >= 2) { const o = outside[p]; out.push({ type: 'bridge', ...toCell(o.n ? o.sx / o.n : pc.cx, o.n ? o.sy / o.n : pc.cy) }); }
+      else if (tOf[p].length === 0 && pc.area >= 3) out.push({ type: 'stray', ...toCell(pc.cx, pc.cy) });
+    }
+    return out;
+  }
+
+  // ---------- auto OPC (greedy, error-driven cell flipping) ----------
+  function opcStep(mask, target, cov, tpx, allowed) {
+    // per-cell score = mean (target - print) over a 4x4 px window centred on the cell
+    const score = new Float32Array(G * G);
+    for (let cy = 0; cy < G; cy++) for (let cx = 0; cx < G; cx++) {
+      let s = 0;
+      for (let dy = -1; dy <= 2; dy++) for (let dx = -1; dx <= 2; dx++) {
+        const x = (cx * 2 + dx + N) % N, y = (cy * 2 + dy + N) % N, i = y * N + x;
+        s += tpx[i] - cov[i];
+      }
+      score[cy * G + cx] = s / 16;
+    }
+    const m = (x, y) => mask[(((y % G) + G) % G) * G + (((x % G) + G) % G)];
+    const cand = [];
+    let maxS = 0;
+    for (let cy = 0; cy < G; cy++) for (let cx = 0; cx < G; cx++) {
+      const i = cy * G + cx; if (!allowed[i]) continue;
+      const on = mask[i], s = score[i];
+      if (!on && s > 0) {
+        let nb = false; for (let dy = -1; dy <= 1 && !nb; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && m(cx + dx, cy + dy)) { nb = true; break; }
+        if (nb) { cand.push([i, s]); maxS = Math.max(maxS, s); }
+      } else if (on && s < 0) {
+        const edge = !m(cx + 1, cy) || !m(cx - 1, cy) || !m(cx, cy + 1) || !m(cx, cy - 1);
+        if (edge) { cand.push([i, s]); maxS = Math.max(maxS, -s); }
+      }
+    }
+    const th = Math.max(0.1, 0.55 * maxS);
+    let flips = 0;
+    const next = mask.slice();
+    for (const [i, s] of cand) if (Math.abs(s) >= th) { next[i] = mask[i] ? 0 : 1; flips++; }
+    return { mask: next, flips };
+  }
+  // cells OPC may touch: within 3 cells outside the target, and the target's outer 1-cell skin
+  function opcAllowed(target) {
+    const a = new Uint8Array(G * G);
+    for (let y = 0; y < G; y++) for (let x = 0; x < G; x++) {
+      const i = y * G + x;
+      if (target[i]) {
+        a[i] = (!tget(target, x + 1, y) || !tget(target, x - 1, y) || !tget(target, x, y + 1) || !tget(target, x, y - 1)) ? 1 : 0;
+      } else {
+        let near = false;
+        for (let dy = -3; dy <= 3 && !near; dy++) for (let dx = -3; dx <= 3; dx++) if (tget(target, x + dx, y + dy)) { near = true; break; }
+        a[i] = near ? 1 : 0;
+      }
+    }
+    return a;
+  }
+
+  const api = { G, UPS, N, CD_CELLS, T_RESIST, EPE_RANGE, fft2, maskSpectrum, sourcePoints, halfSource, aerial, sampleCell,
+    buildGauges, measureGauges, measureWidth, doseToSize, targetPx, coverage, label, defects, opcStep, opcAllowed };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.LPCore = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+(function () {
+  'use strict';
+  const C = window.LPCore, G = C.G, N = C.N;
+  const $ = id => document.getElementById(id);
+
+  // ---------- constants ----------
+  const TOOLS = {
+    arf: { key: 'arf', label: 'ArF immersion', short: 'ArF-i', lambda: 193, n: 1.44, naMin: 0.75, naMax: 1.35, presets: [1.35], defNA: 1.35 },
+    euv: { key: 'euv', label: 'EUV', short: 'EUV', lambda: 13.5, n: 1.0, naMin: 0.25, naMax: 0.6, presets: [0.33, 0.55], defNA: 0.33 },
+  };
+  const SHAPES = [
+    ['conventional', 'Conventional'], ['annular', 'Annular'], ['dipole-x', 'Dipole X'],
+    ['dipole-y', 'Dipole Y'], ['quadrupole', 'Quadrupole'],
+  ];
+  const SHAPE_NAME = Object.fromEntries(SHAPES);
+  const K1_MIN = 0.10, K1_MAX = 1.0;
+  const VIEW = { x0: 8, y0: 8, n: 48 }; // visible window of the 64-cell periodic field
+  const VPC = { // instrument colours (same in both themes)
+    bg: '#0f1116', grid: 'rgba(255,255,255,0.05)', gridCD: 'rgba(255,255,255,0.10)', open: '#f3e2b8',
+    target: '#7cc8ff', print: '#ffad2a', ok: '#3cd29b', warn: '#f2c94c', bad: '#ff6b6b', muted: 'rgba(225,229,236,0.55)',
+    text: '#e1e5ec', roiShade: 'rgba(0,0,0,0.42)',
+  };
+
+  const LEVELS = [
+    { id: 'corner', name: 'Corner rounding', rects: [[24, 24, 16, 16]], anchor: { x: 32, y: 32, dir: 'h', w: 16 },
+      brief: 'A projection lens is a low-pass filter. It cannot pass the high spatial frequencies a sharp corner needs, so every corner of this 64 nm square prints round. Paint small square serifs on the outer corners to push extra light into them.',
+      hint: 'Pick the 3-cell brush and click the cell just diagonally outside each corner. Each serif then covers the corner cell plus two cells outside it.', par: 3 },
+    { id: 'lineend', name: 'Line-end pullback', rects: [[30, 18, 4, 28]], anchor: { x: 32, y: 32, dir: 'h', w: 4 },
+      brief: 'The end of a line only gets light from one side, so it prints short and thin. Lengthen the ends, or widen them into hammerheads, until the printed tip reaches the dashed target.',
+      hint: 'Extend each end by one cell, then add one cell on each side of the last two rows, a small hammerhead. Extending by two cells alone gets two stars.', par: 3 },
+    { id: 'elbow', name: 'The elbow', rects: [[22, 18, 4, 26], [22, 40, 22, 4]], anchor: { x: 24, y: 28, dir: 'h', w: 4 },
+      brief: 'A bend fails two opposite ways. The outer corner starves and rounds off while the inner corner floods and fills in. Add a serif outside, cut a notch inside, and fix both free line ends.',
+      hint: 'Fix both free ends as in level 2 and put a level-1 serif on the outer corner. For the inner corner, erase the three cells of each inside edge that touch the corner.', par: 2 },
+    { id: 'tips', name: 'Tip to tip', rects: [[30, 10, 4, 20], [30, 34, 4, 20]], anchor: { x: 32, y: 16, dir: 'h', w: 4 }, rois: [[26, 20, 12, 24]],
+      brief: 'Two line ends face each other across a one-CD gap. Push the tips back out to the target without letting them touch. If they bridge, the two wires short together. Only the shaded window is scored.',
+      hint: 'Do not lengthen the tips: two extra rows close the gap. Paint a one-cell bar along both sides of each tip instead, five cells long: alongside the last four rows and one cell into the gap.', par: 2 },
+    { id: 'isodense', name: 'Iso–dense bias', rects: [[12, 0, 4, 64], [20, 0, 4, 64], [28, 0, 4, 64], [46, 0, 4, 64]], anchor: { x: 22, y: 32, dir: 'h', w: 4 }, rois: [[19, 0, 6, 64], [45, 0, 6, 64]], shape: 'annular', sigma: 0.85,
+      brief: 'Annular light makes the dense lines crisp, and the dose is set so the middle one prints on size. The lone line on the right comes out thin because it has no neighbours to share light with. Bias it wider, or add thin assist bars (SRAFs) that help it print without printing themselves.',
+      hint: 'Paint a bar three cells wide down each side of the lone line, leaving a three-cell gap. It sits just under the print threshold; two-cell bars are safer and still earn two stars.', par: 3 },
+    { id: 'staple', name: 'The staple', rects: [[24, 20, 4, 24], [32, 20, 4, 24], [24, 20, 12, 4]], anchor: { x: 26, y: 34, dir: 'h', w: 4 },
+      brief: 'A U-turn with a one-CD slot. The outer corners round, the free feet pull back, and the closed end of the slot floods with light and fills in. Everything at once.',
+      hint: 'Top corners: L-shaped serifs, three cells along each outside edge. Slot: erase the bar row above it and three cells down each wall. Feet: extend one row, add a four-cell bar on each outer side and one cell at each inner corner. Last, erase one wall cell five rows up from the bottom on each side.', par: 2 },
+  ];
+  const LEVEL_OPTICS = { tool: 'euv', NA: 0.33, cd: 16 };
+
+  // Verified solutions (best clean, manufacturable masks found). Cells are [x, y, w, h] to add, or [x, y, w, h, 0] to erase.
+  // pct = worst edge error as % of CD, measured with the level's own optics and dose.
+  const SOLUTIONS = [
+    { pct: 7.9, stars: 3, crop: [19, 19, 26, 26],
+      why: 'A corner loses light from three sides, and the lens cannot pass the fine detail a sharp corner needs. A serif adds the missing light right where the print rounds off.',
+      steps: [
+        { t: 'Serif on each outer corner: a 3 × 3 block centred on the cell just diagonally outside the corner. It overlaps the corner cell and sticks out two cells.', s: 'With the 3-cell brush this is one click per corner.', c: [[22, 22, 3, 3], [39, 22, 3, 3], [22, 39, 3, 3], [39, 39, 3, 3]] },
+      ] },
+    { pct: 8.8, stars: 3, crop: [24, 14, 16, 36],
+      why: 'A line end only gets light from one side, so it prints short and narrow. Lengthening it pushes the tip back out; widening the last rows keeps the tip from pinching.',
+      steps: [
+        { t: 'Extend each end by one full-width row.', c: [[30, 17, 4, 1], [30, 46, 4, 1]] },
+        { t: 'Add one cell on each side of the last two rows: a small hammerhead.', s: 'Extending by two rows alone earns two stars.', c: [[29, 18, 1, 2], [34, 18, 1, 2], [29, 44, 1, 2], [34, 44, 1, 2]] },
+      ] },
+    { pct: 14.2, stars: 2, crop: [17, 14, 31, 34],
+      why: 'Outer corners and free ends starve, so they get extra mask. The inner corner gets light from both arms and floods, so it gets less: an anti-serif.',
+      steps: [
+        { t: 'Top end: extend one row and add one cell on each side of the last two rows, as in level 2.', c: [[22, 17, 4, 1], [21, 18, 1, 2], [26, 18, 1, 2]] },
+        { t: 'Right end: the same fix, turned sideways.', c: [[44, 40, 1, 4], [42, 39, 2, 1], [42, 44, 2, 1]] },
+        { t: 'Outer corner: a 3 × 3 serif, as in level 1.', c: [[20, 42, 3, 3]] },
+        { t: 'Inner corner: erase the three cells of each inside edge that touch the corner.', s: 'This bite is the new move. Without it the corner fills in by more than a third of a CD.', c: [[25, 37, 1, 3, 0], [26, 40, 3, 1, 0]] },
+      ] },
+    { pct: 11.5, stars: 2, crop: [24, 19, 16, 26],
+      why: 'Both tips pull back, but the gap is only one CD wide, so anything that moves a tip toward the other risks a bridge. Light is added beside the tips instead of in front of them.',
+      steps: [
+        { t: 'Leave the tips the length they are.', s: 'Two extra rows on each tip close the gap and short the wires together.', c: [] },
+        { t: 'Paint a one-cell bar along both sides of each tip, five cells long: beside the last four rows and one cell into the gap.', c: [[29, 26, 1, 5], [34, 26, 1, 5], [29, 33, 1, 5], [34, 33, 1, 5]] },
+      ] },
+    { pct: 3.5, stars: 3, crop: [9, 20, 50, 24],
+      why: 'The dose is set so the dense lines print on size. The lone line has no neighbours scattering light toward it, so it prints thin. Assist bars stand in for the missing neighbours without printing themselves.',
+      steps: [
+        { t: 'Paint an assist bar three cells wide down each side of the lone line, leaving a three-cell gap. The bars run the full height of the field.', s: 'They peak about 5% under the print threshold. If they start to print, make them two cells wide: still two stars.', c: [[40, 0, 3, 64], [53, 0, 3, 64]] },
+      ] },
+    { pct: 14.1, stars: 2, crop: [19, 15, 22, 34],
+      why: 'Every earlier trick at once: serifs on the outer corners, an anti-serif where the slot meets the bar, and line-end fixes on both feet. The last trim balances the slot walls.',
+      steps: [
+        { t: 'Top outer corners: L-shaped serifs, three cells along each outside edge.', c: [[23, 20, 1, 3], [24, 19, 3, 1], [36, 20, 1, 3], [33, 19, 3, 1]] },
+        { t: 'Slot end: erase the bar row directly above the slot and the top three cells of each slot wall.', c: [[28, 23, 4, 1, 0], [27, 24, 1, 3, 0], [32, 24, 1, 3, 0]] },
+        { t: 'Feet: extend each one row, add a four-cell bar on each outer side and one cell at each inner bottom corner.', c: [[24, 44, 4, 1], [32, 44, 4, 1], [23, 40, 1, 4], [36, 40, 1, 4], [28, 43, 1, 1], [31, 43, 1, 1]] },
+        { t: 'Trim one slot-wall cell five rows up from the bottom, on each side.', c: [[27, 39, 1, 1, 0], [32, 39, 1, 1, 0]] },
+      ] },
+  ];
+
+  const PRESETS = {
+    dense: { rects: [0, 1, 2, 3, 4, 5].map(i => [12 + 8 * i, 12, 4, 40]), anchor: { x: 30, y: 32, dir: 'h', w: 4 } },
+    contacts: { rects: [19, 29, 39].flatMap(y => [19, 29, 39].map(x => [x, y, 5, 5])), anchor: { x: 31.5, y: 31.5, dir: 'h', w: 5 } },
+    logic: { rects: [[8, 9, 48, 5], [8, 50, 48, 5], [14, 19, 4, 26], [24, 19, 4, 11], [24, 34, 4, 11], [24, 30, 10, 4], [34, 19, 4, 26], [44, 19, 4, 26]], anchor: { x: 16, y: 38, dir: 'h', w: 4 } },
+    letters: { rects: [[14, 18, 4, 28], [14, 42, 14, 4], [34, 18, 4, 28], [34, 18, 14, 4], [44, 18, 4, 16], [34, 30, 14, 4]], anchor: { x: 16, y: 30, dir: 'h', w: 4 } },
+    blank: { rects: [], anchor: null },
+  };
+
+  // ---------- state ----------
+  const S = {
+    mode: 'puzzle', level: 0,
+    tool: 'euv', NA: 0.33, cd: 16, shape: 'conventional', sigma: 0.6, dose: 1, focus: 0,
+    mask: new Uint8Array(G * G), target: null, tpx: null, gauges: null, rois: null, anchor: null,
+    paint: true, brush: 1, view: 'resist', pickMode: false, assisted: false,
+    spec: null, maskDirty: true, I: new Float32Array(N * N), thr: C.T_RESIST, defects: [],
+    hover: null, highlight: null, busy: false,
+  };
+  const undo = [];
+  let srcCache = { key: '', pts: null };
+  let bossung = null, sweepGen = 0, sweepTimer = 0;
+  const sweepBuf = new Float32Array(N * N), zeroBuf = new Float32Array(N * N);
+
+  const T = () => TOOLS[S.tool];
+  const k1 = () => S.cd * S.NA / T().lambda;
+  const cellNm = () => S.cd / C.CD_CELLS;
+  const zR = () => { const t = T(); return t.lambda / (2 * (t.n - Math.sqrt(t.n * t.n - S.NA * S.NA))); };
+  function srcPts() {
+    const key = S.shape + '|' + S.sigma.toFixed(3);
+    if (srcCache.key !== key) srcCache = { key, pts: C.sourcePoints(S.shape, S.sigma) };
+    return srcCache.pts;
+  }
+  function optics(z) { const t = T(); return { r: 16 * k1(), src: srcPts(), z, lambda: t.lambda, n: t.n, NA: S.NA }; }
+  function rects(list) {
+    const m = new Uint8Array(G * G);
+    for (const [x, y, w, h] of list) for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) m[((j % G + G) % G) * G + ((i % G + G) % G)] = 1;
+    return m;
+  }
+  const fmt = (v, d = 1) => (Math.round(v * 10 ** d) / 10 ** d).toFixed(d);
+  const signed = (v, d = 1) => (v > 0.05 ? '+' : v < -0.05 ? '−' : '') + fmt(Math.abs(v), d);
+
+  // ---------- persistence (per-viewer convenience) ----------
+  const STORE = 'lightpainter.v1.stars';
+  let best = [0, 0, 0, 0, 0, 0];
+  try { const s = JSON.parse(localStorage.getItem(STORE) || 'null'); if (Array.isArray(s)) best = LEVELS.map((_, i) => s[i] | 0); } catch (e) { /* storage unavailable */ }
+  function saveBest() { try { localStorage.setItem(STORE, JSON.stringify(best)); } catch (e) { /* ignore */ } }
+
+  // ---------- target / level setup ----------
+  function setTarget(t, rois, anchor) {
+    S.target = t; S.rois = rois || null; S.anchor = anchor ? { ...anchor } : null;
+    if (t && t.some(v => v)) { S.tpx = C.targetPx(t); S.gauges = C.buildGauges(t, S.rois); }
+    else { S.target = null; S.tpx = null; S.gauges = null; }
+  }
+  function imageAtBestFocus() {
+    if (S.maskDirty) { S.spec = C.maskSpectrum(S.mask); S.maskDirty = false; }
+    return C.aerial(S.spec, optics(0), zeroBuf);
+  }
+  function doseToSize() {
+    if (!S.anchor && !S.gauges) return;
+    const I0 = imageAtBestFocus();
+    S.dose = Math.min(2.5, Math.max(0.4, C.doseToSize(I0, S.anchor, S.gauges)));
+  }
+  function loadLevel(i) {
+    const L = LEVELS[i];
+    S.mode = 'puzzle'; S.level = i; S.assisted = false; S.pickMode = false; S.highlight = null;
+    const t = rects(L.rects);
+    setTarget(t, L.rois, L.anchor);
+    S.mask = t.slice(); S.maskDirty = true;
+    applyLevelOptics();
+    S.focus = 0;
+    doseToSize();
+    S.levelDose = S.dose;
+    undo.length = 0;
+    syncAll();
+  }
+  function applyLevelOptics() {
+    const L = LEVELS[S.level];
+    S.tool = LEVEL_OPTICS.tool; S.NA = LEVEL_OPTICS.NA; S.cd = LEVEL_OPTICS.cd;
+    S.shape = L.shape || 'conventional'; S.sigma = L.sigma || 0.6;
+  }
+  function opticsMatch() {
+    if (S.mode !== 'puzzle') return true;
+    const L = LEVELS[S.level];
+    return S.tool === LEVEL_OPTICS.tool && Math.abs(S.NA - LEVEL_OPTICS.NA) < 0.004 && Math.abs(S.cd - LEVEL_OPTICS.cd) < 0.06 &&
+      S.shape === (L.shape || 'conventional') && Math.abs(S.sigma - (L.sigma || 0.6)) < 0.004;
+  }
+  function loadPreset(name) {
+    const P = PRESETS[name];
+    S.mode = 'sandbox'; S.assisted = false; S.pickMode = false; S.highlight = null;
+    const t = rects(P.rects);
+    setTarget(P.rects.length ? t : null, null, P.anchor);
+    S.mask = t.slice(); S.maskDirty = true; S.focus = 0;
+    if (S.anchor) doseToSize(); else S.dose = 1;
+    undo.length = 0;
+    syncAll();
+  }
+
+  // ---------- simulation loop ----------
+  let rafPending = false;
+  function invalidate() { if (!rafPending) { rafPending = true; requestAnimationFrame(() => { rafPending = false; compute(); }); } }
+  function compute() {
+    if (S.maskDirty) { S.spec = C.maskSpectrum(S.mask); S.maskDirty = false; }
+    C.aerial(S.spec, optics(S.focus), S.I);
+    S.thr = C.T_RESIST / S.dose;
+    if (S.gauges) C.measureGauges(S.I, S.thr, S.gauges);
+    S.defects = S.tpx ? C.defects(S.I, S.thr, S.tpx) : [];
+    renderMask(); renderWafer(); renderReadout(); renderStatus();
+    scheduleSweep();
+  }
+
+  // ---------- scoring ----------
+  function score() {
+    if (!S.gauges) return null;
+    const sc = S.gauges.filter(g => g.scored);
+    if (!sc.length) return null;
+    let worst = sc[0], ss = 0;
+    for (const g of sc) { ss += g.epe * g.epe; if (Math.abs(g.epe) > Math.abs(worst.epe)) worst = g; }
+    const rms = Math.sqrt(ss / sc.length);
+    const pct = 100 * Math.abs(worst.epe) / C.CD_CELLS;
+    const nDef = S.defects.length;
+    const stars = nDef ? 0 : pct <= 10.0001 ? 3 : pct <= 15.0001 ? 2 : pct <= 25.0001 ? 1 : 0;
+    return { worst, rms, pct, stars, nDef, sc };
+  }
+  const sevOf = pct => pct <= 10 ? 'ok' : pct <= 25 ? 'warn' : 'bad';
+
+  // ---------- canvases ----------
+  const maskCv = $('maskCanvas'), waferCv = $('waferCanvas'), bossCv = $('bossung'), pupilCv = $('pupil');
+  const dpr = () => Math.min(2, window.devicePixelRatio || 1);
+  function fitCanvas(cv) {
+    const r = cv.getBoundingClientRect();
+    const w = Math.max(64, Math.round(r.width * dpr())), h = Math.max(40, Math.round(r.height * dpr()));
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; return true; }
+    return false;
+  }
+  const ro = new ResizeObserver(() => {
+    const a = fitCanvas(maskCv), b = fitCanvas(waferCv), c = fitCanvas(bossCv);
+    if (a) renderMask(); if (b) renderWafer(); if (c) drawBossung();
+  });
+  [maskCv, waferCv, bossCv].forEach(c => ro.observe(c));
+
+  function tget(t, x, y) { return t[(((y % G) + G) % G) * G + (((x % G) + G) % G)]; }
+  function outline(ctx, t, s, color, lw, dash) {
+    ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.setLineDash(dash || []); ctx.beginPath();
+    for (let i = 0; i < G; i++) {
+      let j = 0;
+      while (j < G) {
+        if (tget(t, i - 1, j) === tget(t, i, j)) { j++; continue; }
+        const j0 = j; while (j < G && tget(t, i - 1, j) !== tget(t, i, j)) j++;
+        ctx.moveTo(i * s, j0 * s); ctx.lineTo(i * s, j * s);
+      }
+    }
+    for (let j = 0; j < G; j++) {
+      let i = 0;
+      while (i < G) {
+        if (tget(t, i, j - 1) === tget(t, i, j)) { i++; continue; }
+        const i0 = i; while (i < G && tget(t, i, j - 1) !== tget(t, i, j)) i++;
+        ctx.moveTo(i0 * s, j * s); ctx.lineTo(i * s, j * s);
+      }
+    }
+    ctx.stroke(); ctx.restore();
+  }
+  // marching squares on the sim grid (periodic), drawn in cell units * s
+  function contour(ctx, I, thr, s, color, lw) {
+    ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.lineJoin = 'round'; ctx.beginPath();
+    const P = (x, y) => [((x + 0.5) / 2) * s, ((y + 0.5) / 2) * s];
+    const seg = (a, b) => { const p = P(a[0], a[1]), q = P(b[0], b[1]); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); };
+    for (let y = -1; y < N; y++) {
+      const y0 = (y + N) % N, y1 = (y + 1) % N;
+      for (let x = -1; x < N; x++) {
+        const x0 = (x + N) % N, x1 = (x + 1) % N;
+        const a = I[y0 * N + x0] - thr, b = I[y0 * N + x1] - thr, c = I[y1 * N + x1] - thr, d = I[y1 * N + x0] - thr;
+        const idx = (a > 0 ? 1 : 0) | (b > 0 ? 2 : 0) | (c > 0 ? 4 : 0) | (d > 0 ? 8 : 0);
+        if (idx === 0 || idx === 15) continue;
+        const Tp = () => [x + a / (a - b), y], Rp = () => [x + 1, y + b / (b - c)], Bp = () => [x + d / (d - c), y + 1], Lp = () => [x, y + a / (a - d)];
+        switch (idx) {
+          case 1: case 14: seg(Lp(), Tp()); break;
+          case 2: case 13: seg(Tp(), Rp()); break;
+          case 3: case 12: seg(Lp(), Rp()); break;
+          case 4: case 11: seg(Rp(), Bp()); break;
+          case 6: case 9: seg(Tp(), Bp()); break;
+          case 7: case 8: seg(Lp(), Bp()); break;
+          case 5: if (a + b + c + d > 0) { seg(Tp(), Rp()); seg(Lp(), Bp()); } else { seg(Lp(), Tp()); seg(Rp(), Bp()); } break;
+          case 10: if (a + b + c + d > 0) { seg(Lp(), Tp()); seg(Rp(), Bp()); } else { seg(Tp(), Rp()); seg(Lp(), Bp()); } break;
+        }
+      }
+    }
+    ctx.stroke(); ctx.restore();
+  }
+  function roiShade(ctx, s, W) {
+    if (!S.rois) return;
+    ctx.save(); ctx.fillStyle = VPC.roiShade; ctx.beginPath(); ctx.rect(0, 0, W, W);
+    for (const [x, y, w, h] of S.rois) ctx.rect(x * s, y * s, w * s, h * s);
+    ctx.fill('evenodd'); ctx.restore();
+  }
+  function scaleBar(ctx, s, W) {
+    const field = VIEW.n * cellNm(), target = field * 0.22;
+    const p = Math.pow(10, Math.floor(Math.log10(target)));
+    const L = [1, 2, 5, 10].map(m => m * p).reduce((a, v) => Math.abs(v - target) < Math.abs(a - target) ? v : a);
+    const px = L / cellNm() * s, d = dpr(), x0 = 12 * d, y0 = W - 12 * d;
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,12,16,0.72)'; ctx.fillRect(x0 - 6 * d, y0 - 22 * d, px + 12 * d + 44 * d, 28 * d);
+    ctx.strokeStyle = VPC.text; ctx.lineWidth = 2 * d; ctx.beginPath();
+    ctx.moveTo(x0, y0 - 4 * d); ctx.lineTo(x0, y0); ctx.lineTo(x0 + px, y0); ctx.lineTo(x0 + px, y0 - 4 * d); ctx.stroke();
+    ctx.fillStyle = VPC.text; ctx.font = `500 ${11 * d}px "IBM Plex Mono", monospace`; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(`${L >= 1 ? L : L.toFixed(1)} nm`, x0 + px + 6 * d, y0 + 1 * d);
+    ctx.restore();
+  }
+
+  function renderMask() {
+    const ctx = maskCv.getContext('2d'), W = maskCv.width, s = W / VIEW.n, d = dpr(), F = G * s;
+    ctx.fillStyle = VPC.bg; ctx.fillRect(0, 0, W, W);
+    ctx.save(); ctx.translate(-Math.round(VIEW.x0 * s), -Math.round(VIEW.y0 * s));
+    if (s >= 4) {
+      ctx.lineWidth = 1; ctx.strokeStyle = VPC.grid; ctx.beginPath();
+      for (let i = 1; i < G; i++) if (i % 4) { const p = Math.round(i * s) + 0.5; ctx.moveTo(p, 0); ctx.lineTo(p, F); ctx.moveTo(0, p); ctx.lineTo(F, p); }
+      ctx.stroke(); ctx.strokeStyle = VPC.gridCD; ctx.beginPath();
+      for (let i = 4; i < G; i += 4) { const p = Math.round(i * s) + 0.5; ctx.moveTo(p, 0); ctx.lineTo(p, F); ctx.moveTo(0, p); ctx.lineTo(F, p); }
+      ctx.stroke();
+    }
+    // openings, merged per row-run
+    ctx.fillStyle = VPC.open;
+    for (let y = 0; y < G; y++) {
+      let x = 0;
+      while (x < G) {
+        if (!S.mask[y * G + x]) { x++; continue; }
+        const x0 = x; while (x < G && S.mask[y * G + x]) x++;
+        const X0 = Math.round(x0 * s), X1 = Math.round(x * s), Y0 = Math.round(y * s), Y1 = Math.round((y + 1) * s);
+        ctx.fillRect(X0, Y0, X1 - X0, Y1 - Y0);
+      }
+    }
+    // OPC additions / removals vs target
+    if (S.target) {
+      ctx.fillStyle = 'rgba(255,173,42,0.55)';
+      for (let i = 0; i < G * G; i++) if (S.mask[i] && !S.target[i]) { const x = i % G, y = (i / G) | 0; ctx.fillRect(Math.round(x * s), Math.round(y * s), Math.round((x + 1) * s) - Math.round(x * s), Math.round((y + 1) * s) - Math.round(y * s)); }
+    }
+    roiShade(ctx, s, F);
+    if (S.target) outline(ctx, S.target, s, VPC.target, 1.5 * d, [4 * d, 3 * d]);
+    contour(ctx, S.I, S.thr, s, VPC.print, 1.6 * d);
+    if (S.anchor) drawAnchor(ctx, s, d);
+    if (S.hover && !S.busy) {
+      const b = S.brush, o = Math.floor((b - 1) / 2);
+      ctx.save(); ctx.strokeStyle = S.pickMode ? VPC.target : (S.paint ? '#ffffff' : VPC.bad); ctx.lineWidth = 1.5 * d;
+      ctx.strokeRect((S.hover.x - (S.pickMode ? 0 : o)) * s + 0.5, (S.hover.y - (S.pickMode ? 0 : o)) * s + 0.5, (S.pickMode ? 1 : b) * s - 1, (S.pickMode ? 1 : b) * s - 1);
+      ctx.restore();
+    }
+    ctx.restore();
+    scaleBar(ctx, s, W);
+  }
+  function drawAnchor(ctx, s, d) {
+    const a = S.anchor, h = a.dir === 'h';
+    const x0 = (h ? a.x - a.w / 2 : a.x) * s, y0 = (h ? a.y : a.y - a.w / 2) * s;
+    const x1 = (h ? a.x + a.w / 2 : a.x) * s, y1 = (h ? a.y : a.y + a.w / 2) * s;
+    ctx.save(); ctx.strokeStyle = VPC.target; ctx.fillStyle = VPC.target; ctx.lineWidth = 1.2 * d; ctx.setLineDash([2 * d, 2 * d]);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
+    const tk = 5 * d;
+    ctx.beginPath();
+    if (h) { ctx.moveTo(x0, y0 - tk); ctx.lineTo(x0, y0 + tk); ctx.moveTo(x1, y1 - tk); ctx.lineTo(x1, y1 + tk); }
+    else { ctx.moveTo(x0 - tk, y0); ctx.lineTo(x0 + tk, y0); ctx.moveTo(x1 - tk, y1); ctx.lineTo(x1 + tk, y1); }
+    ctx.stroke();
+    ctx.font = `600 ${10 * d}px "IBM Plex Mono", monospace`; ctx.textBaseline = 'bottom';
+    ctx.fillText('CD', (h ? x1 : x1) + 4 * d, (h ? y1 : y1) - 2 * d);
+    ctx.restore();
+  }
+
+  // inferno-like LUT for the aerial image
+  const LUT = (() => {
+    const stops = [[0, [0, 0, 4]], [0.13, [27, 12, 65]], [0.25, [74, 12, 107]], [0.38, [120, 28, 109]], [0.5, [165, 44, 96]], [0.63, [207, 68, 70]], [0.75, [237, 105, 37]], [0.88, [251, 155, 6]], [1, [252, 255, 164]]];
+    const lut = new Uint8ClampedArray(256 * 3);
+    for (let i = 0; i < 256; i++) {
+      const t = i / 255; let k = 0; while (k < stops.length - 2 && t > stops[k + 1][0]) k++;
+      const [t0, c0] = stops[k], [t1, c1] = stops[k + 1], f = (t - t0) / (t1 - t0);
+      for (let c = 0; c < 3; c++) lut[i * 3 + c] = c0[c] + (c1[c] - c0[c]) * f;
+    }
+    return lut;
+  })();
+  let off = null, offCtx = null, offImg = null;
+  function renderWafer() {
+    const ctx = waferCv.getContext('2d'), W = waferCv.width, d = dpr();
+    const R = Math.min(W, 640);
+    if (!off || off.width !== R) { off = document.createElement('canvas'); off.width = off.height = R; offCtx = off.getContext('2d'); offImg = offCtx.createImageData(R, R); }
+    const px = offImg.data, I = S.I, thr = S.thr, tg = S.target, aerialView = S.view === 'aerial';
+    const sc = VIEW.n / R;
+    for (let Y = 0; Y < R; Y++) {
+      const yc = VIEW.y0 + (Y + 0.5) * sc, sy = yc * 2 - 0.5, fy = Math.floor(sy), ty = sy - fy;
+      const y0 = ((fy % N) + N) % N, y1 = (y0 + 1) % N, cy = ((yc | 0) % G + G) % G;
+      for (let X = 0; X < R; X++) {
+        const xc = VIEW.x0 + (X + 0.5) * sc, sx = xc * 2 - 0.5, fx = Math.floor(sx), tx = sx - fx;
+        const x0 = ((fx % N) + N) % N, x1 = (x0 + 1) % N;
+        const v = (I[y0 * N + x0] * (1 - tx) + I[y0 * N + x1] * tx) * (1 - ty) + (I[y1 * N + x0] * (1 - tx) + I[y1 * N + x1] * tx) * ty;
+        const o = (Y * R + X) * 4;
+        let r, g, b;
+        if (aerialView) {
+          const li = Math.max(0, Math.min(255, (Math.pow(Math.max(0, v) / 1.1, 0.7) * 255) | 0)); r = LUT[li * 3]; g = LUT[li * 3 + 1]; b = LUT[li * 3 + 2];
+        } else {
+          const printed = v > thr, inT = tg ? tg[cy * G + (((xc | 0) % G + G) % G)] : printed;
+          if (printed) {
+            const f = Math.min(1, (v - thr) / (0.9 * thr + 0.05));
+            if (inT) { r = 214 + 32 * f; g = 136 + 52 * f; b = 34 + 44 * f; }
+            else { r = 196 + 30 * f; g = 92 + 20 * f; b = 210 + 20 * f; } // printed where it should not: violet
+          } else {
+            const glow = Math.min(1, v / thr); const gl = glow * glow * 46;
+            r = 24 + gl * 0.9; g = 28 + gl * 0.55; b = 36 + gl * 0.2;
+            if (inT && (((X + Y) / (R / 160)) | 0) % 4 < 2) { r = 150; g = 46; b = 52; } // missing: red hatch
+          }
+        }
+        px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255;
+      }
+    }
+    offCtx.putImageData(offImg, 0, 0);
+    ctx.imageSmoothingEnabled = true; ctx.drawImage(off, 0, 0, W, W);
+    const s = W / VIEW.n;
+    ctx.save(); ctx.translate(-VIEW.x0 * s, -VIEW.y0 * s);
+    roiShade(ctx, s, G * s);
+    if (aerialView) contour(ctx, I, thr, s, '#ffffff', 1.4 * d);
+    if (S.target) outline(ctx, S.target, s, VPC.target, 1.4 * d, [4 * d, 3 * d]);
+    if (!aerialView && S.gauges) drawGauges(ctx, s, d);
+    drawDefects(ctx, s, d);
+    if (S.highlight) {
+      ctx.save(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2 * d; ctx.beginPath(); ctx.arc(S.highlight.x * s, S.highlight.y * s, 4.5 * s, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
+    ctx.restore();
+    scaleBar(ctx, s, W);
+    renderLegend();
+  }
+  function drawGauges(ctx, s, d) {
+    ctx.save(); ctx.lineCap = 'round';
+    for (const g of S.gauges) {
+      const pct = 100 * Math.abs(g.epe) / C.CD_CELLS;
+      const col = !g.scored ? 'rgba(225,229,236,0.25)' : VPC[sevOf(pct)];
+      const x0 = g.x * s, y0 = g.y * s, x1 = (g.x + g.nx * g.epe) * s, y1 = (g.y + g.ny * g.epe) * s;
+      ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 2.2 * d;
+      if (Math.abs(g.epe) * s > 1.5 * d) { ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); }
+      ctx.beginPath(); ctx.arc(x0, y0, 1.8 * d, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+  const DEFECT_LABEL = { bridge: 'BRIDGE', break: 'BREAK', missing: 'MISSING', stray: 'STRAY PRINT' };
+  function drawDefects(ctx, s, d) {
+    if (!S.defects.length) return;
+    ctx.save(); ctx.font = `600 ${10 * d}px "IBM Plex Mono", monospace`; ctx.textBaseline = 'middle';
+    for (const f of S.defects) {
+      const x = f.x * s, y = f.y * s;
+      ctx.strokeStyle = VPC.bad; ctx.lineWidth = 2 * d; ctx.setLineDash([3 * d, 2 * d]);
+      ctx.beginPath(); ctx.arc(x, y, Math.max(14 * d, 3.5 * s), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+      const label = DEFECT_LABEL[f.type], tw = ctx.measureText(label).width + 10 * d;
+      const bx0 = VIEW.x0 * s, bx1 = (VIEW.x0 + VIEW.n) * s, by0 = VIEW.y0 * s;
+      const lx = Math.min(bx1 - tw - 4 * d, Math.max(bx0 + 4 * d, x - tw / 2)), ly = Math.max(by0 + 10 * d, y - Math.max(14 * d, 3.5 * s) - 10 * d);
+      ctx.fillStyle = VPC.bad; ctx.fillRect(lx, ly - 8 * d, tw, 16 * d);
+      ctx.fillStyle = '#1a0606'; ctx.fillText(label, lx + 5 * d, ly);
+    }
+    ctx.restore();
+  }
+  function renderLegend() {
+    const el = $('legend');
+    const html = S.view === 'aerial'
+      ? `<span><i style="background:linear-gradient(90deg,#000004,#781c6d,#ed6925,#fcffa4)"></i>intensity 0 → 1.1 × clear field</span><span><i style="background:#fff"></i>print threshold</span>`
+      : `<span><i style="background:#e2a03c"></i>printed</span><span><i style="background:#962e34"></i>missing</span><span><i style="background:#c862d2"></i>extra</span><span><i style="background:${VPC.target}"></i>target</span><span><i style="background:${VPC.ok}"></i><i style="background:${VPC.warn};margin-left:-3px"></i><i style="background:${VPC.bad};margin-left:-3px"></i>edge-error gauges</span>`;
+    if (el.innerHTML !== html) el.innerHTML = html;
+  }
+
+  // ---------- readout ----------
+  const KIND_LABEL = (k, e) => {
+    if (k === 'line end') return e < 0 ? 'Line-end pullback' : 'Line-end overshoot';
+    if (k === 'corner') return e < 0 ? 'Corner rounding' : 'Corner bulge';
+    if (k === 'inner corner') return e > 0 ? 'Inner-corner fill-in' : 'Inner-corner undercut';
+    return e < 0 ? 'Edge printing inside' : 'Edge printing outside';
+  };
+  function renderReadout() {
+    const sc = score(), cn = cellNm();
+    const starEls = $('stars').children;
+    const stars = sc ? sc.stars : 0;
+    for (let i = 0; i < 3; i++) starEls[i].className = i < stars ? 'on' : '';
+    $('stars').setAttribute('aria-label', `${stars} of 3 stars`);
+    const match = opticsMatch();
+    $('mismatch').hidden = match || S.mode !== 'puzzle';
+    const tol = [25, 15, 10].map(p => fmt(p / 100 * S.cd, 1));
+    $('specLine').textContent = sc ? `Spec: ★ ≤ ${tol[0]} nm · ★★ ≤ ${tol[1]} nm · ★★★ ≤ ${tol[2]} nm worst edge error, and no bridges, breaks or stray prints.` : '';
+
+    // edits vs target
+    if (S.target) {
+      let add = 0, rem = 0; for (let i = 0; i < G * G; i++) { if (S.mask[i] && !S.target[i]) add++; else if (!S.mask[i] && S.target[i]) rem++; }
+      $('mCells').textContent = `+${add} −${rem}`; $('mCellsSub').textContent = 'cells added / removed';
+    } else { let n = 0; for (let i = 0; i < G * G; i++) n += S.mask[i]; $('mCells').textContent = String(n); $('mCellsSub').textContent = 'open cells'; }
+
+    const hot = $('hotspots');
+    if (!sc) {
+      $('mWorst').textContent = '–'; $('mWorstSub').textContent = ''; $('mRms').textContent = '–'; $('mRmsSub').textContent = '';
+      $('verdictMain').textContent = 'No target to score';
+      $('verdictSub').textContent = 'Paint a pattern, then press “Set mask as target”. Its edges become the gauges you correct against.';
+      hot.innerHTML = '<li><span class="dot" style="background:var(--line)"></span><span class="what">Hotspots appear once a target is set.</span><span></span></li>';
+      return;
+    }
+    const w = sc.worst;
+    $('mWorst').textContent = `${signed(w.epe * cn)} nm`;
+    $('mWorst').className = 'c-' + sevOf(sc.pct);
+    $('mWorstSub').textContent = `${Math.round(sc.pct)}% of CD · ${w.kind}`;
+    $('mRms').textContent = `${fmt(sc.rms * cn)} nm`; $('mRms').className = '';
+    $('mRmsSub').textContent = `${sc.sc.length} gauges`;
+
+    let main, sub;
+    if (sc.nDef) {
+      const f = S.defects[0];
+      main = { bridge: 'Bridge: two features merged.', break: 'Break: a feature pinched in two.', missing: 'A feature failed to print.', stray: 'Stray print: light printed where nothing should be.' }[f.type];
+      sub = f.type === 'stray' ? 'Assist features must stay below the print threshold. Make them thinner or move them away.' : f.type === 'bridge' ? 'On a chip this is a short circuit. Pull the corrections back from the gap.' : 'Raise the dose or widen the feature on the mask.';
+    } else if (stars === 0) {
+      main = `Not in spec yet. Worst error ${signed(w.epe * cn)} nm at a ${w.kind}.`;
+      sub = w.epe < 0 ? 'Negative means the print falls short of the target edge: add mask area near it.' : 'Positive means the print spills past the target edge: remove mask area near it.';
+    } else if (stars === 3) { main = 'Production-grade OPC.'; sub = 'Every gauge is within 10% of CD. Real tools do this for about 10¹⁰ edges per chip.'; }
+    else if (stars === 2) { main = 'In spec, with margin.'; sub = `Bring the worst gauge under ${tol[2]} nm for three stars.`; }
+    else { main = 'In spec.'; sub = `Bring the worst gauge under ${tol[1]} nm for two stars.`; }
+    if (S.assisted) sub = (S.assisted === 'solution' ? 'Solution loaded for reference. ' : 'Auto-OPC result, for reference. ') + 'Stars are not recorded until you press Reset. ' + sub;
+    $('verdictMain').textContent = main; $('verdictSub').textContent = sub;
+
+    if (S.mode === 'puzzle' && match && !S.assisted && stars > best[S.level]) { best[S.level] = stars; saveBest(); renderLevels(); }
+
+    // hotspot list: defects first, then the worst gauge of each kind
+    const items = S.defects.map(f => ({ sev: 'bad', title: DEFECT_LABEL[f.type][0] + DEFECT_LABEL[f.type].slice(1).toLowerCase(), sub: 'defect', v: '!', x: f.x, y: f.y }));
+    const byKind = new Map();
+    for (const g of sc.sc) { const k = g.kind + (g.epe < 0 ? '-' : '+'); if (!byKind.has(k) || Math.abs(g.epe) > Math.abs(byKind.get(k).epe)) byKind.set(k, g); }
+    [...byKind.values()].sort((a, b) => Math.abs(b.epe) - Math.abs(a.epe)).forEach(g => {
+      const pct = 100 * Math.abs(g.epe) / C.CD_CELLS;
+      if (pct < 2.5) return;
+      items.push({ sev: sevOf(pct), title: KIND_LABEL(g.kind, g.epe), sub: `${Math.round(pct)}% of CD`, v: `${signed(g.epe * cn)} nm`, x: g.x, y: g.y });
+    });
+    if (!items.length) items.push({ sev: 'ok', title: 'All edges on target', sub: 'every gauge within 2.5% of CD', v: '✓' });
+    hot.innerHTML = items.slice(0, 6).map((it, i) => `<li data-i="${i}"><span class="dot sev-${it.sev}"></span><span class="what">${it.title}<small>${it.sub}</small></span><span class="v c-${it.sev}">${it.v}</span></li>`).join('');
+    hot._items = items;
+  }
+  $('hotspots').addEventListener('pointerover', e => {
+    const li = e.target.closest('li'); if (!li || !$('hotspots')._items) return;
+    const it = $('hotspots')._items[+li.dataset.i]; if (!it || it.x === undefined) return;
+    S.highlight = { x: it.x, y: it.y }; renderWafer();
+  });
+  $('hotspots').addEventListener('pointerleave', () => { if (S.highlight) { S.highlight = null; renderWafer(); } });
+
+  function renderStatus() {
+    const t = T();
+    $('status').innerHTML = `<span class="${S.tool === 'euv' ? 'euv' : ''}"><b>${t.short}</b> ${t.lambda} nm</span><span>NA <b>${fmt(S.NA, 2)}</b></span><span>k1 <b>${fmt(k1(), 2)}</b></span><span>CD <b>${fmt(S.cd, 1)} nm</b></span><span>${SHAPE_NAME[S.shape].toLowerCase()} σ <b>${fmt(S.sigma, 2)}</b></span><span>dose <b>${fmt(S.dose, 2)}×</b></span><span>focus <b>${Math.round(S.focus)} nm</b></span>`;
+  }
+
+  // ---------- Bossung sweep ----------
+  function scheduleSweep() { clearTimeout(sweepTimer); sweepGen++; const gen = sweepGen; sweepTimer = setTimeout(() => runSweep(gen), 260); }
+  function runSweep(gen) {
+    if (!S.anchor) { bossung = null; drawBossung(); updateDof(); return; }
+    const a = S.anchor, zr = zR(), K = 12, dz = zr / 4, doses = [0.95, 1, 1.05];
+    const pts = []; let k = 0;
+    const spec = S.spec, opt0 = optics(0);
+    const step = () => {
+      if (gen !== sweepGen) return;
+      const z = k * dz;
+      const I = C.aerial(spec, { ...opt0, z }, sweepBuf);
+      pts.push({ z, w: doses.map(m => C.measureWidth(I, C.T_RESIST / (S.dose * m), a.x, a.y, a.dir) * cellNm()) });
+      k++;
+      if (k <= K) setTimeout(step, 0);
+      else { bossung = { pts, target: a.w * cellNm(), zmax: K * dz }; drawBossung(); updateDof(); }
+    };
+    step();
+  }
+  function computeDof() {
+    if (!bossung) return null;
+    const { pts, target } = bossung;
+    const err = p => Math.abs(p.w[1] - target) / target;
+    if (err(pts[0]) > 0.1) return { dof: 0, open: false };
+    for (let i = 1; i < pts.length; i++) {
+      const e0 = err(pts[i - 1]), e1 = err(pts[i]);
+      if (e1 > 0.1) { const z = pts[i - 1].z + (pts[i].z - pts[i - 1].z) * (0.1 - e0) / (e1 - e0); return { dof: 2 * z, open: false }; }
+    }
+    return { dof: 2 * pts[pts.length - 1].z, open: true };
+  }
+  function updateDof() {
+    const r = computeDof();
+    if (!r) { $('dofOut').textContent = '–'; $('dofSub').textContent = S.mode === 'sandbox' ? 'Press “Pick CD site” and click a feature to plot CD through focus.' : 'depth of focus'; return; }
+    $('dofOut').textContent = r.dof === 0 ? '0 nm' : `${r.open ? '> ' : ''}${Math.round(r.dof)} nm`;
+    $('dofSub').textContent = r.dof === 0
+      ? `No window: the CD site is already more than 10% off ${fmt(bossung.target, 1)} nm at best focus. Try Dose to size.`
+      : `depth of focus: CD at the site stays within ±10% of ${fmt(bossung.target, 1)} nm. Rayleigh unit λ/NA² = ${Math.round(T().lambda / (S.NA * S.NA))} nm.`;
+  }
+  function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function drawBossung() {
+    const cv = bossCv, ctx = cv.getContext('2d'), W = cv.width, H = cv.height, d = dpr();
+    ctx.clearRect(0, 0, W, H);
+    const fg = cssVar('--fg'), muted = cssVar('--muted'), line = cssVar('--line'), acc = cssVar('--accent'), ok = cssVar('--ok');
+    const padL = 38 * d, padR = 10 * d, padT = 10 * d, padB = 24 * d;
+    const pw = W - padL - padR, ph = H - padT - padB;
+    ctx.font = `400 ${10 * d}px "IBM Plex Mono", monospace`;
+    if (!bossung) {
+      ctx.fillStyle = muted; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(S.anchor ? 'sweeping focus…' : 'no CD site set', W / 2, H / 2);
+      return;
+    }
+    const { pts, target, zmax } = bossung;
+    const yLo = target * 0.5, yHi = target * 1.5;
+    const X = z => padL + (z + zmax) / (2 * zmax) * pw, Y = v => padT + (1 - (Math.max(yLo, Math.min(yHi, v)) - yLo) / (yHi - yLo)) * ph;
+    // spec band
+    ctx.fillStyle = ok; ctx.globalAlpha = 0.12; ctx.fillRect(padL, Y(target * 1.1), pw, Y(target * 0.9) - Y(target * 1.1)); ctx.globalAlpha = 1;
+    // DOF window
+    const r = computeDof();
+    if (r && r.dof > 0) { ctx.fillStyle = acc; ctx.globalAlpha = 0.14; ctx.fillRect(X(-r.dof / 2), padT, X(r.dof / 2) - X(-r.dof / 2), ph); ctx.globalAlpha = 1; }
+    // axes + grid
+    ctx.strokeStyle = line; ctx.lineWidth = 1; ctx.beginPath();
+    ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + ph); ctx.lineTo(padL + pw, padT + ph); ctx.stroke();
+    ctx.fillStyle = muted; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (const v of [yLo, target, yHi]) { ctx.fillText(fmt(v, v < 10 ? 1 : 0), padL - 5 * d, Y(v)); }
+    ctx.setLineDash([2 * d, 3 * d]); ctx.beginPath(); ctx.moveTo(padL, Y(target)); ctx.lineTo(padL + pw, Y(target)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const raw = zmax / 2, p10 = Math.pow(10, Math.floor(Math.log10(raw)));
+    const stepZ = [1, 2, 2.5, 5, 10].map(m => m * p10).find(v => v >= raw * 0.8) || 10 * p10;
+    for (let z = -Math.floor(zmax / stepZ) * stepZ; z <= zmax + 1e-6; z += stepZ) ctx.fillText(String(Math.round(z)), X(z), padT + ph + 5 * d);
+    ctx.save(); ctx.translate(9 * d, padT + ph / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('CD nm', 0, 0); ctx.restore();
+    ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillText('focus nm', padL + pw, padT + ph - 3 * d);
+    // curves (mirror: image is symmetric through focus)
+    const curve = (idx, color, lw, alpha) => {
+      ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.globalAlpha = alpha; ctx.beginPath();
+      const seq = [...pts.slice(1).reverse().map(p => ({ z: -p.z, w: p.w[idx] })), ...pts.map(p => ({ z: p.z, w: p.w[idx] }))];
+      let pen = false;
+      for (const p of seq) { const x = X(p.z), y = Y(p.w); if (p.w <= 0.01) { pen = false; continue; } if (!pen) { ctx.moveTo(x, y); pen = true; } else ctx.lineTo(x, y); }
+      ctx.stroke(); ctx.restore();
+    };
+    curve(0, fg, 1.2 * d, 0.35); curve(2, fg, 1.2 * d, 0.35); curve(1, acc, 2.2 * d, 1);
+    // current focus marker
+    const fz = Math.max(-zmax, Math.min(zmax, S.focus));
+    ctx.strokeStyle = fg; ctx.lineWidth = 1.2 * d; ctx.beginPath(); ctx.moveTo(X(fz), padT); ctx.lineTo(X(fz), padT + ph); ctx.stroke();
+    ctx.fillStyle = muted; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('dose ±5%', padL + 6 * d, padT + 3 * d);
+  }
+
+  // ---------- pupil diagram ----------
+  function drawPupil() {
+    const cv = pupilCv, ctx = cv.getContext('2d'), W = cv.width, c = W / 2, R = W / 2 - 10;
+    const fg = cssVar('--fg'), muted = cssVar('--muted'), line = cssVar('--line'), acc = cssVar('--accent'), surf = cssVar('--surface-2');
+    ctx.clearRect(0, 0, W, W);
+    ctx.fillStyle = surf; ctx.beginPath(); ctx.arc(c, c, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = muted; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = line; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(c - R, c); ctx.lineTo(c + R, c); ctx.moveTo(c, c - R); ctx.lineTo(c, c + R); ctx.stroke();
+    ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(c, c, R * S.sigma, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    const pts = srcPts(), maxW = Math.max(...pts.map(p => p.w));
+    ctx.fillStyle = acc;
+    for (const p of pts) { ctx.beginPath(); ctx.arc(c + p.sx * R, c - p.sy * R, 3 + 5 * Math.sqrt(p.w / maxW), 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = fg; ctx.font = '600 20px "IBM Plex Mono", monospace'; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+    ctx.fillText('NA', W - 6, 4);
+  }
+  const SHAPE_ICON = {
+    conventional: '<circle cx="9" cy="9" r="4.5" fill="currentColor"/>',
+    annular: '<circle cx="9" cy="9" r="5.2" fill="none" stroke="currentColor" stroke-width="2.4"/>',
+    'dipole-x': '<circle cx="4.6" cy="9" r="2.2" fill="currentColor"/><circle cx="13.4" cy="9" r="2.2" fill="currentColor"/>',
+    'dipole-y': '<circle cx="9" cy="4.6" r="2.2" fill="currentColor"/><circle cx="9" cy="13.4" r="2.2" fill="currentColor"/>',
+    quadrupole: '<circle cx="5.6" cy="5.6" r="1.9" fill="currentColor"/><circle cx="12.4" cy="5.6" r="1.9" fill="currentColor"/><circle cx="5.6" cy="12.4" r="1.9" fill="currentColor"/><circle cx="12.4" cy="12.4" r="1.9" fill="currentColor"/>',
+  };
+  $('shapeSeg').innerHTML = SHAPES.map(([k, n]) => `<button role="radio" data-shape="${k}" aria-checked="false"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="none" stroke="currentColor" stroke-opacity="0.45"/>${SHAPE_ICON[k]}</svg>${n}</button>`).join('');
+
+  // ---------- trade-off table ----------
+  function renderTrade() {
+    const rows = [['ArF-i 1.35', 193, 1.35, 'arf'], ['EUV 0.33', 13.5, 0.33, 'euv'], ['High-NA 0.55', 13.5, 0.55, 'euv']];
+    const isStd = rows.some(r => r[3] === S.tool && Math.abs(r[2] - S.NA) < 0.004);
+    if (!isStd) rows.push([`Yours ${fmt(S.NA, 2)}`, T().lambda, S.NA, S.tool]);
+    const maxR = Math.max(...rows.map(r => r[1] / r[2])), maxD = Math.max(...rows.map(r => r[1] / r[2] / r[2]));
+    const grp = (fn, max, d) => rows.map(([n, l, na, tk]) => {
+      const v = fn(l, na), cur = tk === S.tool && Math.abs(na - S.NA) < 0.004;
+      return `<div class="trow ${tk}${cur ? ' cur' : ''}"><span>${n}</span><span class="track"><i style="width:${(100 * v / max).toFixed(1)}%"></i></span><b>${fmt(v, d)} nm</b></div>`;
+    }).join('');
+    $('tradeRes').innerHTML = grp((l, na) => l / na, maxR, 1);
+    $('tradeDof').innerHTML = grp((l, na) => l / na / na, maxD, 0);
+    $('tradeNote').textContent = 'EUV 0.33 → 0.55 NA: features 1.67× finer, focus budget 2.78× shallower.';
+  }
+
+  // ---------- controls ----------
+  function setRadio(groupId, attr, value) {
+    for (const b of $(groupId).querySelectorAll('button')) b.setAttribute(b.getAttribute('role') === 'radio' ? 'aria-checked' : 'aria-pressed', String(b.dataset[attr] === String(value)));
+  }
+  let noteTimer = 0;
+  function showNote(text, bad) {
+    const n = $('toolNote'); n.textContent = text; n.className = 'note' + (bad ? ' bad' : ''); n.hidden = false;
+    clearTimeout(noteTimer); noteTimer = setTimeout(() => { n.hidden = true; }, 6000);
+  }
+  // keep the physical feature size while the optics change; clamp k1 into range
+  function holdCD(prevK1, reason) {
+    const t = T(), lna = t.lambda / S.NA;
+    let k = S.cd * S.NA / t.lambda, clamped = '';
+    if (k > K1_MAX) { k = K1_MAX; clamped = ' (capped at k1 = 1.00, the pattern is far above the resolution limit)'; }
+    if (k < K1_MIN) { k = K1_MIN; clamped = ' (held at the k1 = 0.10 floor)'; }
+    const cd0 = S.cd; S.cd = k * lna;
+    if (reason && Math.abs(k - prevK1) > 0.005) {
+      const txt = clamped ? `k1 ${fmt(prevK1, 2)} → ${fmt(k, 2)}${clamped}; CD now ${fmt(S.cd, 1)} nm.` : `Same ${fmt(cd0, 1)} nm feature: k1 ${fmt(prevK1, 2)} → ${fmt(k, 2)}.` + (k < 0.25 ? ' That is below the 0.25 single-exposure limit, so expect it to blur out.' : '');
+      showNote(txt, k < 0.25);
+    }
+  }
+  function syncControls() {
+    const t = T();
+    setRadio('modeSeg', 'mode', S.mode);
+    setRadio('toolSeg', 'tool', S.tool);
+    const na = $('na'); na.min = t.naMin; na.max = t.naMax; na.value = S.NA; $('naOut').textContent = fmt(S.NA, 2);
+    $('naChips').innerHTML = t.presets.map(p => `<button class="chip" data-na="${p}" aria-pressed="${Math.abs(p - S.NA) < 0.004}">${p.toFixed(2)}${S.tool === 'euv' ? (p === 0.55 ? ' High-NA' : ' NXE') : ' immersion'}</button>`).join('');
+    $('k1').value = k1(); $('k1Out').textContent = fmt(k1(), 2);
+    $('cdOut').textContent = `${fmt(S.cd, 1)} nm`; $('lnaOut').textContent = `${fmt(t.lambda / S.NA, 1)} nm`;
+    $('cellNm').textContent = `1 cell = ${fmt(cellNm(), 2)} nm`;
+    setRadio('shapeSeg', 'shape', S.shape);
+    $('sigma').value = S.sigma; $('sigmaOut').textContent = fmt(S.sigma, 2);
+    $('dose').value = S.dose; $('doseOut').textContent = `${fmt(S.dose, 2)}×`;
+    const fr = Math.round(2.5 * zR() / 5) * 5; const f = $('focus'); f.min = -fr; f.max = fr;
+    S.focus = Math.max(-fr, Math.min(fr, S.focus)); f.value = S.focus; $('focusOut').textContent = `${Math.round(S.focus)} nm`;
+    $('zrNote').textContent = `Rayleigh unit ≈ ${Math.round(zR())} nm`;
+    setRadio('paintSeg', 'paint', S.paint ? 1 : 0);
+    setRadio('brushSeg', 'b', S.brush);
+    setRadio('viewSeg', 'view', S.view);
+    $('pickSite').setAttribute('aria-pressed', String(S.pickMode));
+    $('undoBtn').disabled = !undo.length;
+    $('opcBtn').disabled = !S.target;
+    drawPupil(); renderTrade();
+  }
+  function renderLevels() {
+    $('levels').innerHTML = LEVELS.map((L, i) => `<button class="lvl" data-l="${i}" aria-current="${S.mode === 'puzzle' && S.level === i}"><span class="n">${i + 1}</span><span class="nm">${L.name}</span><span class="st" aria-label="${best[i]} of 3 stars">${[0, 1, 2].map(k => `<span class="${k < best[i] ? 'on' : ''}">★</span>`).join('')}</span></button>`).join('');
+  }
+  function renderBrief() {
+    const puzzle = S.mode === 'puzzle';
+    $('sandboxTools').hidden = puzzle;
+    $('briefActions').hidden = !puzzle;
+    $('levels').hidden = !puzzle;
+    if (puzzle) {
+      const L = LEVELS[S.level];
+      $('lvlName').textContent = `${S.level + 1} · ${L.name}`;
+      $('lvlBrief').textContent = L.brief;
+      $('lvlGoal').textContent = `Goal: worst edge error ≤ 25% of CD (${fmt(0.25 * LEVEL_OPTICS.cd, 1)} nm) with no defects. Par: ${'★'.repeat(L.par)} with clean shapes${L.par < 3 ? '. Three stars needs scattered single-cell dust a mask shop would reject' : ''}. Dashed blue is the target; amber cells are your corrections.`;
+      $('lvlHint').textContent = L.hint; $('lvlHint').hidden = true; $('hintBtn').textContent = 'Show hint';
+      setSolution(false);
+      $('nextBtn').disabled = S.level >= LEVELS.length - 1;
+    } else {
+      $('lvlName').textContent = 'Sandbox';
+      $('lvlBrief').textContent = 'Load a preset or paint your own pattern. Change wavelength, NA, k1, illumination and focus freely. To score corrections, press “Set mask as target”, then edit the mask.';
+      $('lvlGoal').textContent = 'Right-drag or switch to Erase to remove cells. Pick a CD site to get a Bossung plot for any feature.';
+      $('lvlHint').hidden = true;
+      setSolution(false);
+    }
+  }
+  function syncAll() { syncControls(); renderLevels(); renderBrief(); invalidate(); }
+
+  // mode
+  $('modeSeg').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b || S.busy) return;
+    if (b.dataset.mode === 'puzzle' && S.mode !== 'puzzle') loadLevel(S.level);
+    if (b.dataset.mode === 'sandbox' && S.mode !== 'sandbox') loadPreset($('preset').value);
+  });
+  $('levels').addEventListener('click', e => { const b = e.target.closest('.lvl'); if (b && !S.busy) loadLevel(+b.dataset.l); });
+  // ---------- solution reveal ----------
+  const solCv = $('solCanvas');
+  let solHot = -1;
+  function setSolution(open) {
+    $('solution').hidden = !open;
+    $('solBtn').setAttribute('aria-expanded', String(open));
+    $('solBtn').textContent = open ? 'Hide solution' : 'Show solution';
+    if (open) renderSolution();
+  }
+  function solutionMask(i) {
+    const m = rects(LEVELS[i].rects);
+    for (const st of SOLUTIONS[i].steps) for (const [x, y, w, h, v] of st.c) for (let j = y; j < y + h; j++) for (let k = x; k < x + w; k++) m[(((j % G) + G) % G) * G + (((k % G) + G) % G)] = v === 0 ? 0 : 1;
+    return m;
+  }
+  function renderSolution() {
+    const i = S.level, sol = SOLUTIONS[i];
+    const nm = sol.pct / 100 * LEVEL_OPTICS.cd;
+    $('solResult').textContent = `${'★'.repeat(sol.stars)} · worst edge error ${fmt(nm, 1)} nm (${fmt(sol.pct, 1)}% of CD) · no defects`;
+    $('solWhy').textContent = sol.why;
+    $('solSteps').innerHTML = sol.steps.map((st, k) => `<li tabindex="0" data-k="${k}">${st.t}${st.s ? `<small>${st.s}</small>` : ''}</li>`).join('');
+    solHot = -1;
+    drawSolution();
+  }
+  function drawSolution() {
+    const i = S.level, sol = SOLUTIONS[i], [x0, y0, cw, ch] = sol.crop;
+    const target = rects(LEVELS[i].rects), mask = solutionMask(i);
+    const box = Math.min(300, Math.max(180, ($('solution').clientWidth || 600) - 40));
+    const cell = Math.max(5, Math.floor(Math.min(box / cw, 300 / ch)));
+    const W = cw * cell, H = ch * cell, d = dpr();
+    solCv.style.width = W + 'px'; solCv.style.height = H + 'px';
+    solCv.width = Math.round(W * d); solCv.height = Math.round(H * d);
+    const ctx = solCv.getContext('2d'); ctx.setTransform(d, 0, 0, d, 0, 0);
+    ctx.fillStyle = VPC.bg; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = VPC.grid; ctx.lineWidth = 1; ctx.beginPath();
+    for (let k = 1; k < cw; k++) { const p = k * cell + 0.5; ctx.moveTo(p, 0); ctx.lineTo(p, H); }
+    for (let k = 1; k < ch; k++) { const p = k * cell + 0.5; ctx.moveTo(0, p); ctx.lineTo(W, p); }
+    ctx.stroke();
+    const at = (m, x, y) => m[(((y % G) + G) % G) * G + (((x % G) + G) % G)];
+    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+      const gx = x0 + x, gy = y0 + y, t = at(target, gx, gy), m = at(mask, gx, gy), px = x * cell, py = y * cell;
+      if (m && t) { ctx.fillStyle = VPC.open; ctx.fillRect(px, py, cell, cell); }
+      else if (m) { ctx.fillStyle = VPC.print; ctx.fillRect(px, py, cell, cell); }
+      else if (t) {
+        ctx.fillStyle = '#2a1416'; ctx.fillRect(px, py, cell, cell);
+        ctx.save(); ctx.beginPath(); ctx.rect(px, py, cell, cell); ctx.clip();
+        ctx.strokeStyle = VPC.bad; ctx.lineWidth = 1.5; ctx.beginPath();
+        for (let o = -cell; o < cell; o += 4) { ctx.moveTo(px + o, py + cell); ctx.lineTo(px + o + cell, py); }
+        ctx.stroke(); ctx.restore();
+      }
+    }
+    // target outline
+    ctx.save(); ctx.translate(-x0 * cell, -y0 * cell);
+    outline(ctx, target, cell, VPC.target, 1.5, [4, 3]);
+    ctx.restore();
+    // highlighted step
+    if (solHot >= 0) {
+      ctx.save(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 3;
+      for (const [x, y, w, h] of sol.steps[solHot].c) {
+        const cx = Math.max(x, x0), cy = Math.max(y, y0), ex = Math.min(x + w, x0 + cw), ey = Math.min(y + h, y0 + ch);
+        if (ex > cx && ey > cy) ctx.strokeRect((cx - x0) * cell + 1, (cy - y0) * cell + 1, (ex - cx) * cell - 2, (ey - cy) * cell - 2);
+      }
+      ctx.restore();
+    }
+    // scale: one CD
+    ctx.save(); ctx.fillStyle = 'rgba(10,12,16,0.75)'; ctx.fillRect(4, H - 22, 4 * cell + 52, 18);
+    ctx.strokeStyle = VPC.text; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(9, H - 10); ctx.lineTo(9 + 4 * cell, H - 10); ctx.stroke();
+    ctx.fillStyle = VPC.text; ctx.font = '500 10px "IBM Plex Mono", monospace'; ctx.textBaseline = 'middle';
+    ctx.fillText('1 CD', 14 + 4 * cell, H - 12); ctx.restore();
+  }
+  const stepOf = e => { const li = e.target.closest && e.target.closest('li[data-k]'); return li ? +li.dataset.k : -1; };
+  const hotStep = k => {
+    if (k === solHot) return; solHot = k;
+    for (const li of $('solSteps').children) li.classList.toggle('on', +li.dataset.k === k);
+    drawSolution();
+  };
+  $('solSteps').addEventListener('pointerover', e => hotStep(stepOf(e)));
+  $('solSteps').addEventListener('pointerleave', () => hotStep(-1));
+  $('solSteps').addEventListener('focusin', e => hotStep(stepOf(e)));
+  $('solSteps').addEventListener('focusout', () => hotStep(-1));
+  $('solSteps').addEventListener('click', e => hotStep(stepOf(e)));
+  $('solBtn').addEventListener('click', () => setSolution($('solution').hidden));
+  $('solApply').addEventListener('click', () => {
+    if (S.busy || S.mode !== 'puzzle') return;
+    pushUndo();
+    S.mask = solutionMask(S.level); S.maskDirty = true; S.assisted = 'solution';
+    if (!opticsMatch() || S.dose !== S.levelDose || S.focus !== 0) { applyLevelOptics(); S.dose = S.levelDose; S.focus = 0; syncControls(); }
+    invalidate();
+  });
+  let solW = 0;
+  new ResizeObserver(() => { const w = $('solution').clientWidth; if (!$('solution').hidden && w !== solW) { solW = w; drawSolution(); } }).observe($('solution'));
+
+  $('hintBtn').addEventListener('click', () => { const h = $('lvlHint'); h.hidden = !h.hidden; $('hintBtn').textContent = h.hidden ? 'Show hint' : 'Hide hint'; });
+  $('nextBtn').addEventListener('click', () => { if (S.level < LEVELS.length - 1 && !S.busy) loadLevel(S.level + 1); });
+  $('restoreBtn').addEventListener('click', () => { applyLevelOptics(); syncControls(); invalidate(); });
+  $('preset').addEventListener('change', e => loadPreset(e.target.value));
+  $('setTarget').addEventListener('click', () => {
+    if (!S.mask.some(v => v)) { $('verdictMain').textContent = 'Nothing to use as a target'; $('verdictSub').textContent = 'Paint some openings first.'; return; }
+    const keepAnchor = S.anchor;
+    setTarget(S.mask.slice(), null, keepAnchor && S.mask[Math.floor(keepAnchor.y) * G + Math.floor(keepAnchor.x)] ? keepAnchor : null);
+    S.assisted = false; syncControls(); invalidate();
+  });
+  $('pickSite').addEventListener('click', () => { S.pickMode = !S.pickMode; syncControls(); renderMask(); });
+
+  $('toolSeg').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b || b.dataset.tool === S.tool) return;
+    const pk = k1(); S.tool = b.dataset.tool; S.NA = T().defNA; S.focus = 0; holdCD(pk, true); syncControls(); invalidate();
+  });
+  $('na').addEventListener('input', e => { const pk = k1(); S.NA = +e.target.value; holdCD(pk, true); syncControls(); invalidate(); });
+  $('naChips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return; const pk = k1(); S.NA = +b.dataset.na; holdCD(pk, true); syncControls(); invalidate(); });
+  $('k1').addEventListener('input', e => { S.cd = +e.target.value * T().lambda / S.NA; $('toolNote').hidden = true; syncControls(); invalidate(); });
+  $('shapeSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.shape = b.dataset.shape; syncControls(); invalidate(); });
+  $('sigma').addEventListener('input', e => { S.sigma = +e.target.value; syncControls(); invalidate(); });
+  $('dose').addEventListener('input', e => { S.dose = +e.target.value; $('doseOut').textContent = `${fmt(S.dose, 2)}×`; invalidate(); });
+  $('dtsBtn').addEventListener('click', () => { doseToSize(); syncControls(); invalidate(); });
+  $('focus').addEventListener('input', e => { S.focus = +e.target.value; $('focusOut').textContent = `${Math.round(S.focus)} nm`; invalidate(); });
+  $('paintSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.paint = b.dataset.paint === '1'; syncControls(); });
+  $('brushSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.brush = +b.dataset.b; syncControls(); });
+  $('viewSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.view = b.dataset.view; syncControls(); renderWafer(); });
+
+  // ---------- editing ----------
+  function pushUndo() { undo.push({ mask: S.mask.slice(), assisted: S.assisted }); if (undo.length > 60) undo.shift(); $('undoBtn').disabled = false; }
+  function doUndo() { if (!undo.length || S.busy) return; const u = undo.pop(); S.mask = u.mask; S.assisted = u.assisted; S.maskDirty = true; $('undoBtn').disabled = !undo.length; invalidate(); }
+  $('undoBtn').addEventListener('click', doUndo);
+  $('resetBtn').addEventListener('click', () => { if (S.busy) return; pushUndo(); S.mask = S.target ? S.target.slice() : new Uint8Array(G * G); S.maskDirty = true; S.assisted = false; invalidate(); });
+  $('clearBtn').addEventListener('click', () => { if (S.busy) return; pushUndo(); S.mask = new Uint8Array(G * G); S.maskDirty = true; S.assisted = false; invalidate(); });
+
+  function cellAt(e) {
+    const r = maskCv.getBoundingClientRect();
+    const fx = Math.floor((e.clientX - r.left) / r.width * VIEW.n), fy = Math.floor((e.clientY - r.top) / r.height * VIEW.n);
+    return { x: VIEW.x0 + Math.max(0, Math.min(VIEW.n - 1, fx)), y: VIEW.y0 + Math.max(0, Math.min(VIEW.n - 1, fy)) };
+  }
+  function brushAt(c, erase) {
+    const b = S.brush, o = Math.floor((b - 1) / 2); let ch = false;
+    for (let dy = 0; dy < b; dy++) for (let dx = 0; dx < b; dx++) {
+      const x = c.x - o + dx, y = c.y - o + dy; if (x < 0 || y < 0 || x >= G || y >= G) continue;
+      const i = y * G + x, v = erase ? 0 : 1; if (S.mask[i] !== v) { S.mask[i] = v; ch = true; }
+    }
+    return ch;
+  }
+  let stroke = null;
+  maskCv.addEventListener('pointerdown', e => {
+    if (S.busy) return;
+    e.preventDefault();
+    const c = cellAt(e);
+    if (S.pickMode) { pickSite(c); return; }
+    maskCv.setPointerCapture(e.pointerId);
+    pushUndo();
+    stroke = { erase: !S.paint || e.button === 2 || e.shiftKey, last: c, changed: false };
+    if (brushAt(c, stroke.erase)) { stroke.changed = true; S.maskDirty = true; invalidate(); }
+  });
+  maskCv.addEventListener('pointermove', e => {
+    const c = cellAt(e);
+    const moved = !S.hover || S.hover.x !== c.x || S.hover.y !== c.y;
+    S.hover = c;
+    if (stroke) {
+      // Bresenham from last cell to this one
+      let x0 = stroke.last.x, y0 = stroke.last.y; const x1 = c.x, y1 = c.y;
+      const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1; let err = dx + dy, ch = false;
+      for (;;) { if (brushAt({ x: x0, y: y0 }, stroke.erase)) ch = true; if (x0 === x1 && y0 === y1) break; const e2 = 2 * err; if (e2 >= dy) { err += dy; x0 += sx; } if (e2 <= dx) { err += dx; y0 += sy; } }
+      stroke.last = c;
+      if (ch) { stroke.changed = true; S.maskDirty = true; invalidate(); return; }
+    }
+    if (moved && !rafPending) renderMask();
+  });
+  const endStroke = () => { if (stroke && !stroke.changed) { undo.pop(); $('undoBtn').disabled = !undo.length; } stroke = null; };
+  maskCv.addEventListener('pointerup', endStroke);
+  maskCv.addEventListener('pointercancel', endStroke);
+  maskCv.addEventListener('pointerleave', () => { if (!stroke) { S.hover = null; renderMask(); } });
+  maskCv.addEventListener('contextmenu', e => e.preventDefault());
+
+  function pickSite(c) {
+    const ref = S.target || S.mask;
+    S.pickMode = false;
+    if (!ref[c.y * G + c.x]) { showNote('Pick a cell inside a feature to set the CD site.', true); syncControls(); renderMask(); return; }
+    const run = (dx, dy) => { let a = 0, b = 0; while (a < G && ref[(c.y - dy * (a + 1) + G) % G * G + (c.x - dx * (a + 1) + G) % G]) a++; while (b < G && ref[(c.y + dy * (b + 1)) % G * G + (c.x + dx * (b + 1)) % G]) b++; return { lo: a, hi: b, w: a + b + 1 }; };
+    const h = run(1, 0), v = run(0, 1);
+    const useH = h.w <= v.w, r = useH ? h : v;
+    S.anchor = useH ? { x: c.x - r.lo + r.w / 2, y: c.y + 0.5, dir: 'h', w: r.w } : { x: c.x + 0.5, y: c.y - r.lo + r.w / 2, dir: 'v', w: r.w };
+    showNote(`CD site set: ${fmt(r.w * cellNm(), 1)} nm ${useH ? 'wide' : 'tall'} feature. The Bossung plot now tracks it.`);
+    syncControls(); invalidate();
+  }
+
+  document.addEventListener('keydown', e => {
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); doUndo(); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'b' || e.key === 'B') { S.paint = true; syncControls(); }
+    else if (e.key === 'e' || e.key === 'E') { S.paint = false; syncControls(); }
+    else if (['1', '2', '3'].includes(e.key)) { S.brush = +e.key; syncControls(); }
+  });
+
+  // ---------- auto OPC ----------
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  $('opcBtn').addEventListener('click', async () => {
+    if (!S.target || S.busy) return;
+    S.busy = true; $('opcBtn').disabled = true; $('opcBtn').textContent = 'Running…';
+    pushUndo();
+    const allowed = C.opcAllowed(S.target);
+    let mask = S.mask.slice(), bestRun = null;
+    const delay = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 140;
+    for (let it = 0; it < 16; it++) {
+      S.mask = mask; S.maskDirty = true; S.assisted = 'opc'; compute();
+      const sc = score(); const J = Math.abs(sc.worst.epe) + 0.5 * sc.rms + 5 * S.defects.length;
+      if (!bestRun || J < bestRun.J - 1e-6) bestRun = { J, mask: mask.slice() };
+      const st = C.opcStep(mask, S.target, C.coverage(S.I, S.thr), S.tpx, allowed);
+      if (!st.flips) break;
+      mask = st.mask;
+      await sleep(delay);
+    }
+    S.mask = bestRun.mask; S.maskDirty = true; compute();
+    S.busy = false; $('opcBtn').textContent = 'Auto-OPC'; syncControls();
+  });
+
+  // theme changes repaint the token-coloured canvases
+  const repaintThemed = () => { drawPupil(); drawBossung(); };
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', repaintThemed); } catch (e) { /* old browsers */ }
+  new MutationObserver(repaintThemed).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { renderMask(); renderWafer(); drawBossung(); drawPupil(); });
+
+  // ---------- boot ----------
+  fitCanvas(maskCv); fitCanvas(waferCv); fitCanvas(bossCv);
+  loadLevel(0);
+  window.__LP = { S, loadLevel, loadPreset, score, compute };
+})();
+
+</script>
+</body>
+</html>

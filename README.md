@@ -22,6 +22,11 @@ simulations/multi-vt-explorer/ Multi-Vt Cell Explorer: one self-contained page, 
 posts/chiplet-slicer/index.html
                                Blog post that embeds the Chiplet Slicer
 simulations/chiplet-slicer/    Chiplet Slicer: one self-contained page, plus thumb.png
+posts/light-painter/index.html
+                               Blog post that embeds Light Painter
+simulations/light-painter/     Light Painter: one self-contained page (built from light-painter-src/), plus thumb.png
+light-painter-src/             Light Painter source, tests and build.py. Not linked from the site.
+                               Rebuild: python build.py, then copy dist/index.html to simulations/light-painter/
 assets/css/style.css           Shared styles (light and dark mode)
 assets/js/euv-simulator.js     Simulator code
 assets/img/                    Screenshots used in the post

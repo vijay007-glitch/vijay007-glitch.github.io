@@ -1,0 +1,458 @@
+<title>Light Painter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: lithography-bay console. Header + level strip; bench = [reticle | wafer] viewports with the scorecard under them; control rack on the right (stacks below on narrow screens). */
+:root {
+  --bg: #e8ebef;
+  --surface: #f8f9fb;
+  --surface-2: #eef1f5;
+  --line: #cdd3dc;
+  --fg: #141820;
+  --muted: #586271;
+  --accent: #b46a00;
+  --accent-strong: #8c5200;
+  --accent-soft: #f4e2bf;
+  --on-accent: #1b1204;
+  --euv: #5f43cc;
+  --ok: #0f7f55;
+  --warn: #9a6200;
+  --bad: #c03434;
+  --vp: #0c0e12;
+  --vp-2: #14171d;
+  --vp-line: #262b34;
+  --vp-fg: #e1e5ec;
+  --vp-muted: #8d96a5;
+  --f-display: "Big Shoulders Display", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1014; --surface: #161920; --surface-2: #1c2028; --line: #2a303a; --fg: #e7eaef; --muted: #98a1ae;
+    --accent: #f0a83a; --accent-strong: #ffc46b; --accent-soft: #3a2a10; --on-accent: #1b1204; --euv: #a68cff;
+    --ok: #3cd29b; --warn: #f2c94c; --bad: #f47b7b; --vp: #0a0c10; --vp-2: #12151b; --vp-line: #252a33;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1014; --surface: #161920; --surface-2: #1c2028; --line: #2a303a; --fg: #e7eaef; --muted: #98a1ae;
+  --accent: #f0a83a; --accent-strong: #ffc46b; --accent-soft: #3a2a10; --on-accent: #1b1204; --euv: #a68cff;
+  --ok: #3cd29b; --warn: #f2c94c; --bad: #f47b7b; --vp: #0a0c10; --vp-2: #12151b; --vp-line: #252a33;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 400 14px/1.5 var(--f-body); }
+.page { max-width: 1320px; margin: 0 auto; padding-inline: 20px; padding-block: 18px 40px; display: grid; gap: 16px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- header ---------- */
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+.brand { display: grid; gap: 4px; min-width: 0; }
+.brand h1 { font: 800 clamp(34px, 4.4vw, 50px)/0.9 var(--f-display); letter-spacing: 0.01em; text-transform: uppercase; }
+.brand h1 span { color: var(--accent); }
+.brand p { color: var(--muted); max-width: 62ch; }
+.status { font: 500 11.5px/1.4 var(--f-mono); color: var(--muted); letter-spacing: 0.02em; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.status b { color: var(--fg); font-weight: 600; }
+.status .euv { color: var(--euv); }
+.top-right { display: grid; gap: 8px; justify-items: end; }
+
+/* ---------- segmented controls & buttons ---------- */
+.seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; }
+.seg button { border: 0; background: transparent; padding: 6px 11px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 13px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.seg button:hover { color: var(--fg); }
+.seg button[aria-checked="true"], .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.seg button small { font: 400 11px var(--f-mono); opacity: 0.8; }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 6px 11px; border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { border-color: var(--muted); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn.ghost { background: transparent; }
+
+/* ---------- levels ---------- */
+.levelbar { display: grid; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+.levels { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
+.lvl { flex: 0 0 auto; display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; column-gap: 8px; align-items: center; text-align: left; border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 6px 12px 6px 9px; cursor: pointer; }
+.lvl .n { grid-row: 1 / 3; font: 800 26px/1 var(--f-display); color: var(--muted); }
+.lvl .nm { font-weight: 600; font-size: 13px; white-space: nowrap; }
+.lvl .st { font-size: 11px; letter-spacing: 1px; color: var(--muted); }
+.lvl .st .on { color: var(--accent); }
+.lvl[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.lvl[aria-current="true"] .n { color: var(--accent); }
+.brief { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 20px; align-items: start; }
+.brief h2 { font: 800 26px/1 var(--f-display); text-transform: uppercase; letter-spacing: 0.02em; }
+.brief .txt { display: grid; gap: 6px; min-width: 0; }
+.brief p { max-width: 78ch; }
+.brief .goal { color: var(--muted); font-size: 13px; }
+.brief .hint { font-size: 13px; border-left: 3px solid var(--accent); padding-left: 10px; }
+.brief .actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+#solBtn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-soft); }
+
+/* ---------- solution reveal ---------- */
+.solution { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px 22px; align-items: start; padding: 14px; border: 1px dashed var(--accent); border-radius: 9px; background: var(--surface-2); }
+.sol-fig { margin: 0; display: grid; gap: 8px; justify-items: start; }
+.sol-fig canvas { display: block; border-radius: 7px; max-width: 100%; }
+.sol-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 400 11px var(--f-mono); color: var(--muted); max-width: 300px; }
+.sol-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.sol-legend .k-keep { background: #f3e2b8; border: 1px solid var(--line); }
+.sol-legend .k-add { background: #ffad2a; }
+.sol-legend .k-cut { background: repeating-linear-gradient(45deg, #ff6b6b 0 2px, #2a1416 2px 4px); }
+.sol-legend .k-step { background: transparent; outline: 2px solid var(--fg); outline-offset: -2px; }
+.sol-body { display: grid; gap: 10px; min-width: 0; }
+.sol-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.sol-head h3 { font: 800 22px/1 var(--f-display); text-transform: uppercase; letter-spacing: 0.04em; }
+.sol-result { font: 600 13px var(--f-mono); font-variant-numeric: tabular-nums; color: var(--ok); }
+.sol-why { max-width: 72ch; font-size: 13.5px; }
+.sol-steps { margin: 0; padding-left: 22px; display: grid; gap: 4px; max-width: 78ch; }
+.sol-steps li { padding: 5px 8px; border-radius: 6px; font-size: 13.5px; cursor: default; }
+.sol-steps li::marker { font: 600 13px var(--f-mono); color: var(--accent-strong); }
+.sol-steps li:hover, .sol-steps li:focus-visible, .sol-steps li.on { background: var(--accent-soft); }
+.sol-steps li small { display: block; color: var(--muted); font-size: 12.5px; }
+.sol-apply { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.sandbox-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sandbox-tools select { border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 6px 8px; font-size: 13px; }
+
+/* ---------- bench ---------- */
+.bench { display: grid; grid-template-columns: minmax(0, 1fr) 344px; gap: 16px; align-items: start; }
+.main { display: grid; gap: 16px; min-width: 0; }
+.views { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.vp { margin: 0; background: var(--vp); border-radius: var(--radius); overflow: hidden; display: grid; grid-template-rows: auto auto 1fr; color: var(--vp-fg); min-width: 0; border: 1px solid var(--vp-line); }
+.vp-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; min-height: 60px; border-bottom: 1px solid var(--vp-line); flex-wrap: wrap; }
+.vp-title { font: 800 18px/1 var(--f-display); letter-spacing: 0.08em; text-transform: uppercase; }
+.vp-sub { font: 400 11.5px var(--f-mono); color: var(--vp-muted); }
+.vp-head .grow { flex: 1; }
+.vp-canvas { position: relative; aspect-ratio: 1 / 1; max-width: 100%; }
+.vp-canvas canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+#maskCanvas { cursor: crosshair; }
+.vp-tools { display: flex; flex-wrap: wrap; gap: 6px; padding: 9px 10px; border-top: 1px solid var(--vp-line); background: var(--vp-2); align-items: center; }
+.vp .seg { background: var(--vp); border-color: var(--vp-line); }
+.vp .seg button { color: var(--vp-muted); }
+.vp .seg button:hover { color: var(--vp-fg); }
+.vp .seg button[aria-checked="true"], .vp .seg button[aria-pressed="true"] { background: #f0a83a; color: #1b1204; }
+.vp .btn { background: var(--vp); border-color: var(--vp-line); color: var(--vp-fg); }
+.vp .btn:hover { border-color: var(--vp-muted); }
+.vp .btn.opc { border-color: #8a6a2c; color: #ffc46b; }
+.vp .sep { width: 1px; align-self: stretch; background: var(--vp-line); margin-inline: 2px; }
+.brush-sq { display: inline-block; background: currentColor; border-radius: 1px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 400 11.5px var(--f-mono); color: var(--vp-muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+/* ---------- readout ---------- */
+.readout { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 14px 24px; }
+.verdict-row { display: flex; gap: 14px; align-items: center; }
+.stars { font-size: 26px; letter-spacing: 2px; line-height: 1; color: var(--line); white-space: nowrap; }
+.stars .on { color: var(--accent); }
+.verdict { display: grid; gap: 4px; min-width: 0; }
+.verdict strong { font-size: 15px; }
+.verdict span { color: var(--muted); font-size: 13px; }
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 12px 0 0; }
+.metrics div { display: grid; gap: 2px; }
+.metrics dt { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.metrics dd { margin: 0; font: 600 20px/1.1 var(--f-mono); font-variant-numeric: tabular-nums; }
+.metrics .sub { font: 400 11.5px var(--f-mono); color: var(--muted); }
+.spec { margin-top: 10px; font: 400 11.5px var(--f-mono); color: var(--muted); }
+.hot-h { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 6px; }
+.hotspots { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.hotspots li { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 7px; background: var(--surface-2); cursor: default; }
+.hotspots li:hover { outline: 1px solid var(--line); }
+.hotspots .dot { width: 8px; height: 8px; border-radius: 50%; }
+.hotspots .what { font-size: 13px; }
+.hotspots .what small { color: var(--muted); display: block; font-size: 11.5px; }
+.hotspots .v { font: 600 13px var(--f-mono); font-variant-numeric: tabular-nums; }
+.sev-ok { background: var(--ok); } .sev-warn { background: var(--warn); } .sev-bad { background: var(--bad); }
+.c-ok { color: var(--ok); } .c-warn { color: var(--warn); } .c-bad { color: var(--bad); }
+.mismatch { margin-top: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+
+/* ---------- rack ---------- */
+.rack { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); display: grid; }
+.rack section { padding: 14px 16px; display: grid; gap: 10px; border-top: 1px solid var(--line); }
+.rack section:first-child { border-top: 0; }
+.rack h3 { font: 800 17px/1 var(--f-display); letter-spacing: 0.08em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: baseline; }
+.rack h3 small { font: 400 11px var(--f-mono); letter-spacing: 0; text-transform: none; color: var(--muted); }
+.field { display: grid; gap: 5px; }
+.field label, .field .label { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; font-weight: 500; }
+.field output { font: 600 13px var(--f-mono); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--accent); margin: 2px 0; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--line); background: var(--surface-2); border-radius: 999px; padding: 2px 10px; font: 500 12px var(--f-mono); cursor: pointer; }
+.chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-soft); }
+.k1-scale { position: relative; height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.k1-scale .bad { position: absolute; inset: 0 auto 0 0; background: var(--bad); opacity: 0.55; }
+.k1-scale .warn { position: absolute; top: 0; bottom: 0; background: var(--warn); opacity: 0.45; }
+.k1-legend { position: relative; height: 14px; font: 400 11px var(--f-mono); color: var(--muted); }
+.k1-legend span { position: absolute; top: 0; white-space: nowrap; transform: translateX(-50%); }
+.k1-legend span:first-child { transform: none; }
+.derived { font-size: 12.5px; color: var(--muted); }
+.derived b { color: var(--fg); font: 600 13px var(--f-mono); }
+.note { font-size: 12.5px; border-radius: 7px; padding: 7px 9px; background: var(--accent-soft); color: var(--fg); }
+.note.bad { background: color-mix(in srgb, var(--bad) 16%, transparent); }
+.illum { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; align-items: center; }
+.illum canvas { width: 112px; height: 112px; }
+.shapes { display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; }
+.shapes button { border: 1px solid var(--line); background: var(--surface-2); border-radius: 7px; padding: 3px 8px; font-size: 12.5px; white-space: nowrap; display: flex; gap: 6px; align-items: center; cursor: pointer; text-align: left; }
+.shapes button svg { flex: 0 0 auto; }
+.shapes button[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.bossung { position: relative; aspect-ratio: 16 / 10; max-width: 100%; }
+.bossung canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.dof { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; align-items: center; }
+.dof .big { font: 600 24px/1 var(--f-mono); font-variant-numeric: tabular-nums; }
+.dof span { font-size: 12px; color: var(--muted); }
+.tgroup { display: grid; gap: 4px; }
+.tg-h { font-size: 12px; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.tg-h small { font-weight: 400; color: var(--muted); }
+.trow { display: grid; grid-template-columns: 96px minmax(0, 1fr) 64px; gap: 8px; align-items: center; font-size: 12.5px; }
+.trow .track { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.trow .track i { display: block; height: 100%; border-radius: 4px; background: var(--muted); opacity: 0.6; }
+.trow.euv .track i { background: var(--euv); opacity: 0.7; }
+.trow.cur span:first-child { color: var(--accent-strong); font-weight: 600; }
+.trow.cur .track i { background: var(--accent); opacity: 1; }
+.trow b { font: 500 12px var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.small { font-size: 12.5px; color: var(--muted); }
+
+/* ---------- footer ---------- */
+.about { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 16px; }
+.about summary { cursor: pointer; padding: 10px 0; font-weight: 600; }
+.about .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 28px; padding-bottom: 14px; }
+.about h4 { margin: 0 0 4px; font-size: 13px; }
+.about p { font-size: 13px; color: var(--muted); max-width: 62ch; }
+.foot { font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 16px; justify-content: space-between; }
+.foot a { color: var(--accent-strong); }
+
+@media (max-width: 1120px) {
+  .bench { grid-template-columns: minmax(0, 1fr); }
+  .rack { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rack section:nth-child(2) { border-top: 0; border-left: 1px solid var(--line); }
+  .rack section:nth-child(4) { border-left: 1px solid var(--line); }
+}
+@media (max-width: 760px) {
+  .page { padding-inline: 16px; }
+  .views { grid-template-columns: minmax(0, 1fr); }
+  .readout { grid-template-columns: minmax(0, 1fr); }
+  .rack { grid-template-columns: minmax(0, 1fr); }
+  .rack section:nth-child(2), .rack section:nth-child(4) { border-left: 0; border-top: 1px solid var(--line); }
+  .brief { grid-template-columns: minmax(0, 1fr); }
+  .brief .actions { justify-content: flex-start; }
+  .solution { grid-template-columns: minmax(0, 1fr); }
+  .top-right { justify-items: start; }
+  .metrics dd { font-size: 17px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="page">
+  <header class="top">
+    <div class="brand">
+      <h1>Light <span>Painter</span></h1>
+      <p>Paint a photomask, expose it, and watch what prints. Corners round off and line ends pull back. Your job is the inverse problem: design the mask that prints the shape you want.</p>
+    </div>
+    <div class="top-right">
+      <div class="seg" role="radiogroup" aria-label="Mode" id="modeSeg">
+        <button role="radio" data-mode="puzzle" aria-checked="true">OPC puzzle</button>
+        <button role="radio" data-mode="sandbox" aria-checked="false">Sandbox</button>
+      </div>
+      <div class="status" id="status" aria-live="off"></div>
+    </div>
+  </header>
+
+  <section class="levelbar" aria-label="Level">
+    <nav class="levels" id="levels" aria-label="Puzzle levels"></nav>
+    <div class="brief">
+      <div class="txt">
+        <h2 id="lvlName">Corner rounding</h2>
+        <p id="lvlBrief"></p>
+        <p class="goal" id="lvlGoal"></p>
+        <p class="hint" id="lvlHint" hidden></p>
+        <div class="sandbox-tools" id="sandboxTools" hidden>
+          <label for="preset" class="small">Preset</label>
+          <select id="preset">
+            <option value="dense">Dense lines with ends</option>
+            <option value="contacts">Contact array</option>
+            <option value="logic">Logic cell snippet</option>
+            <option value="letters">Letters “LP”</option>
+            <option value="blank">Blank field</option>
+          </select>
+          <button class="btn" id="setTarget">Set mask as target</button>
+          <button class="btn" id="pickSite" aria-pressed="false">Pick CD site</button>
+        </div>
+      </div>
+      <div class="actions" id="briefActions">
+        <button class="btn" id="hintBtn">Show hint</button>
+        <button class="btn" id="solBtn" aria-expanded="false" aria-controls="solution">Show solution</button>
+        <button class="btn" id="nextBtn">Next level →</button>
+      </div>
+    </div>
+    <div class="solution" id="solution" hidden>
+      <figure class="sol-fig">
+        <canvas id="solCanvas" role="img" aria-label="Solution mask diagram"></canvas>
+        <figcaption class="sol-legend">
+          <span><i class="k-keep"></i>target kept</span><span><i class="k-add"></i>added</span><span><i class="k-cut"></i>erased</span><span><i class="k-step"></i>step</span>
+        </figcaption>
+      </figure>
+      <div class="sol-body">
+        <div class="sol-head"><h3>Solution</h3><span class="sol-result" id="solResult"></span></div>
+        <p class="sol-why" id="solWhy"></p>
+        <ol class="sol-steps" id="solSteps"></ol>
+        <div class="sol-apply">
+          <button class="btn primary" id="solApply">Paint it onto the reticle</button>
+          <span class="small">Loads as a reference, so stars aren’t recorded until you press Reset. Undo takes it back off.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="bench">
+    <div class="main">
+      <div class="views">
+        <figure class="vp" aria-label="Reticle editor">
+          <div class="vp-head">
+            <span class="vp-title">Reticle</span>
+            <span class="vp-sub">what you draw · <span id="cellNm">1 cell = 4.00 nm</span></span>
+          </div>
+          <div class="vp-canvas"><canvas id="maskCanvas" role="img" aria-label="Mask editor. Drag to paint openings that let light through."></canvas></div>
+          <div class="vp-tools">
+            <div class="seg" role="radiogroup" aria-label="Brush mode" id="paintSeg">
+              <button role="radio" data-paint="1" aria-checked="true" title="Paint (B)">Paint</button>
+              <button role="radio" data-paint="0" aria-checked="false" title="Erase (E, or right-drag)">Erase</button>
+            </div>
+            <div class="seg" role="radiogroup" aria-label="Brush size" id="brushSeg">
+              <button role="radio" data-b="1" aria-checked="true" title="1 cell (1)"><span class="brush-sq" style="width:4px;height:4px"></span>1</button>
+              <button role="radio" data-b="2" aria-checked="false" title="2 × 2 cells (2)"><span class="brush-sq" style="width:7px;height:7px"></span>2</button>
+              <button role="radio" data-b="3" aria-checked="false" title="3 × 3 cells (3)"><span class="brush-sq" style="width:10px;height:10px"></span>3</button>
+            </div>
+            <span class="sep"></span>
+            <button class="btn" id="undoBtn" title="Undo (Ctrl/⌘ Z)">Undo</button>
+            <button class="btn" id="resetBtn" title="Mask = target, no correction">Reset</button>
+            <button class="btn" id="clearBtn">Clear</button>
+            <button class="btn opc" id="opcBtn" title="Model-based OPC: flips edge cells to cut the error">Auto-OPC</button>
+          </div>
+        </figure>
+        <figure class="vp" aria-label="Wafer view">
+          <div class="vp-head">
+            <span class="vp-title">Wafer</span>
+            <span class="vp-sub">what prints</span>
+            <span class="grow"></span>
+            <div class="seg" role="radiogroup" aria-label="Wafer view" id="viewSeg">
+              <button role="radio" data-view="resist" aria-checked="true">Resist</button>
+              <button role="radio" data-view="aerial" aria-checked="false">Aerial image</button>
+            </div>
+          </div>
+          <div class="vp-canvas"><canvas id="waferCanvas" role="img" aria-label="Printed resist pattern"></canvas></div>
+          <div class="vp-tools">
+            <div class="legend" id="legend"></div>
+          </div>
+        </figure>
+      </div>
+
+      <section class="readout" aria-label="Scorecard">
+        <div>
+          <div class="verdict-row">
+            <div class="stars" id="stars" aria-label="Stars"><span>★</span><span>★</span><span>★</span></div>
+            <div class="verdict"><strong id="verdictMain"></strong><span id="verdictSub"></span></div>
+          </div>
+          <dl class="metrics">
+            <div><dt>Worst edge error</dt><dd id="mWorst">–</dd><span class="sub" id="mWorstSub"></span></div>
+            <div><dt>RMS edge error</dt><dd id="mRms">–</dd><span class="sub" id="mRmsSub"></span></div>
+            <div><dt>OPC edits</dt><dd id="mCells">0</dd><span class="sub" id="mCellsSub">cells vs target</span></div>
+          </dl>
+          <p class="spec" id="specLine"></p>
+          <div class="mismatch" id="mismatch" hidden>
+            <span>You changed the optics, so stars are paused. Explore freely.</span>
+            <button class="btn" id="restoreBtn">Restore level optics</button>
+          </div>
+        </div>
+        <div>
+          <div class="hot-h">Hotspots · worst first</div>
+          <ul class="hotspots" id="hotspots"></ul>
+        </div>
+      </section>
+    </div>
+
+    <aside class="rack" aria-label="Exposure controls">
+      <section aria-labelledby="hScanner">
+        <h3 id="hScanner">Scanner <small id="rayleigh">R = k1·λ/NA</small></h3>
+        <div class="field">
+          <span class="label">Wavelength</span>
+          <div class="seg" role="radiogroup" aria-label="Wavelength" id="toolSeg">
+            <button role="radio" data-tool="arf" aria-checked="false">193 nm <small>ArF immersion</small></button>
+            <button role="radio" data-tool="euv" aria-checked="true">13.5 nm <small>EUV</small></button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="na">Numerical aperture <output id="naOut" for="na">0.33</output></label>
+          <input type="range" id="na" min="0.25" max="0.6" step="0.01" value="0.33">
+          <div class="chips" id="naChips"></div>
+        </div>
+        <div class="field">
+          <label for="k1">k1 factor <output id="k1Out" for="k1">0.39</output></label>
+          <input type="range" id="k1" min="0.1" max="1" step="0.01" value="0.39">
+          <div class="k1-scale" aria-hidden="true"><span class="bad" style="width:16.7%"></span><span class="warn" style="left:16.7%;width:5.6%"></span></div>
+          <div class="k1-legend" aria-hidden="true"><span style="left:0">0.10</span><span style="left:16.7%;transform:none">0.25 limit</span><span style="left:44.4%">0.50</span><span style="left:100%;transform:translateX(-100%)">1.00</span></div>
+          <p class="derived">Feature CD <b id="cdOut">16.0 nm</b> · λ/NA <b id="lnaOut">40.9 nm</b></p>
+          <p class="note" id="toolNote" hidden></p>
+        </div>
+      </section>
+
+      <section aria-labelledby="hIllum">
+        <h3 id="hIllum">Illumination <small>source shape in the pupil</small></h3>
+        <div class="illum">
+          <canvas id="pupil" width="224" height="224" aria-label="Illumination pupil diagram"></canvas>
+          <div class="shapes" role="radiogroup" aria-label="Illumination shape" id="shapeSeg"></div>
+        </div>
+        <div class="field">
+          <label for="sigma">σ, outer radius <output id="sigmaOut" for="sigma">0.60</output></label>
+          <input type="range" id="sigma" min="0.2" max="1" step="0.01" value="0.6">
+        </div>
+      </section>
+
+      <section aria-labelledby="hDose">
+        <h3 id="hDose">Dose &amp; focus <small id="zrNote"></small></h3>
+        <div class="field">
+          <label for="dose">Dose <output id="doseOut" for="dose">1.00×</output></label>
+          <input type="range" id="dose" min="0.4" max="2.5" step="0.01" value="1">
+          <div class="row"><button class="btn" id="dtsBtn" title="Set dose so the CD site prints on size">Dose to size</button><span class="small">resist prints above 30% of clear-field light</span></div>
+        </div>
+        <div class="field">
+          <label for="focus">Focus offset <output id="focusOut" for="focus">0 nm</output></label>
+          <input type="range" id="focus" min="-200" max="200" step="1" value="0">
+        </div>
+        <div class="bossung"><canvas id="bossung" aria-label="Bossung plot: printed CD versus focus"></canvas></div>
+        <div class="dof">
+          <div class="big" id="dofOut">–</div>
+          <span id="dofSub">depth of focus: CD at the site stays within ±10%</span>
+        </div>
+      </section>
+
+      <section aria-labelledby="hTrade">
+        <h3 id="hTrade">The High-NA trade-off</h3>
+        <p class="small">Resolution scales with λ/NA. Depth of focus scales with λ/NA². Raising NA buys the first and pays with the second.</p>
+        <div class="tgroup"><div class="tg-h">Resolution scale, λ/NA <small>smaller prints finer</small></div><div id="tradeRes"></div></div>
+        <div class="tgroup"><div class="tg-h">Focus scale, λ/NA² <small>larger is more forgiving</small></div><div id="tradeDof"></div></div>
+        <p class="small" id="tradeNote"></p>
+      </section>
+    </aside>
+  </div>
+
+  <details class="about">
+    <summary>How the model works</summary>
+    <div class="cols">
+      <div><h4>Imaging</h4><p>Abbe's method. The illumination is split into 14 to 49 source points. Each one lights the mask from a slightly different angle, the projection lens passes only the spatial frequencies inside its pupil (radius NA/λ), and the intensities from all source points add up. That is why the illumination shape matters: off-axis light lets a dense grating's first diffraction orders through.</p></div>
+      <div><h4>Focus</h4><p>Defocus adds the phase 2π·(z/λ)·(√(n² − NA²ρ²) − n) across the pupil, with n = 1.44 for water immersion and 1 for EUV in vacuum. The Bossung plot sweeps focus and measures the CD at the CD site for the nominal dose and ±5%.</p></div>
+      <div><h4>Resist and scoring</h4><p>Resist prints wherever dose × intensity exceeds 30% of the clear-field intensity. Edge placement error is measured at gauges spaced along every target edge, the way an OPC verification run does it. Stars use the worst gauge: ★ ≤ 25% of CD, ★★ ≤ 15%, ★★★ ≤ 10%, with no bridges, breaks or stray prints.</p></div>
+      <div><h4>What it leaves out</h4><p>Scalar, thin-mask optics on a 128 × 128 periodic grid: no polarization, no 3D mask shadowing (which matters for EUV), no flare, no resist blur or stochastics. Accurate enough to build intuition, not to tape out.</p></div>
+    </div>
+  </details>
+  <p class="foot"><span>k1 = CD · NA / λ. Every level is set on a 0.33 NA EUV scanner at 16 nm CD; switch scanners to see how the same pattern behaves.</span><a href="https://vijay007-glitch.github.io/posts/high-na-euv/" target="_top">Companion to the High-NA EUV post →</a></p>
+</div>
+
+<script>
+/*CORE*/
+</script>
+<script>
+/*APP*/
+</script>

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Light Painter | Vijay</title>
+<meta name="description" content="Paint a photomask on a 64 × 64 grid and watch the resist contour print through a partially coherent EUV or ArF imaging model. Six puzzles in optical proximity correction, plus a sandbox with a Bossung plot and depth-of-focus readout.">
+<meta name="author" content="Vijay">
+<link rel="canonical" href="https://vijay007-glitch.github.io/posts/light-painter/">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Light Painter">
+<meta property="og:description" content="Paint a photomask on a 64 × 64 grid and watch the resist contour print through a partially coherent EUV or ArF imaging model. Six puzzles in optical proximity correction, plus a sandbox with a Bossung plot and depth-of-focus readout.">
+<meta property="og:url" content="https://vijay007-glitch.github.io/posts/light-painter/">
+<meta property="og:image" content="https://vijay007-glitch.github.io/simulations/light-painter/thumb.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+<header class="site-head">
+<a class="brand" href="../../">Vijay</a>
+<nav aria-label="Site"><a href="../../">All posts</a></nav>
+</header>
+
+<main>
+<article>
+<header>
+<h1>Light Painter</h1>
+<p class="dek">Paint a photomask on a 64 × 64 grid and watch the resist contour print through a partially coherent EUV or ArF imaging model. Six puzzles in optical proximity correction, plus a sandbox with a Bossung plot and depth-of-focus readout.</p>
+<p class="meta">October 5, 2026, interactive simulator</p>
+</header>
+
+<div class="prose">
+<p>A projection lens is a low-pass filter. It cannot pass the fine spatial frequencies that a sharp corner or a short line end needs, so a mask drawn exactly like the design prints with rounded corners and pulled-back line ends. Optical proximity correction (OPC) is the inverse problem: draw the mask so that the printed shape comes out right. In this lab you do it by hand, one cell at a time, and the resist contour answers immediately.</p>
+<p>The imaging model is Abbe partially coherent imaging on a 128 × 128 periodic FFT grid, followed by a threshold resist that prints where dose × intensity exceeds 30% of the clear-field intensity. Defocus enters as a pupil phase, so the illumination shape, σ and focus behave the way they do in a scanner. The model is scalar and thin-mask: it has no polarization, 3D mask effects, flare or stochastics. It is a companion to the <a href="../high-na-euv/">High-NA EUV post</a>, which covers the Rayleigh equations behind the optics controls.</p>
+</div>
+
+<p class="lab-open"><a href="../../simulations/light-painter/">Open the simulator full screen</a>. On a phone, that works better than the embedded view below.</p>
+<div class="lab-embed">
+<iframe src="../../simulations/light-painter/" title="Light Painter: interactive photomask painting and optical proximity correction puzzle" loading="lazy"></iframe>
+</div>
+
+<div class="prose">
+<p>Things to try:</p>
+<ul>
+<li>Start on level 1. The 64 nm square prints with a worst edge error of 39.2% of the CD. Pick the 3-cell brush and click the cell just diagonally outside each corner. The error drops to 7.9% and earns three stars.</li>
+<li>Stars come from the worst edge-placement gauge: one star at 25% of the CD or better, two at 15%, three at 10%. Any bridge, break, missing feature or stray print scores zero.</li>
+<li>On level 4 the two tips face each other across a one-CD gap. Extending the tips closes the gap and bridges them. A one-cell bar along each side of each tip pushes them back without touching.</li>
+<li>Level 5 switches to annular light with the dose set for the dense lines, so the lone line prints thin. Assist bars beside it peak at an intensity of 0.294 against a print threshold of 0.310, close to printing but not over it.</li>
+<li>Levels 3, 4 and 6 have a par of two stars. A third star would need single-cell specks that a mask shop's mask-rule check would reject, so the game does not offer that route.</li>
+<li>Open Show solution on any level to see the reference mask, step through its edits, and paint it onto the reticle. Auto-OPC does a greedy cleanup for you. Stars are not recorded while either is in use, and your own stars are saved only in your browser.</li>
+<li>Change the scanner, NA, CD, illumination or σ and scoring pauses, so High-NA cannot trivially win a level. Switching scanner or NA keeps the physical CD and moves k<sub>1</sub>, which is limited to 0.10 to 1.00.</li>
+<li>Switch to Sandbox for dense lines, a contact array, a logic snippet or the letters LP. Set the mask as the target, pick a CD site, and read the Bossung plot, which shows CD through focus at ±5% dose, and its depth of focus.</li>
+</ul>
+<p>This is an educational model, not a production OPC tool. The equations, constants and simplifications are in the "How the model works" panel at the bottom of the lab.</p>
+</div>
+</article>
+</main>
+
+<footer class="site-foot">
+<p>Written by Vijay. Built with plain HTML, CSS, and JavaScript.</p>
+<p><a href="../../">Back to all posts</a></p>
+</footer>
+</body>
+</html>
